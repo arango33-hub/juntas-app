@@ -1,0 +1,1790 @@
+<!doctype html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mentor</title>
+<meta name="description" content="App personal para recordar a la gente de las empresas y juntas directivas.">
+<meta name="theme-color" content="#18202B">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mentor">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap">
+<style>
+/* =====================================================================
+   1. COLORES — único lugar donde se definen. Tema "Azul noche".
+   ===================================================================== */
+:root{
+  /* Superficies */
+  --fondo:#F4F5F7;            /* fondo de pantallas */
+  --tarjeta:#FFFFFF;          /* tarjetas y cabeceras */
+  --borde:#E1E4E9;            /* borde de tarjetas */
+  --borde-campo:#D3D8DF;      /* borde de campos y chips */
+  --borde-punteado:#B9C1CC;   /* tarjeta de empresa sin junta */
+  --linea:#EEF0F3;            /* separadores dentro de tarjetas */
+  --neutro-suave:#EEF0F3;     /* etiquetas neutras */
+  /* Texto */
+  --texto:#18202B;
+  --texto-2:#5A6472;
+  --punto:#9AA4B1;            /* puntos de la línea de tiempo */
+  /* Acento */
+  --acento:#1E5A86;
+  --acento-hover:#143F60;
+  --acento-suave:#E6EEF5;
+  --acento-texto:#143F60;     /* texto de chip seleccionado */
+  --boton:#1E5A86;
+  --boton-texto:#FFFFFF;
+  --filtro-activo:#18202B;
+  --filtro-activo-texto:#FFFFFF;
+  --yo-fondo:#18202B;         /* avatar "Yo" */
+  --yo-texto:#FFFFFF;
+  /* Pendientes y alertas (igual en todos los temas) */
+  --pend-texto:#A44A12;
+  --pend-fondo:#FBEFE6;
+  --pend-fuerte:#7A3509;
+  --peligro:#A3262A;
+  /* Pantalla de PIN y logo */
+  --pin-fondo:#18202B;
+  --pin-tecla:#26313F;
+  --pin-acento:#9CC3E0;
+  --pin-texto:#FFFFFF;
+  --pin-texto-2:#B8C2CF;
+  --pin-vacio:#5A6878;
+  --pin-error:#F2B48A;
+  --logo-fondo:#18202B;
+  --logo-estrella:#FFFFFF;
+  --logo-punto:#9CC3E0;
+  /* Paleta de 8 colores por empresa */
+  --emp-azul:#1E5A86;
+  --emp-verde:#2E6B4F;
+  --emp-vino:#7A2E3F;
+  --emp-turquesa:#1F6F78;
+  --emp-morado:#5B3F8C;
+  --emp-mostaza:#8A6D1E;
+  --emp-rosa:#8C3F62;
+  --emp-grafito:#4A5361;
+  /* Otros */
+  --velo:rgba(10,14,20,.45);
+  --sombra:0 10px 30px rgba(24,32,43,.18);
+  --mezcla-avatar:11%;        /* intensidad del color de empresa en avatares */
+  --f-titulo:'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --f-texto:'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --fondo:#0F141A;
+    --tarjeta:#18202B;
+    --borde:#2A3441;
+    --borde-campo:#3A4553;
+    --borde-punteado:#4A5563;
+    --linea:#232D39;
+    --neutro-suave:#252F3B;
+    --texto:#E8ECF1;
+    --texto-2:#9EAAB8;
+    --punto:#5E6B7A;
+    --acento:#7DB3DE;
+    --acento-hover:#A3CBEA;
+    --acento-suave:#1B2E40;
+    --acento-texto:#C4DDF1;
+    --boton:#2B6A99;
+    --boton-texto:#FFFFFF;
+    --filtro-activo:#E8ECF1;
+    --filtro-activo-texto:#0F141A;
+    --yo-fondo:#E8ECF1;
+    --yo-texto:#0F141A;
+    --pend-texto:#F2A56B;
+    --pend-fondo:#3A2416;
+    --pend-fuerte:#F6C29B;
+    --peligro:#F08A8D;
+    --velo:rgba(0,0,0,.6);
+    --sombra:0 10px 30px rgba(0,0,0,.5);
+    --mezcla-avatar:40%;
+  }
+}
+
+/* =====================================================================
+   2. BASE
+   ===================================================================== */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--fondo);color:var(--texto);font-family:var(--f-texto);font-size:16px;line-height:1.35;-webkit-tap-highlight-color:transparent;min-height:100dvh}
+a{color:var(--acento)}a:hover{color:var(--acento-hover)}
+button{font-family:inherit;cursor:pointer;color:inherit}
+input,textarea,select{font-family:inherit;color:var(--texto)}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid var(--acento);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg{flex-shrink:0}
+
+/* Estructura */
+.pagina{max-width:760px;margin:0 auto;position:relative}
+.con-nav{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+.con-accion{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+.banda{background:var(--tarjeta);border-bottom:1px solid var(--borde);padding-top:env(safe-area-inset-top)}
+.cabecera{max-width:760px;margin:0 auto;padding:20px 20px 24px;display:flex;flex-direction:column;gap:14px}
+.cab-fila{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.volver{display:inline-flex;align-items:center;gap:4px;min-height:44px;font-size:15px;text-decoration:none;color:var(--acento);background:none;border:0;padding:0;align-self:flex-start;text-align:left}
+.enlace-btn{min-height:44px;border:0;background:transparent;color:var(--acento);font-size:15px;font-weight:600;padding:0 4px;text-decoration:none;display:inline-flex;align-items:center}
+.serif{margin:0;font-family:var(--f-titulo);font-weight:600}
+.t30{font-size:30px}.t28{font-size:28px;line-height:1.15}.t26{font-size:26px}
+.sec{padding:24px 20px 0;display:flex;flex-direction:column;gap:12px}
+.sec.mas{padding-top:28px}
+.sec-titulo{margin:0;font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--texto-2)}
+.sec-fila{display:flex;justify-content:space-between;align-items:center}
+.tarjeta{background:var(--tarjeta);border:1px solid var(--borde);border-radius:16px}
+.col{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nom{font-weight:600;font-size:15px}
+.sub{font-size:13px;color:var(--texto-2)}
+.t2{color:var(--texto-2)}
+.vacio{margin:0;padding:16px;font-size:15px;line-height:1.5;color:var(--texto-2)}
+.parrafo{margin:0;padding:16px;font-size:15px;line-height:1.5;white-space:pre-line}
+
+/* Filas dentro de tarjetas */
+.fila{display:flex;align-items:center;gap:12px;padding:14px 16px;border-bottom:1px solid var(--linea);text-decoration:none;color:var(--texto);background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;font-size:inherit}
+.fila:last-child{border-bottom:0}
+.fila .chev{margin-left:auto}
+a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,var(--acento-suave) 45%,transparent)}
+.av{width:40px;height:40px;border-radius:50%;background:var(--acento-suave);color:var(--acento);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
+.av-emp{background:var(--acento-suave);background:color-mix(in srgb,var(--c) var(--mezcla-avatar),var(--tarjeta));color:var(--c)}
+@media (prefers-color-scheme: dark){.av-emp{color:#FFFFFF}}
+.av-yo{background:var(--yo-fondo);color:var(--yo-texto)}
+.area-tit{padding:12px 16px 4px;font-size:12px;font-weight:600;color:var(--texto-2);text-transform:uppercase;letter-spacing:.05em}
+.func{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;color:var(--texto)}
+.func.fin-grupo{padding-bottom:14px;border-bottom:1px solid var(--linea)}
+.func.fin-grupo:last-child{border-bottom:0;padding-bottom:16px}
+a.func:hover{color:var(--texto);background:color-mix(in srgb,var(--acento-suave) 45%,transparent)}
+
+/* Etiquetas */
+.pild{font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.pild-acento{color:var(--acento);background:var(--acento-suave)}
+.pild-neutra{color:var(--texto-2);background:var(--neutro-suave)}
+.etiquetas{display:flex;flex-wrap:wrap;gap:8px}
+.etq{font-size:13px;color:var(--texto);background:var(--neutro-suave);padding:6px 12px;border-radius:999px}
+.etq.fuerte{font-weight:600}
+.etq.acento{font-weight:600;color:var(--acento);background:var(--acento-suave)}
+
+/* Botones */
+.btn-icono{width:44px;height:44px;border-radius:12px;border:1px solid var(--borde);background:var(--tarjeta);display:flex;align-items:center;justify-content:center;color:var(--texto);text-decoration:none;padding:0}
+.btn-icono:hover{color:var(--texto)}
+.btn-pri,.btn-sec,.btn-peligro{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:16px;font-weight:600;font-size:16px;text-decoration:none;width:100%;padding:0 16px;border:0;text-align:center}
+.btn-pri{background:var(--boton);color:var(--boton-texto)}
+.btn-pri:hover{color:var(--boton-texto);filter:brightness(1.08)}
+.btn-sec{min-height:48px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--texto);font-weight:500;font-size:15px}
+.btn-peligro{min-height:48px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--peligro);font-size:15px}
+.btn-peligro.lleno{background:var(--peligro);color:#fff;border:0}
+.btn-pri[disabled]{opacity:.5;cursor:default}
+.accion-fija{position:fixed;left:0;right:0;bottom:0;z-index:20;pointer-events:none;padding:24px 20px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(to top,var(--fondo) 55%,transparent)}
+.accion-fija > *{pointer-events:auto;max-width:720px;margin:0 auto}
+.accion-fija .btn-pri{background:var(--c,var(--boton))}
+
+/* Franjas (pendientes, recordatorios) */
+.franja{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:var(--pend-fondo);border:0;text-align:left;width:100%;text-decoration:none;color:var(--pend-fuerte)}
+.franja:hover{color:var(--pend-fuerte)}
+.franja-t{font-weight:600;font-size:15px;color:var(--pend-fuerte)}
+.franja-s{font-size:13px;color:var(--pend-fuerte)}
+.franja.info{background:var(--acento-suave);color:var(--acento-texto)}
+.franja.info .franja-t,.franja.info .franja-s{color:var(--acento-texto)}
+
+/* Navegación inferior y botón + */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--tarjeta);border-top:1px solid var(--borde);padding-bottom:env(safe-area-inset-bottom)}
+.nav-in{max-width:760px;margin:0 auto;height:76px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.nav a,.nav button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;color:var(--texto-2);text-decoration:none;background:none;border:0;padding:0}
+.nav .act{font-weight:600;color:var(--acento)}
+.fab{position:fixed;z-index:31;right:max(20px,calc((100vw - 760px)/2 + 20px));bottom:calc(96px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:18px;background:var(--boton);color:var(--boton-texto);display:flex;align-items:center;justify-content:center;box-shadow:var(--sombra)}
+.fab:hover{color:var(--boton-texto)}
+
+/* =====================================================================
+   3. PANTALLA DE PIN (mockup 1)
+   ===================================================================== */
+#bloqueo{position:fixed;inset:0;z-index:100;background:var(--pin-fondo);color:var(--pin-texto);overflow:auto}
+.pin{min-height:100%;max-width:420px;margin:0 auto;display:flex;flex-direction:column;align-items:center;padding:calc(clamp(40px,11vh,96px) + env(safe-area-inset-top)) 32px calc(clamp(24px,6vh,48px) + env(safe-area-inset-bottom));gap:clamp(24px,4.7vh,40px)}
+.pin-cabeza{display:flex;flex-direction:column;align-items:center;gap:12px}
+.pin-logo{width:56px;height:56px;border-radius:16px;background:var(--pin-tecla);display:flex;align-items:center;justify-content:center}
+.pin-nombre{margin:0;font-family:var(--f-titulo);font-weight:600;font-size:30px}
+.pin-instr{margin:0;font-size:15px;color:var(--pin-texto-2);text-align:center;min-height:20px}
+.pin-instr.error{color:var(--pin-error)}
+.pin-puntos{display:flex;gap:18px}
+.pin-puntos div{width:14px;height:14px;border-radius:50%;border:2px solid var(--pin-vacio)}
+.pin-puntos div.lleno{background:var(--pin-acento);border:0}
+.pin-puntos.sacude{animation:sacude .35s}
+@keyframes sacude{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+.pin-teclado{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;width:100%;max-width:280px}
+.pin-tecla{height:64px;border-radius:32px;border:0;background:var(--pin-tecla);color:var(--pin-texto);font-size:24px}
+.pin-tecla:active{filter:brightness(1.35)}
+.pin-borrar{height:64px;border-radius:32px;border:0;background:transparent;color:var(--pin-texto-2);display:flex;align-items:center;justify-content:center}
+.pin-entrar{margin-top:auto;display:block;width:100%;max-width:280px;text-align:center;padding:16px;border-radius:14px;background:var(--pin-acento);color:#18202B;font-weight:600;font-size:16px;border:0}
+.pin-pie{margin:0;font-size:13px;color:var(--pin-texto-2);text-align:center}
+.pin-ligero{margin-top:-28px;min-height:44px;border:0;background:none;color:var(--pin-acento);font-size:14px;text-decoration:underline}
+
+/* =====================================================================
+   4. INICIO (mockup 2)
+   ===================================================================== */
+.ini-top{padding:calc(32px + env(safe-area-inset-top)) 20px 0;display:flex;flex-direction:column;gap:16px}
+.ini-botones{display:flex;gap:8px}
+.campo-busq{display:flex;flex-direction:column;gap:6px}
+.campo-busq label{font-size:13px;color:var(--texto-2)}
+.input{height:48px;width:100%;padding:0 16px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);font-size:16px}
+textarea.input{height:auto;min-height:120px;padding:12px 16px;line-height:1.5;resize:vertical}
+select.input{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--texto-2) 50%),linear-gradient(135deg,var(--texto-2) 50%,transparent 50%);background-position:calc(100% - 22px) 21px,calc(100% - 16px) 21px;background-size:6px 6px;background-repeat:no-repeat;padding-right:40px}
+.input[disabled]{opacity:1}
+.input[aria-invalid="true"]{border-color:var(--peligro)}
+.filtros{display:flex;gap:8px;flex-wrap:wrap}
+.filtro{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--texto);font-size:14px}
+.filtro.act{border:0;background:var(--filtro-activo);color:var(--filtro-activo-texto);font-weight:600;padding:0 15px}
+.emp-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.emp-card{display:flex;flex-direction:column;gap:10px;padding:16px;border-radius:16px;background:var(--tarjeta);border:1px solid var(--borde);text-decoration:none;color:var(--texto);cursor:pointer}
+.emp-card.punteada{border:1px dashed var(--borde-punteado)}
+.emp-card:hover{border-color:var(--borde-punteado)}
+.emp-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.emp-nom-fila{display:flex;align-items:center;gap:10px;min-width:0}
+.circulo{width:28px;height:28px;flex-shrink:0;border-radius:50%;border:0;padding:0}
+.circulo.sel{border:3px solid var(--texto)}
+.emp-nombre{font-weight:600;font-size:17px}
+.emp-linea{font-size:14px;color:var(--texto-2)}
+.emp-pie{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.pend{color:var(--pend-texto);font-weight:600}
+.res-titulo{margin-top:8px}
+@media (min-width:720px){.emp-grid{grid-template-columns:1fr 1fr}}
+
+/* =====================================================================
+   5. COMPAÑÍA Y PERSONA (mockups 3 y 4)
+   ===================================================================== */
+.emp-cab{display:flex;align-items:center;gap:14px}
+.emp-ini{width:52px;height:52px;flex-shrink:0;border-radius:14px;background:var(--c);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+.colores{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.colores > span{font-size:13px;color:var(--texto-2)}
+.detalle-rel{margin:0;font-size:14px;color:var(--texto-2)}
+.per-cab{display:flex;align-items:center;gap:16px}
+.per-cab .av{width:64px;height:64px;font-size:22px}
+.per-cab .col{gap:4px}
+.per-acciones{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.per-acc{min-height:56px;border-radius:12px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);font-size:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none}
+.per-acc:hover{color:var(--texto)}
+.per-acc[aria-disabled="true"]{opacity:.4;pointer-events:none}
+.datos{padding:4px 16px;display:flex;flex-direction:column}
+.dato{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--linea);font-size:14px}
+.dato:last-child{border-bottom:0}
+.dato > span:first-child{color:var(--texto-2);flex-shrink:0}
+.dato > span:last-child,.dato > a:last-child{text-align:right;overflow-wrap:anywhere}
+.punto-emp{width:10px;height:10px;border-radius:50%;background:var(--c);flex-shrink:0}
+
+/* Línea de tiempo */
+.tl{display:flex;flex-direction:column}
+.tl-item{display:flex;gap:14px;text-decoration:none;color:var(--texto);border-radius:10px}
+.tl-item:hover{color:var(--texto);background:color-mix(in srgb,var(--acento-suave) 40%,transparent)}
+.tl-eje{display:flex;flex-direction:column;align-items:center}
+.tl-punto{width:12px;height:12px;border-radius:50%;background:var(--punto);margin-top:4px;flex-shrink:0}
+.tl-linea{width:2px;flex:1;background:var(--borde-campo)}
+.tl-cuerpo{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tl-cuerpo.espacio{padding-bottom:20px}
+.tl-fecha{font-size:13px;font-weight:600;color:var(--texto-2)}
+.tl-texto{font-size:15px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+.tl-item.primera .tl-punto{background:var(--c,var(--acento))}
+.tl-item.primera .tl-fecha{color:var(--c,var(--acento))}
+@media (prefers-color-scheme: dark){.tl-item.primera .tl-fecha{color:var(--acento)}}
+
+/* =====================================================================
+   6. FORMULARIOS Y NOTA (mockups 6 y 7)
+   ===================================================================== */
+.form{max-width:640px;margin:0 auto;padding:calc(20px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:24px;min-height:100dvh}
+.form-cab{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.form-cab > :first-child{justify-self:start}
+.form-cab .tit{font-weight:600;font-size:16px;text-align:center}
+.form-cab .hueco{justify-self:end}
+.campo{display:flex;flex-direction:column;gap:6px}
+.campo > label,.leyenda{font-size:14px;font-weight:600;padding:0}
+.campo .opc{font-weight:400;color:var(--texto-2)}
+.ayuda{font-size:13px;color:var(--texto-2)}
+.dos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+fieldset{margin:0;padding:0;border:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
+.grupo-tit{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--texto-2)}
+.grupo-tit.sep{margin-top:6px}
+.opc2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.opc-btn{min-height:48px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--texto);font-size:15px}
+.opc-btn.sel{border:2px solid var(--acento);background:var(--acento-suave);color:var(--acento-texto);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--texto);font-size:14px}
+.chip.sel{border:2px solid var(--acento);background:var(--acento-suave);color:var(--acento-texto);font-weight:600;padding:0 13px}
+.chip.otro{border:1px dashed var(--punto);background:transparent;color:var(--acento);font-weight:600}
+.chip.peq{min-height:36px;font-size:13px}
+.atenuado{opacity:.45}
+.vista-previa{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:14px;background:var(--tarjeta);border:1px solid var(--borde)}
+.vista-previa .et{font-size:13px;color:var(--texto-2)}
+.vista-previa .n{font-weight:600;font-size:16px}
+.vista-previa .l{font-size:14px;color:var(--texto-2)}
+.guardar-final{margin-top:auto;display:flex;flex-direction:column;gap:12px}
+.sugerencias{display:flex;flex-direction:column}
+.aviso{padding:14px 16px;border-radius:14px;background:var(--acento-suave);color:var(--acento-texto);font-size:14px;line-height:1.45;display:flex;justify-content:space-between;gap:12px;align-items:center}
+.sobre{display:flex;flex-direction:column;gap:6px}
+.sobre > span{font-size:13px;color:var(--texto-2)}
+.chip-sobre{font-size:14px;color:var(--texto);background:var(--tarjeta);border:1px solid var(--borde-campo);padding:7px 14px;border-radius:999px;min-height:36px}
+.chip-sobre.sel{font-weight:600;color:#fff;background:var(--c,var(--boton));border:1px solid transparent}
+.caja-texto{flex:1;display:flex;flex-direction:column;gap:10px;padding:18px;background:var(--tarjeta);border:1px solid var(--borde);border-radius:16px;min-height:260px}
+.caja-texto label{font-size:13px;font-weight:600;color:var(--acento)}
+.caja-texto textarea{flex:1;border:0;outline:0;background:transparent;resize:none;font-size:17px;line-height:1.55;padding:0;min-height:200px}
+.nota-form{gap:20px}
+
+/* =====================================================================
+   7. HOJAS (diálogos), AVISOS Y AJUSTES
+   ===================================================================== */
+.velo{position:fixed;inset:0;z-index:200;background:var(--velo);display:flex;align-items:flex-end;justify-content:center}
+.hoja{background:var(--tarjeta);color:var(--texto);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:24px 20px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px;max-height:90dvh;overflow:auto;box-shadow:var(--sombra)}
+@media (min-width:720px){.velo{align-items:center}.hoja{border-radius:20px}}
+.hoja-titulo{margin:0;font-family:var(--f-titulo);font-weight:600;font-size:22px}
+.hoja-texto{margin:0;font-size:15px;line-height:1.5;color:var(--texto-2);white-space:pre-line}
+.hoja-botones{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hoja-botones .btn-pri,.hoja-botones .btn-peligro{min-height:48px;border-radius:12px}
+.hoja-form{display:flex;flex-direction:column;gap:16px}
+.hoja-error{margin:0;color:var(--peligro);font-size:14px;min-height:0}
+.paleta{display:flex;flex-wrap:wrap;gap:14px}
+.paleta .circulo{width:44px;height:44px}
+#aviso{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translate(-50%,20px);z-index:300;background:var(--texto);color:var(--fondo);padding:12px 18px;border-radius:12px;font-size:14px;max-width:calc(100% - 40px);opacity:0;pointer-events:none;transition:.25s;box-shadow:var(--sombra);text-align:center}
+#aviso.ver{opacity:1;transform:translate(-50%,0)}
+.ajuste{display:flex;flex-direction:column;gap:10px;padding:16px}
+.ajuste + .ajuste{border-top:1px solid var(--linea)}
+.ajuste p{margin:0;font-size:14px;color:var(--texto-2);line-height:1.45}
+.ajuste .dos{gap:8px}
+.cifras{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.cifra{padding:14px 16px;border-bottom:1px solid var(--linea);display:flex;flex-direction:column;gap:2px}
+.cifra b{font-size:22px;font-family:var(--f-titulo)}
+.cifra span{font-size:13px;color:var(--texto-2)}
+.dup{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-bottom:1px solid var(--linea)}
+.dup:last-child{border-bottom:0}
+</style>
+</head>
+<body>
+<div id="app" hidden></div>
+<div id="bloqueo"></div>
+<div id="aviso" role="status" aria-live="polite"></div>
+<input type="file" id="archivo-respaldo" accept=".json,application/json" hidden>
+<input type="file" id="archivo-csv" accept=".csv,text/csv,text/plain" hidden>
+
+<script>
+'use strict';
+/* =====================================================================
+   NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
+   (La base de datos y la caché usan nombres internos que no cambian.)
+   ===================================================================== */
+const APP = { nombre: 'Mentor', version: '1.0 · fase 1' };
+
+/* Internos: NO cambiar, los datos del celular dependen de ellos */
+const DB_NOMBRE = 'junta-app';
+const DB_VERSION = 1;
+const TABLAS = ['empresas','personas','cargos','reuniones','compromisos','notas','tiposVinculo'];
+const PIN_ITER = 200000, RESPALDO_ITER = 250000;
+const BLOQUEO_MIN = 5;
+
+const PALETA = [
+  {k:'azul',n:'Azul'},{k:'verde',n:'Verde'},{k:'vino',n:'Vino'},{k:'turquesa',n:'Turquesa'},
+  {k:'morado',n:'Morado'},{k:'mostaza',n:'Mostaza'},{k:'rosa',n:'Rosa viejo'},{k:'grafito',n:'Grafito'}
+];
+const TIPOS_BASE = [
+  {id:'presidente',nombre:'Presidente',grupo:'junta',tarjeta:'Presidente de junta'},
+  {id:'miembro-principal',nombre:'Miembro principal',grupo:'junta'},
+  {id:'suplente',nombre:'Suplente',grupo:'junta',tarjeta:'Miembro suplente'},
+  {id:'miembro-comite',nombre:'Miembro de comité',grupo:'junta'},
+  {id:'accionista-sin-silla',nombre:'Accionista sin silla',grupo:'sinjunta'},
+  {id:'exmiembro',nombre:'Exmiembro de junta',grupo:'sinjunta'},
+  {id:'relacion-comercial',nombre:'Relación comercial',grupo:'sinjunta'},
+  {id:'asesor',nombre:'Asesor o consultor',grupo:'sinjunta'},
+  {id:'relacion-personal',nombre:'Relación personal',grupo:'sinjunta'},
+  {id:'prospecto',nombre:'Prospecto de inversión',grupo:'sinjunta',chip:'Prospecto'}
+].map((t,i)=>({...t,propio:false,orden:i}));
+const AREAS_BASE = ['Gerencia','Finanzas','Operaciones','Comercial','Jurídica','Talento humano','Tecnología','Mercadeo','Auditoría'];
+const ROLES_JUNTA = ['Presidente de junta','Miembro principal','Miembro suplente','Miembro independiente','Miembro de comité','Secretario de junta'];
+const OCASIONES = ['Junta','Reunión','Almuerzo','Llamada','Evento'];
+const MESES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const MESES_L = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+/* ---------- Íconos (trazo simple, del mockup) ---------- */
+const svg = (d, w=22, sw=1.8) => `<svg aria-hidden="true" width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const I = {
+  descargar: svg('<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',20),
+  ajustes: svg('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',20),
+  atras: svg('<path d="M15 5l-7 7 7 7"/>',20,2),
+  chev: `<svg class="chev" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--texto-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`,
+  mas: svg('<path d="M12 5v14M5 12h14"/>',24,2),
+  casa: svg('<path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/>'),
+  gente: svg('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.6-1.6-4.8-4-5.6"/>'),
+  pendiente: svg('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>'),
+  candado: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  retroceso: svg('<path d="M21 5H9l-6 7 6 7h12z"/><path d="M17 10l-4 4M13 10l4 4"/>',26),
+  tel: svg('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>',20),
+  correo: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',20),
+  mensaje: svg('<path d="M4 20l1.5-4A8 8 0 1 1 9 19z"/>',20),
+  mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
+  alerta: `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--pend-texto)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>`,
+  pendNaranja: `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--pend-texto)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg>`,
+  info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>')
+};
+const estrella = (w=30) => `<svg aria-hidden="true" width="${w}" height="${w}" viewBox="0 0 120 120"><path d="M60 22 L67.5 52.5 L98 60 L67.5 67.5 L60 98 L52.5 67.5 L22 60 L52.5 52.5 Z" fill="var(--logo-estrella)"/></svg>`;
+
+/* ---------- Utilidades ---------- */
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const norm = s => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2,10));
+const ahora = () => new Date().toISOString();
+const iso = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const hoyISO = () => iso(new Date());
+const plural = (n, s, p) => `${n} ${n===1 ? s : (p || s+'s')}`;
+const soloDigitos = s => String(s||'').replace(/\D/g,'');
+function partesFecha(f){ const [y,m,d] = String(f).slice(0,10).split('-').map(Number); return {y,m,d}; }
+function fechaCorta(f){ if(!f) return ''; const {y,m,d}=partesFecha(f); return `${d} ${MESES[m-1]}${y!==new Date().getFullYear()?' '+y:''}`; }
+function fechaMedia(f){ if(!f) return ''; const {y,m,d}=partesFecha(f); return `${d} ${MESES[m-1]} ${y}`; }
+function fechaLarga(f){ if(!f) return ''; const {y,m,d}=partesFecha(f); return `${d} de ${MESES_L[m-1]} de ${y}`; }
+function mesAnio(f){ if(!f) return ''; const {y,m}=partesFecha(f); return `${MESES[m-1]} ${y}`; }
+const PALABRAS_VACIAS = new Set(['de','del','la','las','los','el','y','e','s.a.s.','s.a.s','sas','s.a.','s.a','sa','ltda','ltda.','&']);
+function iniciales(n){
+  const p = String(n||'').trim().split(/\s+/).filter(w => w && !PALABRAS_VACIAS.has(w.toLowerCase()));
+  return ((p[0]?.[0]||'') + (p[1]?.[0]||'')).toUpperCase() || '?';
+}
+const slug = s => norm(s).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+const cv = k => `var(--emp-${PALETA.some(p=>p.k===k) ? k : 'grafito'})`;
+const fmtPct = p => `${String(Math.round(p*100)/100).replace('.',',')} %`;
+const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const esInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const esMovil = () => matchMedia('(pointer: coarse)').matches;
+
+/* =====================================================================
+   BASE DE DATOS (IndexedDB) — copia en memoria + escritura inmediata
+   ===================================================================== */
+let db;
+const S = {empresas:[],personas:[],cargos:[],reuniones:[],compromisos:[],notas:[],tiposVinculo:[],cfg:{}};
+
+function abrirDB(){
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NOMBRE, DB_VERSION);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      const crear = (n, idx=[]) => {
+        if (d.objectStoreNames.contains(n)) return;
+        const s = d.createObjectStore(n, {keyPath: n==='ajustes' ? 'clave' : 'id'});
+        idx.forEach(i => s.createIndex(i, i));
+      };
+      crear('empresas'); crear('personas');
+      crear('cargos', ['personaId','empresaId']);
+      crear('reuniones', ['empresaId']);
+      crear('compromisos', ['reunionId']);
+      crear('notas', ['refId']);
+      crear('tiposVinculo'); crear('ajustes');
+    };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+const pReq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const pTx = t => new Promise((res, rej) => { t.oncomplete = () => res(); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+const leerTodo = n => pReq(db.transaction(n).objectStore(n).getAll());
+
+async function cargarTodo(){
+  for (const n of TABLAS) S[n] = await leerTodo(n);
+  const aj = await leerTodo('ajustes');
+  S.cfg = Object.fromEntries(aj.map(a => [a.clave, a.valor]));
+}
+/* Escribe varios cambios en una sola transacción y actualiza la copia en memoria */
+async function lote({poner={}, quitar={}, vaciar=[]}){
+  const nombres = [...new Set([...Object.keys(poner), ...Object.keys(quitar), ...vaciar])];
+  if (!nombres.length) return;
+  const t = db.transaction(nombres, 'readwrite');
+  vaciar.forEach(n => t.objectStore(n).clear());
+  for (const [n, objs] of Object.entries(poner)) objs.forEach(o => t.objectStore(n).put(o));
+  for (const [n, ids] of Object.entries(quitar)) ids.forEach(id => t.objectStore(n).delete(id));
+  await pTx(t);
+  vaciar.forEach(n => { if (n==='ajustes') S.cfg = {}; else S[n] = []; });
+  for (const [n, objs] of Object.entries(poner)) objs.forEach(o => {
+    if (n==='ajustes') { S.cfg[o.clave] = o.valor; return; }
+    const i = S[n].findIndex(x => x.id===o.id); if (i>=0) S[n][i] = o; else S[n].push(o);
+  });
+  for (const [n, ids] of Object.entries(quitar)) {
+    if (n==='ajustes') ids.forEach(k => delete S.cfg[k]);
+    else { const s = new Set(ids); S[n] = S[n].filter(x => !s.has(x.id)); }
+  }
+}
+const guardar = (n, o) => lote({poner:{[n]:[o]}}).then(() => o);
+const setAjuste = (clave, valor) => lote({poner:{ajustes:[{clave, valor}]}});
+async function asegurarTiposBase(){
+  const faltan = TIPOS_BASE.filter(t => !S.tiposVinculo.some(x => x.id===t.id));
+  if (faltan.length) await lote({poner:{tiposVinculo:faltan}});
+}
+
+/* ---------- Consultas ---------- */
+const porCreada = (a,b) => String(a.creada||'').localeCompare(String(b.creada||''));
+const empresa = id => S.empresas.find(x => x.id===id);
+const persona = id => S.personas.find(x => x.id===id);
+const nota = id => S.notas.find(x => x.id===id);
+const cargo = id => S.cargos.find(x => x.id===id);
+const tipo = id => S.tiposVinculo.find(x => x.id===id) || {id:null, nombre:'Vínculo sin definir', grupo:'sinjunta'};
+const tipoTarjeta = t => t.tarjeta || t.nombre;
+const esJunta = e => tipo(e.vinculoId).grupo === 'junta';
+const vigente = c => !c.fin || c.fin > hoyISO();
+const cargosEmpresa = id => S.cargos.filter(c => c.empresaId===id).sort(porCreada);
+const cargosPersona = id => S.cargos.filter(c => c.personaId===id).sort(porCreada);
+const empresasActivas = () => S.empresas.filter(e => !e.archivada).sort(porCreada);
+const tiposDeGrupo = g => S.tiposVinculo.filter(t => t.grupo===g).sort((a,b) => (a.propio-b.propio) || ((a.orden??99)-(b.orden??99)) || a.nombre.localeCompare(b.nombre));
+function nombreReporta(c){
+  if (c.reportaA) { const p = persona(c.reportaA); if (p) return p.nombre; }
+  return c.reportaATexto || '';
+}
+function resolverReporta(texto, empresaId, excluirId){
+  const n = norm(texto);
+  if (!n) return {reportaA:null, reportaATexto:''};
+  const ids = new Set(cargosEmpresa(empresaId).map(c => c.personaId));
+  const p = S.personas.find(p => ids.has(p.id) && p.id!==excluirId && norm(p.nombre)===n)
+         || S.personas.find(p => p.id!==excluirId && norm(p.nombre)===n);
+  return {reportaA: p ? p.id : null, reportaATexto: texto.trim()};
+}
+function conteos(e){
+  const vig = cargosEmpresa(e.id).filter(vigente);
+  const junta = new Set(vig.filter(c => c.rolJunta).map(c => c.personaId));
+  const func = new Set(vig.filter(c => !c.rolJunta).map(c => c.personaId));
+  return {nJunta: junta.size + (esJunta(e) ? 1 : 0), nFunc: func.size, hay: junta.size + func.size};
+}
+function ultimoContacto(e){
+  const ids = new Set(cargosEmpresa(e.id).map(c => c.personaId));
+  let max = '';
+  for (const n of S.notas) if ((n.refTipo==='empresa' && n.refId===e.id) || (n.refTipo==='persona' && ids.has(n.refId))) if (n.fecha > max) max = n.fecha;
+  for (const r of S.reuniones) if (r.empresaId===e.id && r.fecha <= hoyISO() && r.fecha > max) max = r.fecha;
+  return max;
+}
+function pendientesEmpresa(id){
+  const rs = new Set(S.reuniones.filter(r => r.empresaId===id).map(r => r.id));
+  return S.compromisos.filter(c => !c.cumplido && rs.has(c.reunionId)).length;
+}
+const ordenNotas = (a,b) => (b.fecha||'').localeCompare(a.fecha||'') || String(b.creada||'').localeCompare(String(a.creada||''));
+function siguienteColor(){
+  const i = +S.cfg.colorSiguiente || 0;
+  return {color: PALETA[i % PALETA.length].k, siguiente: i + 1};
+}
+
+/* =====================================================================
+   CIFRADO (PIN y respaldos) — Web Crypto del navegador
+   ===================================================================== */
+const enc = new TextEncoder(), dec = new TextDecoder();
+function b64(bytes){ let s=''; const t=0x8000; for (let i=0;i<bytes.length;i+=t) s += String.fromCharCode.apply(null, bytes.subarray(i,i+t)); return btoa(s); }
+function deb64(s){ const b = atob(s); const u = new Uint8Array(b.length); for (let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+async function hashPin(pin, salB64, iter=PIN_ITER){
+  const sal = salB64 ? deb64(salB64) : crypto.getRandomValues(new Uint8Array(16));
+  const base = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt:sal, iterations:iter, hash:'SHA-256'}, base, 256);
+  return {hash: b64(new Uint8Array(bits)), sal: b64(sal), iter};
+}
+async function verificarPin(pin){
+  const g = S.cfg.pin; if (!g) return false;
+  const h = await hashPin(pin, g.sal, g.iter);
+  return h.hash === g.hash;
+}
+async function claveAES(pass, sal, iter){
+  const base = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2', salt:sal, iterations:iter, hash:'SHA-256'}, base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+}
+
+/* =====================================================================
+   INTERFAZ GENERAL: avisos, hojas, navegación
+   ===================================================================== */
+const app = $('#app'), bloqueo = $('#bloqueo');
+let bloqueada = true;
+
+function aviso(t){
+  const el = $('#aviso'); el.textContent = t; el.classList.add('ver');
+  clearTimeout(aviso.t); aviso.t = setTimeout(() => el.classList.remove('ver'), 3400);
+}
+let HOJA = null;
+function abrirHoja(html, alCerrar){
+  cerrarHoja();
+  const v = document.createElement('div');
+  v.className = 'velo';
+  v.innerHTML = `<div class="hoja" role="dialog" aria-modal="true">${html}</div>`;
+  v.addEventListener('click', e => { if (e.target===v) cerrarHoja(); });
+  document.body.appendChild(v);
+  HOJA = {v, alCerrar};
+  const f = v.querySelector('[autofocus]'); if (f) setTimeout(() => f.focus(), 60);
+  return v;
+}
+function cerrarHoja(valor){
+  if (!HOJA) return;
+  const h = HOJA; HOJA = null; h.v.remove();
+  if (h.alCerrar) h.alCerrar(valor);
+}
+function confirmar(texto, {titulo='', si='Aceptar', no='Cancelar', peligro=false}={}){
+  return new Promise(res => {
+    const v = abrirHoja(`${titulo ? `<h2 class="hoja-titulo">${esc(titulo)}</h2>` : ''}<p class="hoja-texto">${esc(texto)}</p>
+      <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">${esc(no)}</button><button type="button" class="${peligro ? 'btn-peligro lleno' : 'btn-pri'}" data-r="1">${esc(si)}</button></div>`, v => res(v===true));
+    $$('[data-r]', v).forEach(b => b.addEventListener('click', () => cerrarHoja(b.dataset.r==='1')));
+  });
+}
+function mensaje(texto, titulo=''){
+  return new Promise(res => {
+    const v = abrirHoja(`${titulo ? `<h2 class="hoja-titulo">${esc(titulo)}</h2>` : ''}<p class="hoja-texto">${esc(texto)}</p><button type="button" class="btn-pri" data-r="1">Entendido</button>`, () => res());
+    $('[data-r]', v).addEventListener('click', () => cerrarHoja());
+  });
+}
+function pedirClave({titulo, texto, doble=false}){
+  return new Promise(res => {
+    const v = abrirHoja(`<h2 class="hoja-titulo">${esc(titulo)}</h2><p class="hoja-texto">${esc(texto)}</p>
+      <form class="hoja-form" novalidate>
+        <div class="campo"><label for="clave1">Contraseña</label><input class="input" id="clave1" type="password" autocomplete="${doble?'new-password':'current-password'}" autofocus></div>
+        ${doble ? `<div class="campo"><label for="clave2">Repita la contraseña</label><input class="input" id="clave2" type="password" autocomplete="new-password"></div>` : ''}
+        <p class="hoja-error" id="clave-err"></p>
+        <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Continuar</button></div>
+      </form>`, val => res(typeof val==='string' ? val : null));
+    $('[data-r]', v).addEventListener('click', () => cerrarHoja(null));
+    $('form', v).addEventListener('submit', e => {
+      e.preventDefault();
+      const a = $('#clave1', v).value, err = $('#clave-err', v);
+      if (doble) {
+        if (a.length < 6) { err.textContent = 'Use al menos 6 caracteres.'; return; }
+        if (a !== $('#clave2', v).value) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+      } else if (!a) { err.textContent = 'Escriba la contraseña.'; return; }
+      cerrarHoja(a);
+    });
+  });
+}
+
+/* Navegación con rutas internas (#/...) */
+let profundidad = 0, rutaActual = '', SCROLL = {};
+function ir(h){
+  if (!h.startsWith('#')) h = '#' + h;
+  if (location.hash === h) { render(); return; }
+  profundidad++; location.hash = h;
+}
+function reemplazar(h){ location.replace(h.startsWith('#') ? h : '#' + h); }
+function volver(alterna='#/inicio'){
+  if (profundidad > 0) { profundidad--; history.back(); }
+  else reemplazar(alterna);
+}
+function ruta(){
+  const h = location.hash.slice(1) || '/inicio';
+  const [path, qs] = h.split('?');
+  return {partes: path.split('/').filter(Boolean), q: Object.fromEntries(new URLSearchParams(qs || ''))};
+}
+function pintar(html){ app.innerHTML = html; }
+function linkVolver(texto, alterna){ return `<button type="button" class="volver" data-action="volver" data-a="${esc(alterna)}">${I.atras}${esc(texto)}</button>`; }
+function nav(activa){
+  const it = (k, href, icono, txt) => `<a href="${href}" class="${activa===k?'act':''}" ${activa===k?'aria-current="page"':''}>${icono}${txt}</a>`;
+  return `<nav class="nav" aria-label="Navegación principal"><div class="nav-in">
+    ${it('inicio','#/inicio',I.casa,'Juntas')}${it('personas','#/personas',I.gente,'Personas')}${it('pendientes','#/pendientes',I.pendiente,'Pendientes')}
+    <button type="button" data-action="bloquear">${I.candado}Bloquear</button></div></nav>`;
+}
+const fab = (href, etiqueta) => `<a class="fab" href="${href}" aria-label="${esc(etiqueta)}">${I.mas}</a>`;
+
+/* =====================================================================
+   PIN (mockup 1)
+   ===================================================================== */
+const P = {modo:'entrar', dig:'', primero:'', fallos:0, espera:0, ocupado:false, error:'', cambiando:false, mostrarOlvido:false};
+const TXT_PIN = {crear:'Cree un PIN de 4 dígitos', confirmar:'Confirme su PIN', entrar:'Ingrese su PIN', actual:'Ingrese su PIN actual'};
+
+function bloquear({modo, cambiando=false}={}){
+  bloqueada = true; cerrarHoja();
+  app.hidden = true; app.innerHTML = '';
+  Object.assign(P, {modo: modo || (S.cfg.pin ? 'entrar' : 'crear'), dig:'', primero:'', error:'', cambiando, ocupado:false});
+  bloqueo.hidden = false;
+  bloqueo.innerHTML = `<div class="pin">
+    <div class="pin-cabeza"><div class="pin-logo">${estrella(30)}</div><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr" id="pin-instr"></p></div>
+    <div class="pin-puntos" id="pin-puntos" role="img"></div>
+    <div class="pin-teclado">
+      ${[1,2,3,4,5,6,7,8,9].map(n => `<button type="button" class="pin-tecla" data-action="pin-num" data-n="${n}">${n}</button>`).join('')}
+      <div></div><button type="button" class="pin-tecla" data-action="pin-num" data-n="0">0</button>
+      <button type="button" class="pin-borrar" data-action="pin-borrar" aria-label="Borrar">${I.retroceso}</button>
+    </div>
+    <button type="button" class="pin-entrar" id="pin-entrar" data-action="pin-entrar"></button>
+    <p class="pin-pie">Sus datos viven solo en este ${esMovil() ? 'celular' : 'dispositivo'}</p>
+    <button type="button" class="pin-ligero" id="pin-ligero" hidden></button>
+  </div>`;
+  pinPintar();
+}
+function pinPintar(){
+  const instr = $('#pin-instr'); if (!instr) return;
+  const espera = Date.now() < P.espera;
+  instr.textContent = espera ? 'Demasiados intentos. Espere 30 segundos.' : (P.error || TXT_PIN[P.modo]);
+  instr.classList.toggle('error', !!P.error || espera);
+  const pts = $('#pin-puntos');
+  pts.innerHTML = [0,1,2,3].map(i => `<div class="${i < P.dig.length ? 'lleno' : ''}"></div>`).join('');
+  pts.setAttribute('aria-label', `${P.dig.length} de 4 dígitos ingresados`);
+  $('#pin-entrar').textContent = (P.modo==='crear' || P.modo==='actual') ? 'Continuar' : (P.modo==='confirmar' ? 'Guardar PIN' : 'Entrar');
+  const lig = $('#pin-ligero');
+  if (P.cambiando) { lig.hidden = false; lig.textContent = 'Cancelar'; lig.dataset.action = 'pin-cancelar'; }
+  else if (P.modo==='entrar' && P.mostrarOlvido) { lig.hidden = false; lig.textContent = '¿Olvidó su PIN?'; lig.dataset.action = 'pin-olvido'; }
+  else lig.hidden = true;
+}
+function pinTecla(n){
+  if (P.ocupado || P.dig.length >= 4 || Date.now() < P.espera) return;
+  P.dig += n; P.error = ''; pinPintar();
+  if (P.dig.length === 4) setTimeout(pinEnviar, 140);
+}
+function pinBorrar(){ if (P.ocupado) return; P.dig = P.dig.slice(0,-1); pinPintar(); }
+function pinError(msg){
+  P.error = msg; P.dig = '';
+  const pts = $('#pin-puntos'); if (pts) { pts.classList.remove('sacude'); void pts.offsetWidth; pts.classList.add('sacude'); }
+  if (navigator.vibrate) navigator.vibrate(120);
+}
+async function pinEnviar(){
+  if (P.ocupado || Date.now() < P.espera) return;
+  if (P.dig.length < 4) { P.error = 'Ingrese los 4 dígitos'; pinPintar(); return; }
+  P.ocupado = true;
+  try {
+    if (P.modo === 'crear') { P.primero = P.dig; P.dig = ''; P.modo = 'confirmar'; }
+    else if (P.modo === 'confirmar') {
+      if (P.dig !== P.primero) { P.modo = 'crear'; P.primero = ''; pinError('Los PIN no coinciden. Empiece de nuevo.'); }
+      else {
+        await setAjuste('pin', await hashPin(P.dig));
+        const cambio = P.cambiando; P.dig = ''; P.ocupado = false;
+        desbloquear(); aviso(cambio ? 'PIN actualizado' : 'PIN creado. Lo pediremos cada vez que entre.');
+        return;
+      }
+    } else {
+      const ok = await verificarPin(P.dig);
+      if (ok) {
+        P.fallos = 0; P.dig = '';
+        if (P.modo === 'actual') P.modo = 'crear';
+        else { P.ocupado = false; desbloquear(); return; }
+      } else {
+        P.fallos++; P.mostrarOlvido = true;
+        if (P.fallos >= 5) { P.fallos = 0; P.espera = Date.now() + 30000; P.dig = ''; setTimeout(pinPintar, 30100); }
+        else pinError('PIN incorrecto. Intente de nuevo.');
+      }
+    }
+  } finally { P.ocupado = false; pinPintar(); }
+}
+function desbloquear(){
+  bloqueada = false; bloqueo.hidden = true; bloqueo.innerHTML = '';
+  app.hidden = false; P.cambiando = false;
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  render();
+}
+async function olvidoPin(){
+  const v = abrirHoja(`<h2 class="hoja-titulo">¿Olvidó su PIN?</h2>
+    <p class="hoja-texto">Por seguridad, el PIN no se puede recuperar. La única salida es borrar todos los datos de este dispositivo y empezar de nuevo; después puede importar su último respaldo.\n\nPara confirmar, escriba BORRAR.</p>
+    <input class="input" id="conf-borrar" autocomplete="off" autocapitalize="characters" autofocus>
+    <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="button" class="btn-peligro lleno" data-r="1">Borrar todo</button></div>`);
+  $('[data-r="0"]', v).addEventListener('click', () => cerrarHoja());
+  $('[data-r="1"]', v).addEventListener('click', async () => {
+    if ($('#conf-borrar', v).value.trim().toUpperCase() !== 'BORRAR') { $('#conf-borrar', v).setAttribute('aria-invalid','true'); return; }
+    await lote({vaciar:[...TABLAS, 'ajustes']});
+    cerrarHoja(); location.reload();
+  });
+}
+
+/* =====================================================================
+   PANTALLAS
+   ===================================================================== */
+let FILTRO = 'todas', BUSQUEDA = '', BUSQ_PERSONAS = '';
+let FE = null, FP = null, FC = null, FN = null, IMPORT = null;
+
+const VISTAS = {
+  inicio: vistaInicio, empresa: vistaEmpresa, persona: vistaPersona, nota: vistaNota,
+  'empresa-form': vistaEmpresaForm, 'persona-form': vistaPersonaForm, cargo: vistaCargo,
+  personas: vistaPersonas, pendientes: vistaPendientes, ajustes: vistaAjustes, importar: vistaImportar
+};
+function render(){
+  if (bloqueada) return;
+  cerrarHoja();
+  SCROLL[rutaActual] = window.scrollY;
+  const {partes, q} = ruta();
+  const r = VISTAS[partes[0]] ? partes[0] : 'inicio';
+  if (r !== 'empresa-form') FE = null;
+  if (r !== 'persona-form') FP = null;
+  if (r !== 'cargo') FC = null;
+  if (r !== 'nota') FN = null;
+  VISTAS[r](partes[1], q);
+  document.title = APP.nombre;
+  rutaActual = location.hash;
+  const y = SCROLL[rutaActual] || 0;
+  window.scrollTo(0, ['inicio','personas','empresa','persona'].includes(r) ? y : 0);
+}
+function noEncontrado(){
+  pintar(`<div class="pagina"><div class="sec"><p class="tarjeta vacio">No se encontró lo que buscaba; puede haber sido borrado.</p><a class="btn-sec" href="#/inicio">Ir a Mis juntas</a></div></div>`);
+}
+
+/* ---------- 2 · Inicio ---------- */
+function franjaPendientes(){
+  const n = S.compromisos.filter(c => !c.cumplido).length;
+  if (!n) return '';
+  return `<a class="franja" href="#/pendientes">${I.pendNaranja}<span class="col"><span class="franja-t">${plural(n,'compromiso abierto','compromisos abiertos')}</span><span class="franja-s">De las últimas reuniones de junta</span></span></a>`;
+}
+function franjaRespaldo(){
+  if (!S.empresas.length && !S.personas.length) return '';
+  const dias = +S.cfg.recordatorioDias || 15;
+  const ult = S.cfg.ultimoRespaldo;
+  const hace = ult ? Math.floor((Date.now() - new Date(ult)) / 86400000) : null;
+  if (hace !== null && hace < dias) return '';
+  return `<button type="button" class="franja" data-action="exportar">${I.alerta}<span class="col"><span class="franja-t">${hace===null ? 'Aún no ha exportado un respaldo' : `Hace ${plural(hace,'día')} no exporta un respaldo`}</span><span class="franja-s">Toque aquí para exportarlo y guardarlo en Drive</span></span></button>`;
+}
+function franjaIOS(){
+  if (!esIOS() || esInstalada()) return '';
+  return `<div class="franja info">${I.info}<span class="col"><span class="franja-t">Abra ${esc(APP.nombre)} desde la pantalla de inicio</span><span class="franja-s">En Safari: Compartir → “Agregar a pantalla de inicio”. Así los datos se conservan de forma estable.</span></span></div>`;
+}
+function pildoraPart(e){
+  return e.participacion != null
+    ? `<span class="pild pild-acento">${fmtPct(e.participacion)}</span>`
+    : `<span class="pild pild-neutra">Sin participación</span>`;
+}
+function tarjetaEmpresa(e){
+  const t = tipo(e.vinculoId), junta = esJunta(e), {nJunta, nFunc, hay} = conteos(e);
+  let linea = tipoTarjeta(t);
+  if (junta) linea += hay ? ` · ${plural(nJunta,'persona')} · ${plural(nFunc,'funcionario')}` : ' · sin personas registradas';
+  else linea += hay ? ` · ${plural(nFunc,'funcionario')}` : ' · sin personas registradas';
+  const ult = ultimoContacto(e), pend = pendientesEmpresa(e.id);
+  return `<div class="emp-card${junta ? '' : ' punteada'}" data-go="#/empresa/${e.id}" role="link" tabindex="0" aria-label="${esc(e.nombre)}">
+    <div class="emp-top"><span class="emp-nom-fila"><button type="button" class="circulo" style="background:${cv(e.color)}" data-action="color" data-id="${e.id}" aria-label="Cambiar color de ${esc(e.nombre)}"></button><span class="emp-nombre">${esc(e.nombre)}</span></span>${pildoraPart(e)}</div>
+    <span class="emp-linea">${esc(linea)}</span>
+    <div class="emp-pie"><span>${ult ? 'Último contacto: ' + fechaCorta(ult) : '<span class="t2">Sin contacto registrado</span>'}</span>${pend ? `<span class="pend">${plural(pend,'pendiente')}</span>` : '<span class="t2">Sin pendientes</span>'}</div>
+  </div>`;
+}
+function filaPersonaBusq(p, c){
+  const e = c && empresa(c.empresaId);
+  const sub = c ? [c.cargo || c.rolJunta, c.area, e && e.nombre].filter(Boolean).join(' · ') : 'Sin cargo registrado';
+  return `<a class="fila" href="#/persona/${p.id}${e ? '?e=' + e.id : ''}" style="--c:${e ? cv(e.color) : 'var(--acento)'}">
+    <div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
+    <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(sub)}</span></span>${I.chev}</a>`;
+}
+function vistaInicio(){
+  const act = empresasActivas(), nJ = act.filter(esJunta).length;
+  const f = (k, txt, n) => `<button type="button" class="filtro${FILTRO===k ? ' act' : ''}" data-action="filtro" data-f="${k}" aria-pressed="${FILTRO===k}">${txt} · ${n}</button>`;
+  pintar(`<div class="pagina con-nav">
+    <div class="ini-top">
+      <div class="cab-fila"><h1 class="serif t30">Mis juntas</h1>
+        <div class="ini-botones"><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a></div></div>
+      <div class="campo-busq"><label for="buscar">Buscar persona, cargo o compañía</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
+      ${franjaPendientes()}${franjaRespaldo()}${franjaIOS()}
+    </div>
+    <div class="sec" style="padding-top:24px">
+      <h2 class="sec-titulo">Compañías y entidades</h2>
+      <div class="filtros" role="group" aria-label="Filtrar compañías">${f('todas','Todas',act.length)}${f('junta','Con junta',nJ)}${f('sinjunta','Sin junta',act.length - nJ)}</div>
+      <div id="lista" class="col" style="gap:12px"></div>
+    </div>
+  </div>${fab('#/empresa-form','Agregar compañía')}${nav('inicio')}`);
+  $('#buscar').addEventListener('input', e => { BUSQUEDA = e.target.value; pintarLista(); });
+  pintarLista();
+}
+function pintarLista(){
+  const cont = $('#lista'); if (!cont) return;
+  const act = empresasActivas();
+  const pasa = e => FILTRO==='todas' || (FILTRO==='junta') === esJunta(e);
+  const q = norm(BUSQUEDA);
+  if (!act.length && !S.personas.length) {
+    cont.innerHTML = `<div class="tarjeta ajuste"><p>Aún no hay compañías. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
+      <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar compañía</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`;
+    return;
+  }
+  if (!q) {
+    const lista = act.filter(pasa);
+    cont.innerHTML = lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías en este filtro.</p>`;
+    return;
+  }
+  const emps = act.filter(pasa).filter(e => [e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre].some(t => norm(t).includes(q)));
+  const pers = [];
+  for (const p of S.personas) {
+    const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
+    if (FILTRO !== 'todas' && !cs.length) continue;
+    const porDatos = [p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio].some(t => norm(t).includes(q));
+    const porCargo = cs.find(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre].some(t => norm(t).includes(q)));
+    if (porDatos || porCargo) pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
+  }
+  if (!emps.length && !pers.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
+  cont.innerHTML = (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
+    + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '');
+}
+
+/* ---------- 3 · Compañía ---------- */
+function vistaEmpresa(id){
+  const e = empresa(id); if (!e) return noEncontrado();
+  const t = tipo(e.vinculoId), junta = esJunta(e), c = cv(e.color);
+  const cs = cargosEmpresa(id), vig = cs.filter(vigente);
+  const board = vig.filter(x => x.rolJunta), func = vig.filter(x => !x.rolJunta), ant = cs.filter(x => !vigente(x));
+  const lugar = [e.sector, e.ciudad].filter(Boolean).join(' · ');
+
+  const filaJunta = x => { const p = persona(x.personaId); if (!p) return '';
+    return `<a class="fila" href="#/persona/${p.id}?e=${id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo].filter(Boolean).join(' · '))}</span></span></a>`; };
+  const yo = `<div class="fila"><div class="av av-yo" aria-hidden="true">Yo</div><span class="col"><span class="nom">Usted</span><span class="sub">${esc([t.nombre, e.detalle].filter(Boolean).join(' · '))}</span></span></div>`;
+
+  const grupos = new Map();
+  func.forEach(x => { const a = (x.area || '').trim() || 'Sin área'; if (!grupos.has(a)) grupos.set(a, []); grupos.get(a).push(x); });
+  let funcHtml = '';
+  for (const [area, lista] of grupos) {
+    funcHtml += `<div class="area-tit">${esc(area)}</div>`;
+    lista.forEach((x, i) => { const p = persona(x.personaId); if (!p) return;
+      const n = S.notas.filter(m => m.refTipo==='persona' && m.refId===p.id).length;
+      funcHtml += `<a class="func${i===lista.length-1 ? ' fin-grupo' : ''}" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(x.cargo || 'Sin cargo')}${n ? ' · ' + plural(n,'nota') : ''}</span></span>${I.chev}</a>`; });
+  }
+
+  const idsPersonas = new Set(cs.map(x => x.personaId));
+  const notas = S.notas.filter(n => (n.refTipo==='empresa' && n.refId===id) || (n.refTipo==='persona' && idsPersonas.has(n.refId))).sort(ordenNotas)
+    .map(n => ({n, titulo: [fechaMedia(n.fecha), n.ocasion, n.refTipo==='persona' ? persona(n.refId)?.nombre : ''].filter(Boolean).join(' · ')}));
+
+  pintar(`<div class="pagina-total" style="--c:${c}">
+  <div class="banda"><div class="cabecera">
+    <div class="cab-fila">${linkVolver('Mis juntas','#/inicio')}<a class="enlace-btn" href="#/empresa-form/${id}">Editar</a></div>
+    <div class="emp-cab"><div class="emp-ini" aria-hidden="true">${esc(iniciales(e.nombre))}</div><h1 class="serif t28">${esc(e.nombre)}</h1></div>
+    <div class="colores" role="group" aria-label="Color de la empresa"><span>Color:</span>${PALETA.map(p => `<button type="button" class="circulo${p.k===e.color ? ' sel' : ''}" style="background:var(--emp-${p.k})" data-action="poner-color" data-id="${id}" data-c="${p.k}" aria-label="${p.n}${p.k===e.color ? ' (seleccionado)' : ''}" aria-pressed="${p.k===e.color}"></button>`).join('')}</div>
+    <div class="etiquetas">
+      ${e.participacion != null ? `<span class="etq acento">Accionista ${fmtPct(e.participacion)}</span>` : `<span class="etq fuerte" style="color:var(--texto-2)">Sin participación</span>`}
+      <span class="etq fuerte">${esc(t.nombre)}</span>
+      ${lugar ? `<span class="etq">${esc(lugar)}</span>` : ''}
+    </div>
+    ${e.detalle ? `<p class="detalle-rel">${esc(e.detalle)}</p>` : ''}
+  </div></div>
+  <div class="pagina con-accion">
+    ${junta ? `<div class="sec"><h2 class="sec-titulo">Junta directiva</h2><div class="tarjeta col" style="gap:0">${board.map(filaJunta).join('')}${yo}</div>
+      ${board.length ? '' : '<p class="ayuda" style="margin:0">Para agregar miembros de junta, use “+ Agregar” y llene el campo “Rol en junta”.</p>'}</div>` : ''}
+    <div class="sec mas">
+      <div class="sec-fila"><h2 class="sec-titulo">Funcionarios por área</h2><a class="enlace-btn" href="#/persona-form?e=${id}" style="font-size:14px">+ Agregar</a></div>
+      ${funcHtml ? `<div class="tarjeta col" style="gap:0">${funcHtml}</div>` : `<p class="tarjeta vacio">Aún no hay funcionarios registrados.</p>`}
+    </div>
+    ${ant.length ? `<div class="sec mas"><h2 class="sec-titulo">Cargos anteriores</h2><div class="tarjeta col" style="gap:0">${ant.map(x => { const p = persona(x.personaId); return p ? `<a class="fila" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta || x.cargo, x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>` : ''; }).join('')}</div></div>` : ''}
+    <div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Notas</h2>${lineaTiempo(notas)}</div>
+  </div>
+  <div class="accion-fija"><a class="btn-pri" href="#/nota?empresa=${id}">${I.mic}Dictar nota</a></div>
+  </div>`);
+}
+function lineaTiempo(items){
+  if (!items.length) return `<p class="tarjeta vacio">Aún no hay notas. Use el botón de abajo para agregar la primera.</p>`;
+  return `<div class="tl">${items.map(({n, titulo}, i) => {
+    const ult = i === items.length - 1;
+    return `<a class="tl-item${i===0 ? ' primera' : ''}" href="#/nota/${n.id}" aria-label="Editar nota del ${esc(fechaMedia(n.fecha))}">
+      <div class="tl-eje"><div class="tl-punto"></div>${ult ? '' : '<div class="tl-linea"></div>'}</div>
+      <div class="tl-cuerpo${ult ? '' : ' espacio'}"><span class="tl-fecha">${esc(titulo)}</span><span class="tl-texto">${esc(n.texto)}</span></div></a>`;
+  }).join('')}</div>`;
+}
+
+/* ---------- 4 · Persona ---------- */
+function vistaPersona(id, q){
+  const p = persona(id); if (!p) return noEncontrado();
+  const cs = cargosPersona(id), vig = cs.filter(vigente);
+  const ctx = (q.e && (cs.find(c => c.empresaId===q.e && vigente(c)) || cs.find(c => c.empresaId===q.e))) || vig[0] || cs[0];
+  const eCtx = ctx && empresa(ctx.empresaId);
+  const c = eCtx ? cv(eCtx.color) : 'var(--acento)';
+  const tel = soloDigitos(p.telefono);
+  const telHref = p.telefono ? (p.telefono.trim().startsWith('+') ? '+' : '') + tel : '';
+  const acc = (href, icono, txt) => href ? `<a class="per-acc" href="${esc(href)}">${icono}${txt}</a>` : `<span class="per-acc" aria-disabled="true">${icono}${txt}</span>`;
+  const reporta = ctx ? nombreReporta(ctx) : '';
+  const datos = [
+    p.telefono && `<div class="dato"><span>Celular</span><a href="tel:${esc(telHref)}">${esc(p.telefono)}</a></div>`,
+    p.correo && `<div class="dato"><span>Correo</span><a href="mailto:${esc(p.correo)}">${esc(p.correo)}</a></div>`,
+    p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`
+  ].filter(Boolean).join('');
+  const titPerfil = p.trato==='ella' ? 'Mi perfil de ella' : p.trato==='él' ? 'Mi perfil de él' : 'Mi perfil';
+  const notas = S.notas.filter(n => n.refTipo==='persona' && n.refId===id).sort(ordenNotas)
+    .map(n => ({n, titulo: [fechaMedia(n.fecha), n.ocasion].filter(Boolean).join(' · ')}));
+  const filaCargo = x => { const e = empresa(x.empresaId); if (!e) return '';
+    const fechas = x.fin && !vigente(x) ? `${x.inicio ? mesAnio(x.inicio) + ' – ' : 'Hasta '}${mesAnio(x.fin)} · cerrado` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
+    return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
+
+  pintar(`<div style="--c:${c}">
+  <div class="banda"><div class="cabecera" style="gap:16px">
+    <div class="cab-fila">${linkVolver(eCtx ? eCtx.nombre : 'Personas', eCtx ? '#/empresa/' + eCtx.id : '#/personas')}<a class="enlace-btn" href="#/persona-form/${id}">Editar</a></div>
+    <div class="per-cab"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
+      <div class="col"><h1 class="serif t26">${esc(p.nombre)}</h1>
+        ${ctx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([ctx.cargo || ctx.rolJunta, ctx.area].filter(Boolean).join(' · '))}</span>` : ''}
+        ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}</div></div>
+    <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${acc(telHref && 'sms:' + telHref, I.mensaje, 'Mensaje')}</div>
+  </div></div>
+  <div class="pagina con-accion">
+    <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
+    <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Empresas y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
+      ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna empresa.</p>`}</div>
+    <div class="sec"><h2 class="sec-titulo">${titPerfil}</h2>${p.perfil ? `<p class="tarjeta parrafo">${esc(p.perfil)}</p>` : `<p class="tarjeta vacio">Aún no ha escrito un perfil. Toque “Editar”.</p>`}</div>
+    <div class="sec" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${lineaTiempo(notas)}</div>
+  </div>
+  <div class="accion-fija"><a class="btn-pri" href="#/nota?persona=${id}${eCtx ? '&e=' + eCtx.id : ''}">${I.mic}Dictar nota</a></div>
+  </div>`);
+}
+
+/* ---------- 6 · Nota (escrita o dictada con el micrófono del teclado) ---------- */
+function vistaNota(id, q){
+  if (!FN) {
+    if (id) { const n = nota(id); if (!n) return noEncontrado(); FN = {...n, _para:id, ref:`${n.refTipo}:${n.refId}`}; }
+    else FN = {_para:'nueva', fecha:hoyISO(), ocasion:'', texto:'', ref: q.persona ? `persona:${q.persona}` : `empresa:${q.empresa}`, ctxEmp: q.e || ''};
+  }
+  const [rt, rid] = FN.ref.split(':');
+  const opciones = [];
+  let personaBase = null;
+  if (rt === 'persona') personaBase = persona(rid);
+  else if (FN._para !== 'nueva' && FN.base) personaBase = persona(FN.base);
+  if (!personaBase && rt === 'empresa' && FN.basePersona) personaBase = persona(FN.basePersona);
+  if (personaBase) {
+    FN.basePersona = personaBase.id;
+    opciones.push({ref:'persona:' + personaBase.id, txt:personaBase.nombre});
+    const ids = [...new Set(cargosPersona(personaBase.id).filter(vigente).map(c => c.empresaId))];
+    ids.forEach(eid => { const e = empresa(eid); if (e) opciones.push({ref:'empresa:' + e.id, txt:e.nombre, c:e.color}); });
+  } else if (rt === 'empresa') {
+    const e = empresa(rid); if (!e) return noEncontrado();
+    opciones.push({ref:'empresa:' + e.id, txt:e.nombre, c:e.color});
+  } else return noEncontrado();
+  const ctxE = FN.ctxEmp && empresa(FN.ctxEmp);
+  const colorSel = (rt==='empresa' && empresa(rid)) ? cv(empresa(rid).color) : (ctxE ? cv(ctxE.color) : 'var(--boton)');
+  pintar(`<form class="form nota-form" id="f-nota" novalidate style="--c:${colorSel}">
+    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/inicio">Cancelar</button><span class="tit">${FN._para==='nueva' ? 'Nueva nota' : 'Editar nota'}</span><span class="hueco"></span></div>
+    <div class="sobre"><span>Sobre</span><div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}</div></div>
+    <div class="dos">
+      <div class="campo"><label for="fn-fecha">Fecha</label><input class="input" id="fn-fecha" type="date" value="${esc(FN.fecha)}" max="2100-12-31"></div>
+      <div class="campo"><label for="fn-ocasion">Ocasión <span class="opc">(opcional)</span></label><input class="input" id="fn-ocasion" value="${esc(FN.ocasion)}" placeholder="Ej. Junta ordinaria" list="dl-ocasion"></div>
+    </div>
+    <datalist id="dl-ocasion">${OCASIONES.map(o => `<option value="${o}">`).join('')}<option value="Junta ordinaria"><option value="Junta extraordinaria"><option value="Comité"></datalist>
+    <div class="caja-texto"><label for="fn-texto">Texto · puede dictarlo con el micrófono del teclado</label><textarea id="fn-texto" placeholder="¿Qué pasó? ¿Qué quedó pendiente?">${esc(FN.texto)}</textarea></div>
+    <div class="guardar-final" style="margin-top:0">
+      <button type="submit" class="btn-pri">Guardar nota</button>
+      ${FN._para !== 'nueva' ? '<button type="button" class="btn-peligro" data-action="fn-borrar">Eliminar nota</button>' : ''}
+    </div>
+  </form>`);
+  const f = $('#f-nota');
+  $('#fn-fecha').addEventListener('input', e => FN.fecha = e.target.value);
+  $('#fn-ocasion').addEventListener('input', e => FN.ocasion = e.target.value);
+  $('#fn-texto').addEventListener('input', e => FN.texto = e.target.value);
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    const texto = FN.texto.trim();
+    if (!texto) { $('#fn-texto').focus(); aviso('Escriba o dicte el texto de la nota.'); return; }
+    const [refTipo, refId] = FN.ref.split(':');
+    const base = FN._para === 'nueva' ? {id:uid(), creada:ahora()} : nota(FN._para);
+    await guardar('notas', {...base, fecha: FN.fecha || hoyISO(), ocasion: FN.ocasion.trim(), texto, refTipo, refId, editada:ahora()});
+    FN = null; aviso('Nota guardada'); volver(refTipo==='persona' ? '#/persona/' + refId : '#/empresa/' + refId);
+  });
+  if (FN._para === 'nueva' && !esMovil()) setTimeout(() => $('#fn-texto')?.focus(), 50);
+}
+
+/* ---------- 7 · Nueva / editar compañía ---------- */
+function vistaEmpresaForm(id){
+  if (!FE || FE._para !== (id || 'nueva')) {
+    const e = id && empresa(id);
+    if (id && !e) return noEncontrado();
+    FE = e ? {_para:id, nombre:e.nombre, partSel: e.participacion != null ? 'con' : 'sin', pctTxt: e.participacion != null ? String(e.participacion).replace('.',',') : '', vinculoId:e.vinculoId, detalle:e.detalle||'', sector:e.sector||'', ciudad:e.ciudad||''}
+           : {_para:'nueva', nombre:'', partSel:'sin', pctTxt:'', vinculoId:null, detalle:'', sector:'', ciudad:''};
+  }
+  const chip = t => `<button type="button" class="chip${FE.vinculoId===t.id ? ' sel' : ''}" data-action="fe-vinc" data-id="${t.id}" aria-pressed="${FE.vinculoId===t.id}">${esc(t.chip || t.nombre)}</button>`;
+  pintar(`<form class="form" id="f-emp" novalidate>
+    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/inicio">Cancelar</button><span class="tit">${FE._para==='nueva' ? 'Nueva compañía' : 'Editar compañía'}</span><span class="hueco"></span></div>
+    <div class="campo"><label for="fe-nombre">Nombre</label><input class="input" id="fe-nombre" value="${esc(FE.nombre)}" autocomplete="off" autocapitalize="words"></div>
+    <fieldset><legend>1 · Participación del family office</legend>
+      <div class="opc2"><button type="button" class="opc-btn${FE.partSel==='con' ? ' sel' : ''}" data-action="fe-part" data-v="con" aria-pressed="${FE.partSel==='con'}">Con participación</button><button type="button" class="opc-btn${FE.partSel==='sin' ? ' sel' : ''}" data-action="fe-part" data-v="sin" aria-pressed="${FE.partSel==='sin'}">Sin participación</button></div>
+      <div class="campo${FE.partSel==='sin' ? ' atenuado' : ''}" id="fe-pct-c"><label for="fe-pct" style="font-size:13px;font-weight:400;color:var(--texto-2)">Porcentaje (solo si tiene participación)</label><input class="input" id="fe-pct" inputmode="decimal" placeholder="Ej. 22 %" value="${esc(FE.pctTxt)}" ${FE.partSel==='sin' ? 'disabled' : ''}></div>
+    </fieldset>
+    <fieldset><legend>2 · Mi vínculo con la empresa</legend>
+      <span class="grupo-tit">En la junta</span><div class="chips">${tiposDeGrupo('junta').map(chip).join('')}</div>
+      <span class="grupo-tit sep">Sin junta</span><div class="chips">${tiposDeGrupo('sinjunta').map(chip).join('')}<button type="button" class="chip otro" data-action="fe-otro">+ Otro tipo</button></div>
+    </fieldset>
+    <div class="campo"><label for="fe-detalle">Detalle de la relación <span class="opc">(opcional)</span></label><input class="input" id="fe-detalle" value="${esc(FE.detalle)}" placeholder="Ej. Proveedor del proyecto de Rionegro"></div>
+    <div class="dos">
+      <div class="campo"><label for="fe-sector">Sector <span class="opc">(opcional)</span></label><input class="input" id="fe-sector" value="${esc(FE.sector)}" placeholder="Ej. Alimentos"></div>
+      <div class="campo"><label for="fe-ciudad">Ciudad <span class="opc">(opcional)</span></label><input class="input" id="fe-ciudad" value="${esc(FE.ciudad)}" placeholder="Ej. Medellín"></div>
+    </div>
+    <div class="vista-previa" aria-live="polite"><span class="et">Así se verá en el inicio</span><span class="n" id="vp-n"></span><span class="l" id="vp-l"></span></div>
+    <div class="guardar-final">
+      <button type="submit" class="btn-pri">Guardar</button>
+      ${FE._para !== 'nueva' ? '<button type="button" class="btn-sec" data-action="fe-archivar">Archivar compañía</button>' : ''}
+    </div>
+  </form>`);
+  const enlazar = (sel, k) => $(sel).addEventListener('input', e => { FE[k] = e.target.value; vistaPrevia(); });
+  enlazar('#fe-nombre','nombre'); enlazar('#fe-pct','pctTxt'); enlazar('#fe-detalle','detalle'); enlazar('#fe-sector','sector'); enlazar('#fe-ciudad','ciudad');
+  $('#f-emp').addEventListener('submit', e => { e.preventDefault(); guardarEmpresa(); });
+  vistaPrevia();
+}
+function textoPart(){
+  if (FE.partSel === 'sin') return 'Sin participación';
+  const v = parseFloat(FE.pctTxt.replace('%','').replace(',','.'));
+  return v > 0 ? fmtPct(v) : 'Con participación';
+}
+function vistaPrevia(){
+  const n = $('#vp-n'); if (!n) return;
+  n.textContent = FE.nombre.trim() || 'Nombre de la compañía';
+  $('#vp-l').textContent = [textoPart(), FE.vinculoId ? tipo(FE.vinculoId).nombre : 'Escoja el vínculo'].join(' · ');
+}
+async function guardarEmpresa(){
+  const nombre = FE.nombre.trim();
+  if (!nombre) { $('#fe-nombre').setAttribute('aria-invalid','true'); $('#fe-nombre').focus(); aviso('Escriba el nombre de la compañía.'); return; }
+  let participacion = null;
+  if (FE.partSel === 'con') {
+    const v = parseFloat(FE.pctTxt.replace('%','').replace(',','.'));
+    if (!(v > 0 && v <= 100)) { $('#fe-pct').setAttribute('aria-invalid','true'); $('#fe-pct').focus(); aviso('Escriba un porcentaje entre 0 y 100.'); return; }
+    participacion = Math.round(v * 100) / 100;
+  }
+  if (!FE.vinculoId) { aviso('Escoja su vínculo con la empresa.'); return; }
+  const nueva = FE._para === 'nueva';
+  if (S.empresas.some(e => e.id !== FE._para && norm(e.nombre) === norm(nombre))) {
+    if (!await confirmar(`Ya existe una compañía llamada “${nombre}”. ¿Guardar de todos modos?`, {si:'Guardar'})) return;
+  }
+  const cambios = {empresas:[]};
+  let base;
+  if (nueva) { const sc = siguienteColor(); base = {id:uid(), creada:ahora(), color:sc.color, archivada:false}; cambios.ajustes = [{clave:'colorSiguiente', valor:sc.siguiente}]; }
+  else base = empresa(FE._para);
+  const e = {...base, nombre, participacion, vinculoId:FE.vinculoId, detalle:FE.detalle.trim(), sector:FE.sector.trim(), ciudad:FE.ciudad.trim(), editada:ahora()};
+  cambios.empresas.push(e);
+  await lote({poner:cambios});
+  FE = null; aviso('Compañía guardada');
+  if (nueva) reemplazar('#/empresa/' + e.id); else volver('#/empresa/' + e.id);
+}
+function pedirTipoPropio(){
+  return new Promise(res => {
+    let grupo = 'sinjunta';
+    const v = abrirHoja(`<h2 class="hoja-titulo">Otro tipo de vínculo</h2>
+      <form class="hoja-form" novalidate>
+        <div class="campo"><label for="tp-nombre">Nombre</label><input class="input" id="tp-nombre" placeholder="Ej. Miembro del consejo asesor" autofocus></div>
+        <div class="campo"><span class="leyenda">Grupo</span><div class="opc2"><button type="button" class="opc-btn" data-g="junta">En la junta</button><button type="button" class="opc-btn sel" data-g="sinjunta">Sin junta</button></div></div>
+        <p class="hoja-error" id="tp-err"></p>
+        <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Agregar</button></div>
+      </form>`, val => res(val || null));
+    $$('[data-g]', v).forEach(b => b.addEventListener('click', () => { grupo = b.dataset.g; $$('[data-g]', v).forEach(x => x.classList.toggle('sel', x===b)); }));
+    $('[data-r]', v).addEventListener('click', () => cerrarHoja(null));
+    $('form', v).addEventListener('submit', e => {
+      e.preventDefault();
+      const nombre = $('#tp-nombre', v).value.trim();
+      if (!nombre) { $('#tp-err', v).textContent = 'Escriba el nombre.'; return; }
+      if (S.tiposVinculo.some(t => norm(t.nombre) === norm(nombre))) { $('#tp-err', v).textContent = 'Ese tipo ya existe.'; return; }
+      cerrarHoja({nombre, grupo});
+    });
+  });
+}
+
+/* ---------- Persona: crear / editar ---------- */
+function camposCargo(st, pref){
+  const emps = empresasActivas();
+  const areas = [...new Set([...S.cargos.map(c => c.area).filter(Boolean), ...AREAS_BASE])];
+  return `<div class="campo"><label for="${pref}-emp">Empresa</label><select class="input" id="${pref}-emp">
+      <option value="">${pref==='fp' ? 'Ninguna por ahora' : 'Escoja la empresa'}</option>${emps.map(e => `<option value="${e.id}"${st.empresaId===e.id ? ' selected' : ''}>${esc(e.nombre)}</option>`).join('')}
+      ${st.empresaId && !emps.some(e => e.id===st.empresaId) && empresa(st.empresaId) ? `<option value="${st.empresaId}" selected>${esc(empresa(st.empresaId).nombre)} (archivada)</option>` : ''}</select></div>
+    <div class="dos">
+      <div class="campo"><label for="${pref}-area">Área</label><input class="input" id="${pref}-area" list="dl-areas" value="${esc(st.area)}" placeholder="Ej. Finanzas"></div>
+      <div class="campo"><label for="${pref}-cargo">Cargo</label><input class="input" id="${pref}-cargo" value="${esc(st.cargo)}" placeholder="Ej. Tesorera"></div>
+    </div>
+    <datalist id="dl-areas">${areas.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="campo"><label for="${pref}-rol">Rol en junta <span class="opc">(solo si es miembro de junta)</span></label><input class="input" id="${pref}-rol" list="dl-roles" value="${esc(st.rolJunta)}" placeholder="Ej. Miembro independiente"></div>
+    <datalist id="dl-roles">${ROLES_JUNTA.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="campo"><label for="${pref}-rep">Reporta a <span class="opc">(opcional)</span></label><input class="input" id="${pref}-rep" list="dl-rep" value="${esc(st.reportaTxt)}" placeholder="Nombre de su jefe"></div>
+    <datalist id="dl-rep"></datalist>`;
+}
+function enlazarCargo(st, pref, excluirId){
+  const llenarRep = () => {
+    const ids = [...new Set(cargosEmpresa(st.empresaId).filter(vigente).map(c => c.personaId))].filter(i => i !== excluirId);
+    $('#dl-rep').innerHTML = ids.map(persona).filter(Boolean).map(p => `<option value="${esc(p.nombre)}">`).join('');
+  };
+  $(`#${pref}-emp`).addEventListener('change', e => { st.empresaId = e.target.value; llenarRep(); });
+  [['area','area'],['cargo','cargo'],['rol','rolJunta'],['rep','reportaTxt']].forEach(([s,k]) => $(`#${pref}-${s}`).addEventListener('input', e => st[k] = e.target.value));
+  llenarRep();
+}
+function vistaPersonaForm(id, q){
+  if (!FP || FP._para !== (id || 'nueva')) {
+    const p = id && persona(id);
+    if (id && !p) return noEncontrado();
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||''}
+           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+  }
+  const nueva = FP._para === 'nueva';
+  const ex = nueva && FP.existenteId && persona(FP.existenteId);
+  const eCtx = nueva && FP.empresaId && empresa(FP.empresaId);
+  const trato = (v, t) => `<button type="button" class="chip${FP.trato===v ? ' sel' : ''}" data-action="fp-trato" data-v="${v}" aria-pressed="${FP.trato===v}">${t}</button>`;
+  pintar(`<form class="form" id="f-per" novalidate>
+    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/personas">Cancelar</button><span class="tit">${nueva ? 'Nueva persona' : 'Editar persona'}</span><span class="hueco"></span></div>
+    ${eCtx ? `<p class="ayuda" style="margin:-8px 0 0">En ${esc(eCtx.nombre)}</p>` : ''}
+    ${ex ? `<div class="aviso"><span>Se agregará el cargo a <b>${esc(ex.nombre)}</b>, que ya existe. Su historia se conserva.</span><button type="button" class="enlace-btn" data-action="fp-sin-existente">Cambiar</button></div>` : `
+    <div class="campo"><label for="fp-nombre">Nombre</label><input class="input" id="fp-nombre" value="${esc(FP.nombre)}" autocomplete="off" autocapitalize="words">
+      <div class="sugerencias tarjeta" id="fp-sug" hidden></div></div>
+    <div class="campo"><span class="leyenda">Cómo referirse <span class="opc" style="font-size:14px">(para los textos)</span></span><div class="chips">${trato('ella','Ella')}${trato('él','Él')}${trato('','Sin especificar')}</div></div>
+    <div class="dos">
+      <div class="campo"><label for="fp-tel">Celular</label><input class="input" id="fp-tel" type="tel" inputmode="tel" value="${esc(FP.telefono)}" placeholder="+57 300 000 0000"></div>
+      <div class="campo"><label for="fp-correo">Correo</label><input class="input" id="fp-correo" type="email" inputmode="email" autocapitalize="off" value="${esc(FP.correo)}" placeholder="nombre@ejemplo.com"></div>
+    </div>
+    <div class="campo"><label for="fp-conoci">Cómo la conocí <span class="opc">(opcional)</span></label><input class="input" id="fp-conoci" value="${esc(FP.comoLaConocio)}" placeholder="Ej. Junta de marzo 2026"></div>
+    <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>`}
+    ${nueva ? `<fieldset><legend>Cargo ${ex ? '' : '<span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span>'}</legend>${camposCargo(FP,'fp')}
+      <div class="campo"><label for="fp-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fp-inicio" type="date" value="${esc(FP.inicio)}"></div></fieldset>` : ''}
+    <div class="guardar-final"><button type="submit" class="btn-pri">Guardar</button>
+      ${!nueva ? '<button type="button" class="btn-peligro" data-action="fp-borrar">Eliminar persona</button>' : ''}</div>
+  </form>`);
+  if (!ex) {
+    const b = (s, k) => $(s).addEventListener('input', e => FP[k] = e.target.value);
+    b('#fp-tel','telefono'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
+    $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
+  }
+  if (nueva) { enlazarCargo(FP, 'fp', FP.existenteId); $('#fp-inicio').addEventListener('input', e => FP.inicio = e.target.value); }
+  $('#f-per').addEventListener('submit', e => { e.preventDefault(); guardarPersona(); });
+}
+function sugerirPersonas(){
+  const cont = $('#fp-sug'); const q = norm(FP.nombre);
+  if (q.length < 2) { cont.hidden = true; return; }
+  const m = S.personas.filter(p => norm(p.nombre).includes(q)).slice(0, 5);
+  if (!m.length) { cont.hidden = true; return; }
+  cont.hidden = false;
+  cont.innerHTML = `<div class="area-tit">Ya existe — toque para usarla</div>` + m.map(p => {
+    const c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
+    return `<button type="button" class="fila" data-action="fp-existente" data-id="${p.id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Sin cargo')}</span></span></button>`;
+  }).join('');
+}
+async function guardarPersona(){
+  const nueva = FP._para === 'nueva';
+  const poner = {};
+  let pid = FP.existenteId;
+  if (!pid) {
+    const nombre = FP.nombre.trim();
+    if (!nombre) { $('#fp-nombre').setAttribute('aria-invalid','true'); $('#fp-nombre').focus(); aviso('Escriba el nombre.'); return; }
+    const correo = FP.correo.trim();
+    if (correo && !/^\S+@\S+\.\S+$/.test(correo)) { $('#fp-correo').setAttribute('aria-invalid','true'); $('#fp-correo').focus(); aviso('Revise el correo.'); return; }
+    const igual = S.personas.find(p => p.id !== FP._para && norm(p.nombre) === norm(nombre));
+    if (igual) {
+      const usar = await confirmar(`Ya existe “${igual.nombre}”. Una persona debe existir una sola vez. ¿Es la misma persona?`, {titulo:'Posible duplicado', si: nueva ? 'Sí, usar la existente' : 'Guardar de todos modos', no: nueva ? 'No, es otra' : 'Cancelar'});
+      if (nueva && usar && !FP.empresaId) { FP = null; reemplazar('#/persona/' + igual.id); return; }
+      if (nueva && usar) { FP.existenteId = igual.id; pid = igual.id; }
+      else if (!nueva && !usar) return;
+    }
+    if (!pid) {
+      const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
+      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(), editada:ahora()};
+      poner.personas = [p]; pid = p.id;
+    }
+  }
+  if (nueva && FP.empresaId) {
+    if (!FP.cargo.trim() && !FP.rolJunta.trim() && !FP.area.trim() && FP.existenteId) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
+    poner.cargos = [{id:uid(), creada:ahora(), personaId:pid, empresaId:FP.empresaId, area:FP.area.trim(), cargo:FP.cargo.trim(), rolJunta:FP.rolJunta.trim(), ...resolverReporta(FP.reportaTxt, FP.empresaId, pid), inicio:FP.inicio || '', fin:''}];
+  } else if (nueva && FP.existenteId) { aviso('Escoja la empresa del nuevo cargo.'); return; }
+  await lote({poner});
+  const emp = FP.empresaId; FP = null; aviso('Persona guardada');
+  if (nueva && !emp) reemplazar('#/persona/' + pid); else volver(nueva ? '#/empresa/' + emp : '#/persona/' + pid);
+}
+
+/* ---------- Cargo: crear / editar / cerrar ---------- */
+function vistaCargo(id, q){
+  if (!FC || FC._para !== (id || 'nuevo')) {
+    const c = id && cargo(id);
+    if (id && !c) return noEncontrado();
+    FC = c ? {_para:id, personaId:c.personaId, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}
+           : {_para:'nuevo', personaId:q.p, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:'', fin:''};
+  }
+  const p = persona(FC.personaId); if (!p) return noEncontrado();
+  const nuevo = FC._para === 'nuevo';
+  pintar(`<form class="form" id="f-cargo" novalidate>
+    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/persona/${p.id}">Cancelar</button><span class="tit">${nuevo ? 'Nuevo cargo' : 'Editar cargo'}</span><span class="hueco"></span></div>
+    <p class="ayuda" style="margin:-8px 0 0">${esc(p.nombre)}</p>
+    ${camposCargo(FC,'fc')}
+    <div class="dos">
+      <div class="campo"><label for="fc-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fc-inicio" type="date" value="${esc(FC.inicio)}"></div>
+      <div class="campo"><label for="fc-fin">Hasta <span class="opc">(si ya salió)</span></label><input class="input" id="fc-fin" type="date" value="${esc(FC.fin)}"></div>
+    </div>
+    <p class="ayuda" style="margin:-12px 0 0">Cuando alguien deja la empresa, ponga la fecha “Hasta”: el cargo queda cerrado y su historia se conserva.</p>
+    <div class="guardar-final"><button type="submit" class="btn-pri">Guardar</button>
+      ${!nuevo && !FC.fin ? '<button type="button" class="btn-sec" data-action="fc-cerrar">Cerrar cargo hoy</button>' : ''}
+      ${!nuevo ? '<button type="button" class="btn-peligro" data-action="fc-borrar">Eliminar cargo (si fue un error)</button>' : ''}</div>
+  </form>`);
+  enlazarCargo(FC, 'fc', FC.personaId);
+  $('#fc-inicio').addEventListener('input', e => FC.inicio = e.target.value);
+  $('#fc-fin').addEventListener('input', e => FC.fin = e.target.value);
+  $('#f-cargo').addEventListener('submit', e => { e.preventDefault(); guardarCargo(); });
+}
+async function guardarCargo(fin){
+  if (fin !== undefined) FC.fin = fin;
+  if (!FC.empresaId) { aviso('Escoja la empresa.'); $('#fc-emp').focus(); return; }
+  if (!FC.cargo.trim() && !FC.rolJunta.trim() && !FC.area.trim()) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
+  if (FC.inicio && FC.fin && FC.fin < FC.inicio) { aviso('La fecha “Hasta” es anterior a “Desde”.'); return; }
+  const base = FC._para === 'nuevo' ? {id:uid(), creada:ahora(), personaId:FC.personaId} : cargo(FC._para);
+  await guardar('cargos', {...base, empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim(), ...resolverReporta(FC.reportaTxt, FC.empresaId, FC.personaId), inicio:FC.inicio, fin:FC.fin, editada:ahora()});
+  const pid = FC.personaId; FC = null; aviso('Cargo guardado'); volver('#/persona/' + pid);
+}
+
+/* ---------- Personas ---------- */
+function vistaPersonas(){
+  pintar(`<div class="pagina con-nav"><div class="ini-top">
+      <h1 class="serif t30">Personas</h1>
+      <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área o empresa</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
+    </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
+  const pintarP = () => {
+    const q = norm(BUSQ_PERSONAS);
+    const filas = [...S.personas].sort((a,b) => a.nombre.localeCompare(b.nombre, 'es')).map(p => {
+      const cs = cargosPersona(p.id);
+      const c = (q && cs.find(c => [c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].some(t => norm(t).includes(q)))) || cs.find(vigente) || cs[0];
+      if (q && !([p.nombre,p.correo,p.telefono].some(t => norm(t).includes(q)) || (c && [c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].some(t => norm(t).includes(q))))) return '';
+      return filaPersonaBusq(p, c);
+    }).filter(Boolean);
+    $('#lista-p').innerHTML = `<h2 class="sec-titulo">${filas.length ? plural(filas.length,'persona') : 'Personas'}</h2>`
+      + (filas.length ? `<div class="tarjeta col" style="gap:0">${filas.join('')}</div>` : `<p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una compañía o con el botón +.'}</p>`);
+  };
+  $('#buscar-p').addEventListener('input', e => { BUSQ_PERSONAS = e.target.value; pintarP(); });
+  pintarP();
+}
+
+/* ---------- Pendientes (los compromisos llegan en la fase 2) ---------- */
+function vistaPendientes(){
+  const abiertos = S.compromisos.filter(c => !c.cumplido).sort((a,b) => (a.fechaLimite||'').localeCompare(b.fechaLimite||''));
+  pintar(`<div class="pagina con-nav"><div class="ini-top"><h1 class="serif t30">Pendientes</h1></div>
+    <div class="sec">${abiertos.length ? `<div class="tarjeta col" style="gap:0">${abiertos.map(c => { const r = S.reuniones.find(r => r.id===c.reunionId), e = r && empresa(r.empresaId);
+      return `<div class="fila"><span class="col"><span style="font-size:15px">${esc(c.descripcion)}</span><span class="sub pend">${esc([c.responsable, c.fechaLimite ? 'antes del ' + fechaCorta(c.fechaLimite) : '', e?.nombre].filter(Boolean).join(' · '))}</span></span></div>`; }).join('')}</div>`
+      : `<p class="tarjeta vacio">No hay compromisos abiertos. Los compromisos se registran en el log de cada junta, que llega en la fase 2.</p>`}</div>
+  </div>${nav('pendientes')}`);
+}
+
+/* ---------- Ajustes ---------- */
+function vistaAjustes(){
+  const ult = S.cfg.ultimoRespaldo, dias = +S.cfg.recordatorioDias || 15;
+  const propios = S.tiposVinculo.filter(t => t.propio);
+  const arch = S.empresas.filter(e => e.archivada);
+  const hayEjemplo = [...S.empresas, ...S.personas].some(x => x.ejemplo);
+  const opDias = [7,15,30,60].map(d => `<option value="${d}"${d===dias ? ' selected' : ''}>Cada ${d} días</option>`).join('');
+  pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
+    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Mis juntas','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
+
+    <div class="sec"><h2 class="sec-titulo">Respaldo</h2><div class="tarjeta">
+      <div class="ajuste"><p>${ult ? `Último respaldo: ${fechaMedia(ult)}.` : 'Aún no ha exportado ningún respaldo.'} Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
+        <div class="dos"><button type="button" class="btn-sec" data-action="exportar">Exportar respaldo</button><button type="button" class="btn-sec" data-action="importar-respaldo">Importar respaldo</button></div></div>
+      <div class="ajuste"><label for="aj-dias" class="leyenda">Recordarme exportar</label><select class="input" id="aj-dias">${opDias}</select></div>
+    </div></div>
+
+    <div class="sec"><h2 class="sec-titulo">Importar desde Excel</h2><div class="tarjeta"><div class="ajuste">
+      <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo). Para miembros de junta escriba “Junta directiva” en área. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
+      <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div>
+    </div></div></div>
+
+    <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una compañía.</p>`}</div>
+
+    <div class="sec"><h2 class="sec-titulo">Compañías archivadas</h2>${arch.length ? `<div class="tarjeta col" style="gap:0">${arch.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp"></span><span class="col"><span class="nom">${esc(e.nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="restaurar" data-id="${e.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías archivadas.</p>`}</div>
+
+    <div class="sec"><h2 class="sec-titulo">Seguridad</h2><div class="tarjeta"><div class="ajuste">
+      <p>La app pide el PIN al abrirse y se bloquea sola después de ${BLOQUEO_MIN} minutos en segundo plano.</p>
+      <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div></div></div>
+
+    <div class="sec"><h2 class="sec-titulo">Datos de ejemplo</h2><div class="tarjeta"><div class="ajuste">
+      <p>Cargan compañías y personas ficticias para probar la app. Se borran sin tocar sus datos reales.</p>
+      <div class="dos"><button type="button" class="btn-sec" data-action="ejemplo-cargar">Cargar ejemplo</button><button type="button" class="btn-peligro" data-action="ejemplo-borrar" ${hayEjemplo ? '' : 'disabled'}>Borrar ejemplo</button></div>
+    </div></div></div>
+
+    <div class="sec"><p class="ayuda" style="text-align:center;margin:8px 0 0">${esc(APP.nombre)} · versión ${esc(APP.version)}<br>${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}</p></div>
+  </div>`);
+  $('#aj-dias').addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
+}
+
+/* =====================================================================
+   RESPALDO CIFRADO (exportar / importar)
+   ===================================================================== */
+async function descargar(nombre, contenido, tipoMime){
+  const blob = new Blob([contenido], {type:tipoMime});
+  if (esMovil() && navigator.canShare) {
+    const f = new File([blob], nombre, {type:tipoMime});
+    if (navigator.canShare({files:[f]})) {
+      try { await navigator.share({files:[f], title:nombre}); return true; }
+      catch (err) { if (err.name === 'AbortError') return false; }
+    }
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+async function exportar(){
+  const clave = await pedirClave({titulo:'Exportar respaldo', texto:'Escoja una contraseña para proteger el archivo. La necesitará para importarlo; si la olvida, el respaldo no se puede abrir.', doble:true});
+  if (!clave) return;
+  aviso('Preparando respaldo…');
+  const datos = {};
+  TABLAS.forEach(n => datos[n] = S[n]);
+  datos.ajustes = Object.entries(S.cfg).filter(([k]) => !['pin','ultimoRespaldo'].includes(k)).map(([clave, valor]) => ({clave, valor}));
+  const sal = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const k = await claveAES(clave, sal, RESPALDO_ITER);
+  const cif = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, enc.encode(JSON.stringify(datos))));
+  const archivo = {formato:'junta-app-respaldo', version:1, tipo:'solo-datos', exportado:ahora(),
+    resumen:{empresas:S.empresas.length, personas:S.personas.length},
+    cifrado:{alg:'AES-GCM-256', kdf:'PBKDF2-SHA256', iteraciones:RESPALDO_ITER, sal:b64(sal), iv:b64(iv)}, datos:b64(cif)};
+  const ok = await descargar(`${slug(APP.nombre)}-respaldo-${hoyISO()}.json`, JSON.stringify(archivo), 'application/json');
+  if (!ok) return;
+  await setAjuste('ultimoRespaldo', ahora());
+  aviso('Respaldo exportado. Guárdelo en Drive u otro lugar seguro.');
+  if (!bloqueada) render();
+}
+async function importarRespaldo(file){
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch { return mensaje('El archivo no es un respaldo válido.', 'No se pudo importar'); }
+  if (obj.formato !== 'junta-app-respaldo' || !obj.cifrado) return mensaje('El archivo no es un respaldo de esta app.', 'No se pudo importar');
+  const clave = await pedirClave({titulo:'Importar respaldo', texto:`Respaldo del ${fechaMedia(obj.exportado)}. Escriba la contraseña con la que lo exportó.`});
+  if (!clave) return;
+  let datos;
+  try {
+    const k = await claveAES(clave, deb64(obj.cifrado.sal), obj.cifrado.iteraciones);
+    datos = JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM', iv:deb64(obj.cifrado.iv)}, k, deb64(obj.datos))));
+  } catch { return mensaje('La contraseña no es correcta o el archivo está dañado.', 'No se pudo abrir'); }
+  const ok = await confirmar(`El respaldo tiene ${plural((datos.empresas||[]).length,'compañía')} y ${plural((datos.personas||[]).length,'persona')}. Al importarlo se reemplazan todos los datos actuales de este dispositivo (su PIN se conserva).`, {titulo:'Reemplazar datos', si:'Importar y reemplazar', peligro:true});
+  if (!ok) return;
+  const poner = {};
+  TABLAS.forEach(n => poner[n] = Array.isArray(datos[n]) ? datos[n] : []);
+  poner.ajustes = (datos.ajustes || []).filter(a => a.clave !== 'pin');
+  const pin = S.cfg.pin, ultimo = S.cfg.ultimoRespaldo;
+  await lote({vaciar:[...TABLAS, 'ajustes'], poner});
+  await lote({poner:{ajustes:[{clave:'pin', valor:pin}, ...(ultimo ? [{clave:'ultimoRespaldo', valor:ultimo}] : [])]}});
+  await asegurarTiposBase();
+  aviso('Respaldo importado'); reemplazar('#/inicio'); render();
+}
+
+/* =====================================================================
+   IMPORTACIÓN DESDE EXCEL / CSV
+   ===================================================================== */
+const COLUMNAS = ['empresa','participacion','vinculo','nombre','cargo','area','reporta_a','telefono','correo'];
+function plantillaCSV(){
+  const filas = [
+    ['empresa','participacion','vinculo','nombre','cargo','area','reporta_a','telefono','correo'],
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Ana Ejemplo','Gerente general','Gerencia','','+57 300 000 0001','ana@ejemplo.com'],
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Beto Prueba','Director financiero','Finanzas','Ana Ejemplo','+57 300 000 0002','beto@ejemplo.com'],
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Carla Muestra','Miembro independiente','Junta directiva','','',''],
+    ['Servicios Demo Ltda.','Sin participación','Relación comercial','Diego Ficticio','Gerente comercial','Comercial','','+57 300 000 0004','diego@ejemplo.com']
+  ];
+  return '﻿' + filas.map(f => f.map(v => /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v).join(';')).join('\r\n') + '\r\n';
+}
+function parsearCSV(texto){
+  texto = texto.replace(/^﻿/, '');
+  let sep = null;
+  const m = texto.match(/^sep=(.)\r?\n/i);
+  if (m) { sep = m[1]; texto = texto.slice(m[0].length); }
+  if (!sep) {
+    const primera = texto.split(/\r?\n/)[0] || '';
+    const cuenta = c => primera.split(c).length - 1;
+    sep = [';', ',', '\t'].sort((a,b) => cuenta(b) - cuenta(a))[0];
+  }
+  const filas = []; let fila = [], campo = '', comillas = false;
+  for (let i = 0; i < texto.length; i++) {
+    const ch = texto[i];
+    if (comillas) {
+      if (ch === '"') { if (texto[i+1] === '"') { campo += '"'; i++; } else comillas = false; }
+      else campo += ch;
+    } else if (ch === '"') comillas = true;
+    else if (ch === sep) { fila.push(campo); campo = ''; }
+    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && texto[i+1] === '\n') i++; fila.push(campo); filas.push(fila); fila = []; campo = ''; }
+    else campo += ch;
+  }
+  if (campo !== '' || fila.length) { fila.push(campo); filas.push(fila); }
+  return filas.filter(f => f.some(v => v.trim() !== ''));
+}
+function columnaDe(h){
+  const n = norm(h).replace(/[^a-z_ ]/g,'');
+  if (/^(empresa|compania|compañia|entidad)/.test(n)) return 'empresa';
+  if (n.includes('particip')) return 'participacion';
+  if (n.includes('vincul')) return 'vinculo';
+  if (n.includes('report')) return 'reporta_a';
+  if (/^nombre|^persona/.test(n)) return 'nombre';
+  if (n.includes('cargo')) return 'cargo';
+  if (n.includes('area')) return 'area';
+  if (/telefono|celular|movil/.test(n)) return 'telefono';
+  if (/correo|email|e mail/.test(n)) return 'correo';
+  return null;
+}
+function parsearParticipacion(s){
+  s = String(s || '').trim();
+  if (!s || norm(s).includes('sin') || norm(s) === 'no') return null;
+  let v = parseFloat(s.replace('%','').replace(/\s/g,'').replace(',','.'));
+  if (isNaN(v) || v <= 0) return null;
+  if (v < 1 && !s.includes('%')) v *= 100;
+  return v > 100 ? null : Math.round(v * 100) / 100;
+}
+function buscarTipo(texto){
+  const n = norm(texto); if (!n) return null;
+  return S.tiposVinculo.find(t => [t.nombre, t.chip, t.tarjeta].some(x => x && norm(x) === n)) || null;
+}
+function analizarCSV(texto){
+  const filas = parsearCSV(texto);
+  if (filas.length < 2) throw new Error('El archivo no tiene filas de datos.');
+  const mapa = filas[0].map(columnaDe);
+  if (!mapa.includes('empresa') && !mapa.includes('nombre')) throw new Error('No se encontraron las columnas “empresa” y “nombre”. Use la plantilla.');
+  const R = {empresas:new Map(), personas:new Map(), duplicados:[], cargos:[], omitidas:[], existentes:new Set()};
+  filas.slice(1).forEach((f, i) => {
+    const r = {}; mapa.forEach((k, j) => { if (k) r[k] = (f[j] || '').trim(); });
+    const nFila = i + 2;
+    if (!r.empresa && !r.nombre) return;
+    if (!r.empresa) { R.omitidas.push({fila:nFila, motivo:`“${r.nombre}” no tiene empresa`}); return; }
+    const ek = norm(r.empresa);
+    if (!R.empresas.has(ek)) {
+      const ex = S.empresas.find(e => norm(e.nombre) === ek);
+      R.empresas.set(ek, {nombre:r.empresa, existenteId: ex ? ex.id : null, participacion: parsearParticipacion(r.participacion), vinculo: r.vinculo || ''});
+      if (ex) R.existentes.add(ek);
+    }
+    if (!r.nombre) return;
+    const pk = norm(r.nombre);
+    if (!R.personas.has(pk)) {
+      const tel = soloDigitos(r.telefono).slice(-10), correo = norm(r.correo);
+      let ex = S.personas.find(p => norm(p.nombre) === pk), motivo = 'mismo nombre';
+      if (!ex && correo) { ex = S.personas.find(p => norm(p.correo) === correo); motivo = 'mismo correo'; }
+      if (!ex && tel.length >= 7) { ex = S.personas.find(p => soloDigitos(p.telefono).slice(-10) === tel); motivo = 'mismo teléfono'; }
+      R.personas.set(pk, {nombre:r.nombre, telefono:r.telefono || '', correo:r.correo || '', existenteId: ex ? ex.id : null});
+      if (ex) R.duplicados.push({pk, nombre:r.nombre, existenteId:ex.id, motivo, decision:'unir'});
+    }
+    let cargoTxt = r.cargo || '', rol = '';
+    const enJunta = norm(r.area).includes('junta') || norm(cargoTxt).includes('junta');
+    if (enJunta) { rol = cargoTxt || 'Miembro de junta'; cargoTxt = ''; }
+    R.cargos.push({ek, pk, cargo:cargoTxt, area: enJunta ? '' : (r.area || ''), rolJunta:rol, reporta:r.reporta_a || '', fila:nFila});
+  });
+  return R;
+}
+async function cargarCSV(file){
+  try {
+    const buf = await file.arrayBuffer();
+    let texto = new TextDecoder('utf-8').decode(buf);
+    if (texto.includes('�')) texto = new TextDecoder('windows-1252').decode(buf);
+    IMPORT = analizarCSV(texto);
+    IMPORT.archivo = file.name;
+    ir('#/importar');
+  } catch (err) { mensaje(err.message || 'No se pudo leer el archivo.', 'No se pudo importar'); }
+}
+function vistaImportar(){
+  if (!IMPORT) return reemplazar('#/ajustes');
+  const R = IMPORT;
+  const nuevasEmp = [...R.empresas.values()].filter(e => !e.existenteId);
+  const nuevasPer = [...R.personas.values()].filter(p => !p.existenteId).length;
+  const dec = (d, v, t) => `<button type="button" class="chip peq${d.decision===v ? ' sel' : ''}" data-action="imp-dec" data-pk="${esc(d.pk)}" data-v="${v}" aria-pressed="${d.decision===v}">${t}</button>`;
+  pintar(`<div class="form" style="gap:20px">
+    <div class="form-cab"><button type="button" class="volver" data-action="imp-cancelar">Cancelar</button><span class="tit">Resumen de importación</span><span class="hueco"></span></div>
+    <p class="ayuda" style="margin:0">${esc(R.archivo || '')} · Revise antes de guardar. Nada se guarda hasta que confirme.</p>
+    <div class="tarjeta cifras">
+      <div class="cifra"><b>${nuevasEmp.length}</b><span>Compañías nuevas</span></div>
+      <div class="cifra"><b>${R.existentes.size}</b><span>Compañías que ya existían</span></div>
+      <div class="cifra"><b>${nuevasPer}</b><span>Personas nuevas</span></div>
+      <div class="cifra"><b>${R.duplicados.length}</b><span>Posibles duplicados</span></div>
+      <div class="cifra" style="border-bottom:0"><b>${R.cargos.length}</b><span>Cargos</span></div>
+      <div class="cifra" style="border-bottom:0"><b>${R.omitidas.length}</b><span>Filas omitidas</span></div>
+    </div>
+    ${nuevasEmp.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo">Compañías nuevas</h2><div class="tarjeta col" style="gap:0">${nuevasEmp.map(e => `<div class="fila"><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', buscarTipo(e.vinculo)?.nombre || e.vinculo || 'Vínculo sin definir'].join(' · '))}</span></span></div>`).join('')}</div></div>` : ''}
+    ${R.duplicados.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo" style="color:var(--pend-texto)">Posibles duplicados</h2><div class="tarjeta col" style="gap:0">${R.duplicados.map(d => { const p = persona(d.existenteId), c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
+      return `<div class="dup"><span class="col"><span class="nom">${esc(d.nombre)}</span><span class="sub">Ya existe: ${esc(p.nombre)}${e ? ' · ' + esc([c.cargo || c.rolJunta, e.nombre].filter(Boolean).join(', ')) : ''} (${d.motivo})</span></span>
+        <div class="chips">${dec(d,'unir','Es la misma')}${dec(d,'nueva','Es otra persona')}${dec(d,'descartar','Descartar')}</div></div>`; }).join('')}</div></div>` : ''}
+    ${R.omitidas.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo">Filas omitidas</h2><div class="tarjeta col" style="gap:0">${R.omitidas.map(o => `<div class="fila"><span class="sub">Fila ${o.fila}: ${esc(o.motivo)}</span></div>`).join('')}</div></div>` : ''}
+    <div class="guardar-final"><button type="button" class="btn-pri" data-action="imp-confirmar">Confirmar e importar</button></div>
+  </div>`);
+}
+async function confirmarImport(){
+  const R = IMPORT; if (!R) return;
+  const poner = {empresas:[], personas:[], cargos:[], tiposVinculo:[], ajustes:[]};
+  const idEmp = new Map(), idPer = new Map();
+  let col = +S.cfg.colorSiguiente || 0;
+  for (const [ek, e] of R.empresas) {
+    if (e.existenteId) { idEmp.set(ek, e.existenteId); continue; }
+    let t = buscarTipo(e.vinculo) || poner.tiposVinculo.find(x => norm(x.nombre) === norm(e.vinculo));
+    if (!t && e.vinculo) { t = {id:uid(), nombre:e.vinculo, grupo: /junta|comite/.test(norm(e.vinculo)) ? 'junta' : 'sinjunta', propio:true, orden:99}; poner.tiposVinculo.push(t); }
+    const obj = {id:uid(), creada:ahora(), nombre:e.nombre, participacion:e.participacion, vinculoId: t ? t.id : null, detalle:'', sector:'', ciudad:'', color:PALETA[col++ % PALETA.length].k, archivada:false};
+    poner.empresas.push(obj); idEmp.set(ek, obj.id);
+  }
+  poner.ajustes.push({clave:'colorSiguiente', valor:col});
+  const decision = new Map(R.duplicados.map(d => [d.pk, d.decision]));
+  for (const [pk, p] of R.personas) {
+    const d = decision.get(pk);
+    if (d === 'descartar') continue;
+    if (p.existenteId && d === 'unir') { idPer.set(pk, p.existenteId); continue; }
+    const obj = {id:uid(), creada:ahora(), nombre:p.nombre, trato:'', telefono:p.telefono, correo:p.correo, comoLaConocio:'', perfil:'', foto:null};
+    poner.personas.push(obj); idPer.set(pk, obj.id);
+  }
+  for (const c of R.cargos) {
+    const pid = idPer.get(c.pk), eid = idEmp.get(c.ek);
+    if (!pid || !eid) continue;
+    const ya = S.cargos.some(x => x.personaId===pid && x.empresaId===eid && vigente(x) && norm(x.cargo)===norm(c.cargo) && norm(x.rolJunta)===norm(c.rolJunta));
+    if (ya) continue;
+    poner.cargos.push({id:uid(), creada:ahora(), personaId:pid, empresaId:eid, area:c.area, cargo:c.cargo, rolJunta:c.rolJunta, reportaA:null, reportaATexto:c.reporta, inicio:'', fin:'', _pk:c.pk, _ek:c.ek});
+  }
+  /* Resolver "reporta a" entre las personas de la misma empresa */
+  const nombrePorId = id => (poner.personas.find(p => p.id===id) || persona(id))?.nombre;
+  poner.cargos.forEach(c => {
+    if (c.reportaATexto) {
+      const n = norm(c.reportaATexto);
+      const cand = [...poner.cargos, ...S.cargos].filter(x => x.empresaId===c.empresaId && x.personaId!==c.personaId).map(x => x.personaId);
+      const hit = cand.find(id => norm(nombrePorId(id)) === n);
+      if (hit) c.reportaA = hit;
+    }
+    delete c._pk; delete c._ek;
+  });
+  await lote({poner});
+  IMPORT = null;
+  aviso(`Importados: ${plural(poner.empresas.length,'compañía')}, ${plural(poner.personas.length,'persona')}, ${plural(poner.cargos.length,'cargo')}`);
+  reemplazar('#/inicio');
+}
+
+/* =====================================================================
+   DATOS DE EJEMPLO (ficticios)
+   ===================================================================== */
+async function cargarEjemplo(){
+  if ([...S.empresas, ...S.personas].some(x => x.ejemplo)) { aviso('Los datos de ejemplo ya están cargados.'); return; }
+  const t0 = Date.now(); let k = 0;
+  const cr = () => new Date(t0 + (k++) * 1000).toISOString();
+  const E = (nombre, participacion, vinculoId, color, sector, ciudad, detalle='') => ({id:uid(), creada:cr(), nombre, participacion, vinculoId, color, sector, ciudad, detalle, archivada:false, ejemplo:true});
+  const ga = E('Grupo Andino de Alimentos', 22, 'miembro-principal', 'azul', 'Alimentos', 'Medellín', 'Comité de inversiones');
+  const cc = E('Cámara de Comercio de Bogotá', null, 'miembro-principal', 'verde', 'Gremio', 'Bogotá', 'Recién ingresado');
+  const tv = E('Textiles del Valle', 28, 'presidente', 'vino', 'Textil', 'Cali');
+  const lc = E('Logística Caribe S.A.S.', 15, 'suplente', 'turquesa', 'Logística', 'Barranquilla');
+  const cs = E('Constructora Sabana', null, 'relacion-comercial', 'morado', 'Construcción', 'Chía', 'Proveedor del proyecto de Rionegro');
+  const P = (nombre, trato, telefono='', correo='', comoLaConocio='', perfil='') => ({id:uid(), creada:cr(), nombre, trato, telefono, correo, comoLaConocio, perfil, foto:null, ejemplo:true});
+  const jm = P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía');
+  const lcz = P('Laura Cárdenas','ella','+57 300 000 0102','laura@ejemplo.com','Comité de auditoría 2025','Contadora, muy rigurosa con los controles. Coincide en priorizar la deuda.');
+  const av = P('Andrés Villegas','él','','andres@ejemplo.com');
+  const co = P('Carlos Ospina','él','+57 300 000 0104','carlos@ejemplo.com');
+  const sr = P('Sofía Restrepo','ella','+57 300 000 0000','sofia@ejemplo.com','Junta de marzo 2026','Economista, viene de banca de inversión. Muy rigurosa con las cifras, prefiere el detalle por escrito antes de la junta. Buena interlocutora para temas de deuda.');
+  const ng = P('Natalia Gómez','ella'), fa = P('Felipe Arango','él'), mt = P('Mariana Toro','ella','','mariana@ejemplo.com');
+  const rv = P('Ricardo Vélez','él','+57 300 000 0201'), dq = P('Diana Quintero','ella');
+  const hp = P('Hernán Pardo','él'), ys = P('Yolanda Salcedo','ella');
+  const gm = P('Gustavo Muñoz','él','+57 300 000 0301','gustavo@ejemplo.com','Visita de obra en Rionegro'), pr = P('Paola Rincón','ella');
+  const C = (p, e, area, cargo, rolJunta='', reporta=null, inicio='') => ({id:uid(), creada:cr(), personaId:p.id, empresaId:e.id, area, cargo, rolJunta, reportaA: reporta ? reporta.id : null, reportaATexto: reporta ? reporta.nombre : '', inicio, fin:''});
+  const cargos = [
+    C(jm, ga, '', 'Fundador', 'Presidente de junta'), C(lcz, ga, '', '', 'Independiente · Comité de auditoría'), C(av, ga, '', '', 'Representa a Inversiones Sur'),
+    C(co, ga, 'Gerencia', 'Gerente general', '', null, '2021-02-01'), C(sr, ga, 'Finanzas', 'Vicepresidente financiera', '', co, '2025-11-01'), C(ng, ga, 'Finanzas', 'Tesorera', '', sr),
+    C(fa, ga, 'Operaciones', 'Director de planta Rionegro', '', co), C(mt, ga, 'Comercial', 'Gerente comercial nacional', '', co),
+    C(lcz, tv, '', '', 'Miembro independiente'), C(rv, tv, 'Gerencia', 'Gerente general'), C(dq, tv, 'Finanzas', 'Directora financiera', '', rv),
+    C(hp, lc, 'Gerencia', 'Gerente general'), C(ys, lc, '', '', 'Miembro principal'),
+    C(gm, cs, 'Gerencia', 'Gerente de proyectos'), C(pr, cs, 'Comercial', 'Ejecutiva de cuenta', '', gm),
+    {...C(av, tv, 'Comercial', 'Asesor comercial'), inicio:'2019-03-01', fin:'2023-06-30'}
+  ];
+  const N = (ref, refTipo, fecha, ocasion, texto) => ({id:uid(), creada:cr(), refTipo, refId:ref.id, fecha, ocasion, texto, ejemplo:true});
+  const notas = [
+    N(sr,'persona','2026-09-23','Junta ordinaria','Presentó la refinanciación de la deuda. Quedó de enviar escenarios con tasa fija.'),
+    N(sr,'persona','2026-06-12','Almuerzo','Me contó que su hijo empieza universidad en Bogotá.'),
+    N(sr,'persona','2026-03-14','Junta','Primera vez que la vi. Presentó el presupuesto anual.'),
+    N(ga,'empresa','2026-09-23','Junta ordinaria','Andrés y Laura coinciden en que la deuda es la prioridad. Jorge prefiere no frenar la expansión. Vale la pena hablar con Laura antes de la próxima.'),
+    N(tv,'empresa','2026-09-30','Llamada','Ricardo confirma que la auditoría externa entrega informe en noviembre.'),
+    N(cs,'empresa','2026-10-02','Reunión','Revisamos cronograma de obra. Gustavo envía cotización ajustada.')
+  ];
+  cargos.forEach(c => c.ejemplo = true);
+  await lote({poner:{empresas:[ga,cc,tv,lc,cs], personas:[jm,lcz,av,co,sr,ng,fa,mt,rv,dq,hp,ys,gm,pr], cargos, notas}});
+  aviso('Datos de ejemplo cargados'); BUSQUEDA = ''; FILTRO = 'todas';
+  reemplazar('#/inicio'); render();
+}
+async function borrarEjemplo(){
+  if (!await confirmar('Se borran las compañías, personas, cargos y notas de ejemplo. Sus datos reales no se tocan.', {titulo:'Borrar datos de ejemplo', si:'Borrar', peligro:true})) return;
+  const eIds = new Set(S.empresas.filter(e => e.ejemplo).map(e => e.id));
+  const pIds = new Set(S.personas.filter(p => p.ejemplo).map(p => p.id));
+  const cargos = S.cargos.filter(c => c.ejemplo || eIds.has(c.empresaId) || pIds.has(c.personaId)).map(c => c.id);
+  const notas = S.notas.filter(n => n.ejemplo || eIds.has(n.refId) || pIds.has(n.refId)).map(n => n.id);
+  const reus = S.reuniones.filter(r => eIds.has(r.empresaId)).map(r => r.id), rs = new Set(reus);
+  const comp = S.compromisos.filter(c => rs.has(c.reunionId)).map(c => c.id);
+  await lote({quitar:{empresas:[...eIds], personas:[...pIds], cargos, notas, reuniones:reus, compromisos:comp}});
+  aviso('Datos de ejemplo borrados'); render();
+}
+
+/* =====================================================================
+   ACCIONES (botones con data-action)
+   ===================================================================== */
+const ACCIONES = {
+  volver: b => volver(b.dataset.a || '#/inicio'),
+  bloquear: () => bloquear(),
+  'pin-num': b => pinTecla(b.dataset.n),
+  'pin-borrar': () => pinBorrar(),
+  'pin-entrar': () => pinEnviar(),
+  'pin-olvido': () => olvidoPin(),
+  'pin-cancelar': () => desbloquear(),
+  'cambiar-pin': () => bloquear({modo:'actual', cambiando:true}),
+  filtro: b => { FILTRO = b.dataset.f; vistaInicio(); },
+  color: b => {
+    const e = empresa(b.dataset.id);
+    abrirHoja(`<h2 class="hoja-titulo">Color de ${esc(e.nombre)}</h2><div class="paleta">${PALETA.map(p => `<button type="button" class="circulo${p.k===e.color ? ' sel' : ''}" style="background:var(--emp-${p.k})" data-action="poner-color" data-id="${e.id}" data-c="${p.k}" aria-label="${p.n}${p.k===e.color ? ' (seleccionado)' : ''}"></button>`).join('')}</div><button type="button" class="btn-sec" data-action="cerrar-hoja">Cerrar</button>`);
+  },
+  'cerrar-hoja': () => cerrarHoja(),
+  'poner-color': async b => { await guardar('empresas', {...empresa(b.dataset.id), color:b.dataset.c}); cerrarHoja(); render(); },
+  exportar: () => exportar(),
+  'importar-respaldo': () => { const i = $('#archivo-respaldo'); i.value = ''; i.click(); },
+  plantilla: () => descargar('plantilla-importacion.csv', plantillaCSV(), 'text/csv'),
+  'cargar-csv': () => { const i = $('#archivo-csv'); i.value = ''; i.click(); },
+  'imp-dec': b => { const d = IMPORT.duplicados.find(x => x.pk === b.dataset.pk); if (d) d.decision = b.dataset.v; vistaImportar(); },
+  'imp-cancelar': () => { IMPORT = null; volver('#/ajustes'); },
+  'imp-confirmar': () => confirmarImport(),
+  'ejemplo-cargar': () => cargarEjemplo(),
+  'ejemplo-borrar': () => borrarEjemplo(),
+  restaurar: async b => { await guardar('empresas', {...empresa(b.dataset.id), archivada:false}); aviso('Compañía restaurada'); render(); },
+  'tipo-borrar': async b => {
+    const usada = S.empresas.some(e => e.vinculoId === b.dataset.id);
+    if (usada) return mensaje('Este tipo está asignado a una o más compañías. Cámbieles el vínculo antes de quitarlo.');
+    await lote({quitar:{tiposVinculo:[b.dataset.id]}}); render();
+  },
+  /* Formulario de compañía */
+  'fe-part': b => { FE.partSel = b.dataset.v; vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para); if (FE.partSel === 'con') $('#fe-pct').focus(); },
+  'fe-vinc': b => { FE.vinculoId = b.dataset.id; vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para); },
+  'fe-otro': async () => {
+    const r = await pedirTipoPropio(); if (!r) return;
+    const t = {id:uid(), nombre:r.nombre, grupo:r.grupo, propio:true, orden:99};
+    await guardar('tiposVinculo', t); FE.vinculoId = t.id;
+    vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para);
+  },
+  'fe-archivar': async () => {
+    const e = empresa(FE._para);
+    if (!await confirmar(`“${e.nombre}” deja de aparecer en el inicio, pero sus personas, cargos y notas se conservan. Puede restaurarla desde Ajustes.`, {titulo:'Archivar compañía', si:'Archivar'})) return;
+    await guardar('empresas', {...e, archivada:true}); FE = null; aviso('Compañía archivada'); profundidad = 0; reemplazar('#/inicio');
+  },
+  /* Formulario de persona */
+  'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
+  'fp-existente': b => { FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
+  'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
+  'fp-borrar': async () => {
+    const p = persona(FP._para);
+    if (!await confirmar(`Se borran ${p.nombre}, sus cargos y sus notas. Esta acción no se puede deshacer. Si solo salió de una empresa, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
+    const cargos = S.cargos.filter(c => c.personaId === p.id).map(c => c.id);
+    const notas = S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id).map(n => n.id);
+    const refs = S.cargos.filter(c => c.reportaA === p.id).map(c => ({...c, reportaA:null, reportaATexto:p.nombre}));
+    await lote({quitar:{personas:[p.id], cargos, notas}, poner:{cargos:refs}});
+    FP = null; aviso('Persona eliminada'); profundidad = 0; reemplazar('#/personas');
+  },
+  /* Cargo */
+  'fc-cerrar': () => guardarCargo(hoyISO()),
+  'fc-borrar': async () => {
+    if (!await confirmar('Use esta opción solo si el cargo fue un error. Si la persona salió de la empresa, mejor cierre el cargo para conservar la historia.', {titulo:'Eliminar cargo', si:'Eliminar', peligro:true})) return;
+    const pid = FC.personaId; await lote({quitar:{cargos:[FC._para]}}); FC = null; aviso('Cargo eliminado'); volver('#/persona/' + pid);
+  },
+  /* Nota */
+  'fn-ref': b => { FN.ref = b.dataset.ref; vistaNota(FN._para === 'nueva' ? undefined : FN._para, {}); },
+  'fn-borrar': async () => {
+    if (!await confirmar('¿Eliminar esta nota? No se puede deshacer.', {si:'Eliminar', peligro:true})) return;
+    await lote({quitar:{notas:[FN._para]}}); FN = null; aviso('Nota eliminada'); volver();
+  }
+};
+
+/* =====================================================================
+   EVENTOS GLOBALES Y ARRANQUE
+   ===================================================================== */
+document.addEventListener('click', async e => {
+  const a = e.target.closest('[data-action]');
+  if (a) {
+    if (a.disabled) return;
+    e.preventDefault(); e.stopPropagation();
+    const fn = ACCIONES[a.dataset.action];
+    if (fn) { try { await fn(a, e); } catch (err) { console.error(err); mensaje('Ocurrió un error: ' + (err.message || err), 'Algo salió mal'); } }
+    return;
+  }
+  const g = e.target.closest('[data-go]');
+  if (g) { e.preventDefault(); ir(g.dataset.go); return; }
+  const l = e.target.closest('a[href^="#/"]');
+  if (l) { e.preventDefault(); ir(l.getAttribute('href')); }
+});
+document.addEventListener('keydown', e => {
+  if (bloqueada && !HOJA) {
+    if (/^[0-9]$/.test(e.key)) pinTecla(e.key);
+    else if (e.key === 'Backspace') pinBorrar();
+    else if (e.key === 'Enter') pinEnviar();
+    return;
+  }
+  if (e.key === 'Escape' && HOJA) { cerrarHoja(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-go]')) { e.preventDefault(); ir(e.target.dataset.go); }
+});
+window.addEventListener('hashchange', render);
+$('#archivo-respaldo').addEventListener('change', e => { const f = e.target.files[0]; if (f) importarRespaldo(f); });
+$('#archivo-csv').addEventListener('change', e => { const f = e.target.files[0]; if (f) cargarCSV(f); });
+let ocultaDesde = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) ocultaDesde = Date.now();
+  else if (!bloqueada && ocultaDesde && Date.now() - ocultaDesde > BLOQUEO_MIN * 60000) bloquear();
+});
+
+async function iniciar(){
+  document.title = APP.nombre;
+  $('meta[name="apple-mobile-web-app-title"]').content = APP.nombre;
+  if (!window.indexedDB || !window.crypto?.subtle) {
+    bloqueo.innerHTML = `<div class="pin"><div class="pin-cabeza"><div class="pin-logo">${estrella(30)}</div><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr">Este navegador no permite guardar datos de forma segura. Abra la app desde su dirección https en Chrome, Edge o Safari.</p></div></div>`;
+    return;
+  }
+  try {
+    db = await abrirDB();
+    await cargarTodo();
+    await asegurarTiposBase();
+  } catch (err) {
+    bloqueo.innerHTML = `<div class="pin"><div class="pin-cabeza"><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr">No se pudo abrir la base de datos (${esc(err.message || err)}). Si está en modo incógnito, ábrala en una ventana normal.</p></div></div>`;
+    return;
+  }
+  bloquear();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+  }
+}
+iniciar();
+</script>
+</body>
+</html>
