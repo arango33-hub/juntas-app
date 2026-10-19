@@ -386,7 +386,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.1.1 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.1.2 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -491,13 +491,23 @@ function diasParaCumple(f){
   return Math.round((prox - hoy) / 86400000);
 }
 /* Fragmento de texto alrededor de lo buscado, con la coincidencia resaltada */
-function fragmento(texto, q){
+/* Búsqueda por palabras: cada palabra debe aparecer, en cualquier orden */
+const palabrasDe = q => [...new Set(norm(q).split(' ').filter(Boolean))];
+const contieneTodas = (textos, ps) => { const t = norm(textos.filter(Boolean).join(' ')); return ps.every(w => t.includes(w)); };
+/* Fragmento de texto alrededor de lo buscado, con cada palabra resaltada */
+function fragmento(texto, ps){
   const base = String(texto || '').normalize('NFC');
   const plano = base.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
-  const i = q ? plano.indexOf(q) : -1;
-  if (i < 0) return esc(base.slice(0, 140)) + (base.length > 140 ? '…' : '');
-  const ini = Math.max(0, i - 50), fin = Math.min(base.length, i + q.length + 80);
-  return (ini ? '…' : '') + esc(base.slice(ini, i)) + '<mark>' + esc(base.slice(i, i + q.length)) + '</mark>' + esc(base.slice(i + q.length, fin)) + (fin < base.length ? '…' : '');
+  const pos = (ps || []).map(w => plano.indexOf(w)).filter(i => i >= 0);
+  if (!pos.length) return esc(base.slice(0, 140)) + (base.length > 140 ? '…' : '');
+  const primera = Math.min(...pos);
+  const ini = Math.max(0, primera - 50), fin = Math.min(base.length, primera + 160);
+  const rangos = [];
+  ps.forEach(w => { let k = plano.indexOf(w, ini); while (k >= 0 && k < fin) { rangos.push([k, Math.min(k + w.length, fin)]); k = plano.indexOf(w, k + w.length); } });
+  rangos.sort((a,b) => a[0] - b[0]);
+  let html = ini ? '…' : '', cur = ini;
+  for (const [a, b] of rangos) { if (b <= cur) continue; const a2 = Math.max(a, cur); html += esc(base.slice(cur, a2)) + '<mark>' + esc(base.slice(a2, b)) + '</mark>'; cur = b; }
+  return html + esc(base.slice(cur, fin)) + (fin < base.length ? '…' : '');
 }
 
 /* =====================================================================
@@ -958,7 +968,7 @@ function pintarLista(){
   const cont = $('#lista'); if (!cont) return;
   const act = empresasOrdenadas();
   const pasa = e => FILTRO==='todas' || (FILTRO==='junta') === esJunta(e);
-  const q = norm(BUSQUEDA);
+  const q = norm(BUSQUEDA), ps = palabrasDe(BUSQUEDA);
   if (!act.length && !S.personas.length) {
     cont.innerHTML = `<div class="tarjeta ajuste"><p>Aún no hay compañías. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
       <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar compañía</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`;
@@ -969,14 +979,15 @@ function pintarLista(){
     cont.innerHTML = lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías en este filtro.</p>`;
     return;
   }
-  const emps = act.filter(pasa).filter(e => [e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre].some(t => norm(t).includes(q)));
+  const emps = act.filter(pasa).filter(e => contieneTodas([e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre], ps));
   const pers = [];
   for (const p of [...S.personas].sort((a,b) => compararTexto(a.nombre, b.nombre))) {
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
-    const porDatos = [p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio, p.asistente, p.otros].some(t => norm(t).includes(q));
-    const porCargo = cs.find(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre].some(t => norm(t).includes(q)));
-    if (porDatos || porCargo) pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
+    const camposCargo = c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre];
+    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
+    const porCargo = cs.find(c => ps.some(w => norm(camposCargo(c).join(' ')).includes(w)));
+    pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
   }
   const notaPasa = n => {
     if (FILTRO === 'todas') return true;
@@ -984,12 +995,12 @@ function pintarLista(){
     if (n.refTipo === 'persona') return cargosPersona(n.refId).some(c => { const e = empresa(c.empresaId); return e && pasa(e); });
     return false;
   };
-  const notas = S.notas.filter(n => (norm(n.texto).includes(q) || norm(n.ocasion).includes(q)) && notaPasa(n)).sort(ordenNotas);
   const destino = n => n.refTipo === 'persona' ? persona(n.refId)?.nombre : n.refTipo === 'empresa' ? empresa(n.refId)?.nombre : '';
+  const notas = S.notas.filter(n => contieneTodas([n.texto, n.ocasion, destino(n)], ps) && notaPasa(n)).sort(ordenNotas);
   if (!emps.length && !pers.length && !notas.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
   cont.innerHTML = (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
     + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '')
-    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, norm(n.texto).includes(q) ? q : '')}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '');
+    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '');
 }
 
 /* ---------- 3 · Compañía ---------- */
@@ -1484,8 +1495,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   const coincide = (p, q) => {
     if (!q) return true;
-    if ([p.nombre, p.correo, p.telefono, p.asistente].some(t => norm(t).includes(q))) return true;
-    return cargosPersona(p.id).some(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre].some(t => norm(t).includes(q)));
+    return contieneTodas([p.nombre, p.correo, p.telefono, p.asistente, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre])], palabrasDe(q));
   };
   const pintarP = () => {
     const q = norm(BUSQ_PERSONAS);
@@ -1495,7 +1505,7 @@ function vistaPersonas(){
     if (!agrupar) {
       cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
         const cs = cargosPersona(p.id);
-        const c = (q && cs.find(c => [c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].some(t => norm(t).includes(q)))) || cs.find(vigente) || cs[0];
+        const c = (q && cs.find(c => palabrasDe(q).some(w => norm([c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].join(' ')).includes(w)))) || cs.find(vigente) || cs[0];
         return filaPersonaBusq(p, c);
       }).join('')}</div>`;
       return;
