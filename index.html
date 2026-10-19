@@ -304,6 +304,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .campo .opc{font-weight:400;color:var(--texto-2)}
 .ayuda{font-size:13px;color:var(--texto-2)}
 .dos{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dos > *{min-width:0}
+input[type=date].input{min-width:0;max-width:100%;padding:0 10px}
 fieldset{margin:0;padding:0;border:0;display:flex;flex-direction:column;gap:10px;min-width:0}
 legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
 .grupo-tit{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--texto-2)}
@@ -374,7 +376,7 @@ legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.0 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.0.1 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1153,19 +1155,19 @@ function camposCargo(st, pref){
       <option value="">${pref==='fp' ? 'Ninguna por ahora' : 'Escoja la empresa'}</option>${emps.map(e => `<option value="${e.id}"${st.empresaId===e.id ? ' selected' : ''}>${esc(e.nombre)}</option>`).join('')}
       ${st.empresaId && !emps.some(e => e.id===st.empresaId) && empresa(st.empresaId) ? `<option value="${st.empresaId}" selected>${esc(empresa(st.empresaId).nombre)} (archivada)</option>` : ''}</select></div>
     <div class="dos">
-      <div class="campo"><label for="${pref}-area">Área</label><input class="input" id="${pref}-area" list="dl-areas" value="${esc(st.area)}" placeholder="Ej. Finanzas"></div>
+      <div class="campo"><label for="${pref}-area">Área</label><input class="input" id="${pref}-area" list="${pref}-dl-areas" value="${esc(st.area)}" placeholder="Ej. Finanzas"></div>
       <div class="campo"><label for="${pref}-cargo">Cargo</label><input class="input" id="${pref}-cargo" value="${esc(st.cargo)}" placeholder="Ej. Tesorera"></div>
     </div>
-    <datalist id="dl-areas">${areas.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
-    <div class="campo"><label for="${pref}-rol">Rol en junta <span class="opc">(solo si es miembro de junta)</span></label><input class="input" id="${pref}-rol" list="dl-roles" value="${esc(st.rolJunta)}" placeholder="Ej. Miembro independiente"></div>
-    <datalist id="dl-roles">${ROLES_JUNTA.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
-    <div class="campo"><label for="${pref}-rep">Reporta a <span class="opc">(opcional)</span></label><input class="input" id="${pref}-rep" list="dl-rep" value="${esc(st.reportaTxt)}" placeholder="Nombre de su jefe"></div>
-    <datalist id="dl-rep"></datalist>`;
+    <datalist id="${pref}-dl-areas">${areas.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="campo"><label for="${pref}-rol">Rol en junta <span class="opc">(solo si es miembro de junta)</span></label><input class="input" id="${pref}-rol" list="${pref}-dl-roles" value="${esc(st.rolJunta)}" placeholder="Ej. Miembro independiente"></div>
+    <datalist id="${pref}-dl-roles">${ROLES_JUNTA.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="campo"><label for="${pref}-rep">Reporta a <span class="opc">(opcional)</span></label><input class="input" id="${pref}-rep" list="${pref}-dl-rep" value="${esc(st.reportaTxt)}" placeholder="Nombre de su jefe"></div>
+    <datalist id="${pref}-dl-rep"></datalist>`;
 }
 function enlazarCargo(st, pref, excluirId){
   const llenarRep = () => {
     const ids = [...new Set(cargosEmpresa(st.empresaId).filter(vigente).map(c => c.personaId))].filter(i => i !== excluirId);
-    $('#dl-rep').innerHTML = ids.map(persona).filter(Boolean).map(p => `<option value="${esc(p.nombre)}">`).join('');
+    $(`#${pref}-dl-rep`).innerHTML = ids.map(persona).filter(Boolean).map(p => `<option value="${esc(p.nombre)}">`).join('');
   };
   $(`#${pref}-emp`).addEventListener('change', e => { st.empresaId = e.target.value; llenarRep(); });
   [['area','area'],['cargo','cargo'],['rol','rolJunta'],['rep','reportaTxt']].forEach(([s,k]) => $(`#${pref}-${s}`).addEventListener('input', e => st[k] = e.target.value));
@@ -1175,7 +1177,8 @@ function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
-    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||''}
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'',
+             cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
            : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
@@ -1197,6 +1200,11 @@ function vistaPersonaForm(id, q){
     <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>`}
     ${nueva ? `<fieldset><legend>Cargo ${ex ? '' : '<span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span>'}</legend>${camposCargo(FP,'fp')}
       <div class="campo"><label for="fp-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fp-inicio" type="date" value="${esc(FP.inicio)}"></div></fieldset>` : ''}
+    ${!nueva ? FP.cargos.map((c, i) => `<fieldset class="tarjeta" style="padding:16px"><legend style="float:left;width:100%;margin-bottom:6px">${FP.cargos.length > 1 ? `Cargo ${i+1}` : 'Cargo'}${c.fin && c.fin <= hoyISO() ? ' <span class="opc" style="font-weight:400;color:var(--texto-2)">(cerrado)</span>' : ''}</legend>${camposCargo(c,'fpc'+i)}
+      <div class="dos">
+        <div class="campo"><label for="fpc${i}-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fpc${i}-inicio" type="date" value="${esc(c.inicio)}"></div>
+        <div class="campo"><label for="fpc${i}-fin">Hasta <span class="opc">(si ya salió)</span></label><input class="input" id="fpc${i}-fin" type="date" value="${esc(c.fin)}"></div>
+      </div></fieldset>`).join('') + `<a class="btn-sec" href="#/cargo?p=${FP._para}">+ Agregar otro cargo</a>` : ''}
     <div class="guardar-final"><button type="submit" class="btn-pri">Guardar</button>
       ${!nueva ? '<button type="button" class="btn-peligro" data-action="fp-borrar">Eliminar persona</button>' : ''}</div>
   </form>`);
@@ -1206,6 +1214,11 @@ function vistaPersonaForm(id, q){
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
   }
   if (nueva) { enlazarCargo(FP, 'fp', FP.existenteId); $('#fp-inicio').addEventListener('input', e => FP.inicio = e.target.value); }
+  else FP.cargos.forEach((c, i) => {
+    enlazarCargo(c, 'fpc' + i, FP._para);
+    $(`#fpc${i}-inicio`).addEventListener('input', e => c.inicio = e.target.value);
+    $(`#fpc${i}-fin`).addEventListener('input', e => c.fin = e.target.value);
+  });
   $('#f-per').addEventListener('submit', e => { e.preventDefault(); guardarPersona(); });
 }
 function sugerirPersonas(){
@@ -1239,6 +1252,15 @@ async function guardarPersona(){
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
       const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(), editada:ahora()};
       poner.personas = [p]; pid = p.id;
+    }
+  }
+  if (!nueva) {
+    poner.cargos = [];
+    for (const [i, c] of FP.cargos.entries()) {
+      const n = FP.cargos.length > 1 ? ` del cargo ${i+1}` : ' del cargo';
+      if (!c.empresaId) { aviso('Escoja la empresa' + n + '.'); $(`#fpc${i}-emp`).focus(); return; }
+      if (c.inicio && c.fin && c.fin < c.inicio) { aviso('La fecha “Hasta”' + n + ' es anterior a “Desde”.'); return; }
+      poner.cargos.push({...cargo(c.id), empresaId:c.empresaId, area:c.area.trim(), cargo:c.cargo.trim(), rolJunta:c.rolJunta.trim(), ...resolverReporta(c.reportaTxt, c.empresaId, pid), inicio:c.inicio, fin:c.fin, editada:ahora()});
     }
   }
   if (nueva && FP.empresaId) {
