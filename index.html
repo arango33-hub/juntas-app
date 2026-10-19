@@ -366,6 +366,11 @@ legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
 .cifra span{font-size:13px;color:var(--texto-2)}
 .dup{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-bottom:1px solid var(--linea)}
 .dup:last-child{border-bottom:0}
+mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;padding:0}
+.res-nota{display:flex;flex-direction:column;gap:4px;padding:12px 16px;border-bottom:1px solid var(--linea);text-decoration:none;color:var(--texto)}
+.res-nota:last-child{border-bottom:0}
+.res-nota .txt{font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.franja a{color:inherit;font-weight:600}
 </style>
 </head>
 <body>
@@ -381,12 +386,13 @@ legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.0.2 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.1.0 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
-const DB_VERSION = 1;
-const TABLAS = ['empresas','personas','cargos','reuniones','compromisos','notas','tiposVinculo'];
+const DB_VERSION = 2;
+const TABLAS = ['empresas','personas','cargos','reuniones','compromisos','notas','tiposVinculo','papelera'];
+const PAPELERA_DIAS = 30;
 const PIN_ITER = 200000, RESPALDO_ITER = 250000;
 const BLOQUEO_MIN = 5;
 
@@ -432,6 +438,9 @@ const I = {
   alerta: `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--pend-texto)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>`,
   pendNaranja: `<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--pend-texto)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg>`,
   info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'),
+  micPeq: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',20),
+  pastel: svg('<path d="M4 21h16M5 21v-7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7M5 16c1.5 1 3 1 4.5 0s3-1 4.5 0 3 1 5 0M12 12V8M12 5.5v.01"/>'),
+  borrador: svg('<path d="M4 20h4l10-10-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
   orden: svg('<path d="M4 6h9M4 12h6M4 18h3M17 5v14M14 16l3 3 3-3"/>',18),
   ordenDesc: svg('<path d="M4 6h3M4 12h6M4 18h9M17 19V5M14 8l3-3 3 3"/>',18),
   edificio: svg('<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',18)
@@ -465,12 +474,37 @@ const fmtPct = p => `${String(Math.round(p*100)/100).replace('.',',')} %`;
 const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 const esInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const esMovil = () => matchMedia('(pointer: coarse)').matches;
+/* Número para WhatsApp: si es un celular colombiano de 10 dígitos sin indicativo, se agrega el 57 */
+function numeroWhatsApp(tel){
+  const t = String(tel || '').trim(), d = soloDigitos(t);
+  if (!d) return '';
+  if (t.startsWith('+')) return d;
+  if (d.length === 10 && d.startsWith('3')) return '57' + d;
+  return d;
+}
+function cumpleTexto(f){ if (!f) return ''; const {m, d} = partesFecha(f); return `${d} de ${MESES_L[m-1]}`; }
+function diasParaCumple(f){
+  if (!f) return null;
+  const {m, d} = partesFecha(f), hoy = new Date(); hoy.setHours(0,0,0,0);
+  let prox = new Date(hoy.getFullYear(), m-1, d);
+  if (prox < hoy) prox = new Date(hoy.getFullYear()+1, m-1, d);
+  return Math.round((prox - hoy) / 86400000);
+}
+/* Fragmento de texto alrededor de lo buscado, con la coincidencia resaltada */
+function fragmento(texto, q){
+  const base = String(texto || '').normalize('NFC');
+  const plano = base.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  const i = q ? plano.indexOf(q) : -1;
+  if (i < 0) return esc(base.slice(0, 140)) + (base.length > 140 ? '…' : '');
+  const ini = Math.max(0, i - 50), fin = Math.min(base.length, i + q.length + 80);
+  return (ini ? '…' : '') + esc(base.slice(ini, i)) + '<mark>' + esc(base.slice(i, i + q.length)) + '</mark>' + esc(base.slice(i + q.length, fin)) + (fin < base.length ? '…' : '');
+}
 
 /* =====================================================================
    BASE DE DATOS (IndexedDB) — copia en memoria + escritura inmediata
    ===================================================================== */
 let db;
-const S = {empresas:[],personas:[],cargos:[],reuniones:[],compromisos:[],notas:[],tiposVinculo:[],cfg:{}};
+const S = {empresas:[],personas:[],cargos:[],reuniones:[],compromisos:[],notas:[],tiposVinculo:[],papelera:[],cfg:{}};
 
 function abrirDB(){
   return new Promise((res, rej) => {
@@ -487,7 +521,7 @@ function abrirDB(){
       crear('reuniones', ['empresaId']);
       crear('compromisos', ['reunionId']);
       crear('notas', ['refId']);
-      crear('tiposVinculo'); crear('ajustes');
+      crear('tiposVinculo'); crear('ajustes'); crear('papelera');
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
@@ -577,6 +611,32 @@ function pendientesEmpresa(id){
   return S.compromisos.filter(c => !c.cumplido && rs.has(c.reunionId)).length;
 }
 const ordenNotas = (a,b) => (b.fecha||'').localeCompare(a.fecha||'') || String(b.creada||'').localeCompare(String(a.creada||''));
+/* Papelera: lo borrado se guarda 30 días y se puede restaurar */
+async function aPapelera(titulo, datos, extra = {}){
+  const quitar = {};
+  for (const [n, objs] of Object.entries(datos)) quitar[n] = objs.map(o => o.id);
+  const item = {id:uid(), creada:ahora(), titulo, datos};
+  const poner = {papelera:[item]};
+  for (const [n, objs] of Object.entries(extra)) poner[n] = objs;
+  await lote({quitar, poner});
+}
+async function restaurarPapelera(id){
+  const it = S.papelera.find(x => x.id === id); if (!it) return;
+  const d = it.datos, enItem = (n, pid) => (d[n] || []).some(x => x.id === pid), falta = new Set();
+  (d.cargos || []).forEach(c => { if (!persona(c.personaId) && !enItem('personas', c.personaId)) falta.add('la persona'); if (!empresa(c.empresaId)) falta.add('la compañía'); });
+  (d.notas || []).forEach(n => {
+    if (n.refTipo === 'persona' && !persona(n.refId) && !enItem('personas', n.refId)) falta.add('la persona');
+    if (n.refTipo === 'empresa' && !empresa(n.refId)) falta.add('la compañía');
+  });
+  if (falta.size) return mensaje(`No se puede restaurar porque ${[...falta].join(' y ')} a la que pertenece ya no existe. Restaure primero ese elemento desde la papelera.`, 'No se pudo restaurar');
+  await lote({poner:d, quitar:{papelera:[it.id]}});
+  aviso('Restaurado'); render();
+}
+async function purgarPapelera(){
+  const limite = Date.now() - PAPELERA_DIAS * 86400000;
+  const viejos = S.papelera.filter(x => new Date(x.creada).getTime() < limite).map(x => x.id);
+  if (viejos.length) await lote({quitar:{papelera:viejos}});
+}
 function siguienteColor(){
   const i = +S.cfg.colorSiguiente || 0;
   return {color: PALETA[i % PALETA.length].k, siguiente: i + 1};
@@ -835,6 +895,18 @@ function franjaRespaldo(){
   if (hace !== null && hace < dias) return '';
   return `<button type="button" class="franja" data-action="exportar">${I.alerta}<span class="col"><span class="franja-t">${hace===null ? 'Aún no ha exportado un respaldo' : `Hace ${plural(hace,'día')} no exporta un respaldo`}</span><span class="franja-s">Toque aquí para exportarlo y guardarlo en Drive</span></span></button>`;
 }
+function franjaBorrador(){
+  const b = S.cfg.borradorNota;
+  if (!b || !String(b.texto || '').trim()) return '';
+  const t = b.texto.trim();
+  return `<a class="franja info" href="#/nota?borrador=1">${I.borrador}<span class="col"><span class="franja-t">Tiene una nota sin guardar</span><span class="franja-s">“${esc(t.slice(0, 60))}${t.length > 60 ? '…' : ''}” · Toque para terminarla</span></span></a>`;
+}
+function franjaCumples(){
+  const prox = S.personas.map(p => ({p, d: diasParaCumple(p.cumpleanos)})).filter(x => x.d !== null && x.d <= 7).sort((a,b) => a.d - b.d);
+  if (!prox.length) return '';
+  const cuando = d => d === 0 ? 'hoy' : d === 1 ? 'mañana' : `en ${d} días`;
+  return `<div class="franja info">${I.pastel}<span class="col"><span class="franja-t">Cumpleaños esta semana</span><span class="franja-s">${prox.map(({p, d}) => `<a href="#/persona/${p.id}">${esc(p.nombre)}</a> ${cuando(d)}`).join(' · ')}</span></span></div>`;
+}
 function franjaIOS(){
   if (!esIOS() || esInstalada()) return '';
   return `<div class="franja info">${I.info}<span class="col"><span class="franja-t">Abra ${esc(APP.nombre)} desde la pantalla de inicio</span><span class="franja-s">En Safari: Compartir → “Agregar a pantalla de inicio”. Así los datos se conservan de forma estable.</span></span></div>`;
@@ -869,9 +941,9 @@ function vistaInicio(){
   pintar(`<div class="pagina con-nav">
     <div class="ini-top">
       <div class="cab-fila"><h1 class="serif t30">Mis juntas</h1>
-        <div class="ini-botones"><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a></div></div>
+        <div class="ini-botones"><a class="btn-icono" href="#/nota?libre=1" aria-label="Nota rápida">${I.micPeq}</a><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a></div></div>
       <div class="campo-busq"><label for="buscar">Buscar persona, cargo o compañía</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
-      ${franjaPendientes()}${franjaRespaldo()}${franjaIOS()}
+      ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaCumples()}${franjaIOS()}
     </div>
     <div class="sec" style="padding-top:24px">
       <div class="sec-fila"><h2 class="sec-titulo">Compañías y entidades</h2><button type="button" class="filtro btn-orden" data-action="orden-emp" aria-label="Orden: ${ordenEmpAsc() ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${ordenEmpAsc() ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button></div>
@@ -902,13 +974,22 @@ function pintarLista(){
   for (const p of [...S.personas].sort((a,b) => compararTexto(a.nombre, b.nombre))) {
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
-    const porDatos = [p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio].some(t => norm(t).includes(q));
+    const porDatos = [p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio, p.asistente, p.otros].some(t => norm(t).includes(q));
     const porCargo = cs.find(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre].some(t => norm(t).includes(q)));
     if (porDatos || porCargo) pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
   }
-  if (!emps.length && !pers.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
+  const notaPasa = n => {
+    if (FILTRO === 'todas') return true;
+    if (n.refTipo === 'empresa') { const e = empresa(n.refId); return e && pasa(e); }
+    if (n.refTipo === 'persona') return cargosPersona(n.refId).some(c => { const e = empresa(c.empresaId); return e && pasa(e); });
+    return false;
+  };
+  const notas = S.notas.filter(n => (norm(n.texto).includes(q) || norm(n.ocasion).includes(q)) && notaPasa(n)).sort(ordenNotas);
+  const destino = n => n.refTipo === 'persona' ? persona(n.refId)?.nombre : n.refTipo === 'empresa' ? empresa(n.refId)?.nombre : '';
+  if (!emps.length && !pers.length && !notas.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
   cont.innerHTML = (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
-    + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '');
+    + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '')
+    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, norm(n.texto).includes(q) ? q : '')}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '');
 }
 
 /* ---------- 3 · Compañía ---------- */
@@ -981,12 +1062,17 @@ function vistaPersona(id, q){
   const c = eCtx ? cv(eCtx.color) : 'var(--acento)';
   const tel = soloDigitos(p.telefono);
   const telHref = p.telefono ? (p.telefono.trim().startsWith('+') ? '+' : '') + tel : '';
-  const acc = (href, icono, txt) => href ? `<a class="per-acc" href="${esc(href)}">${icono}${txt}</a>` : `<span class="per-acc" aria-disabled="true">${icono}${txt}</span>`;
+  const acc = (href, icono, txt) => href ? `<a class="per-acc" href="${esc(href)}"${href.startsWith('http') ? ' target="_blank" rel="noopener"' : ''}>${icono}${txt}</a>` : `<span class="per-acc" aria-disabled="true">${icono}${txt}</span>`;
+  const wa = numeroWhatsApp(p.telefono);
   const reporta = ctx ? nombreReporta(ctx) : '';
   const datos = [
     p.telefono && `<div class="dato"><span>Celular</span><a href="tel:${esc(telHref)}">${esc(p.telefono)}</a></div>`,
     p.correo && `<div class="dato"><span>Correo</span><a href="mailto:${esc(p.correo)}">${esc(p.correo)}</a></div>`,
-    p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`
+    p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`,
+    (p.asistente || p.asistenteTel) && `<div class="dato"><span>Asistente</span><span>${esc(p.asistente || '')}${p.asistente && p.asistenteTel ? ' · ' : ''}${p.asistenteTel ? `<a href="tel:${esc((p.asistenteTel.trim().startsWith('+') ? '+' : '') + soloDigitos(p.asistenteTel))}">${esc(p.asistenteTel)}</a>` : ''}</span></div>`,
+    p.cumpleanos && `<div class="dato"><span>Cumpleaños</span><span>${esc(cumpleTexto(p.cumpleanos))}</span></div>`,
+    p.linkedin && `<div class="dato"><span>LinkedIn</span><a href="${esc(/^https?:\/\//.test(p.linkedin) ? p.linkedin : 'https://' + p.linkedin)}" target="_blank" rel="noopener">Ver perfil</a></div>`,
+    p.otros && `<div class="dato"><span>Otros</span><span style="white-space:pre-line">${esc(p.otros)}</span></div>`
   ].filter(Boolean).join('');
   const titPerfil = p.trato==='ella' ? 'Mi perfil de ella' : p.trato==='él' ? 'Mi perfil de él' : 'Mi perfil';
   const notas = S.notas.filter(n => n.refTipo==='persona' && n.refId===id).sort(ordenNotas)
@@ -1002,7 +1088,7 @@ function vistaPersona(id, q){
       <div class="col"><h1 class="serif t26">${esc(p.nombre)}</h1>
         ${ctx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([ctx.cargo || ctx.rolJunta, ctx.area].filter(Boolean).join(' · '))}</span>` : ''}
         ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}</div></div>
-    <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${acc(telHref && 'sms:' + telHref, I.mensaje, 'Mensaje')}</div>
+    <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${acc(wa && 'https://wa.me/' + wa, I.mensaje, 'WhatsApp')}</div>
   </div></div>
   <div class="pagina con-accion">
     <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
@@ -1016,56 +1102,103 @@ function vistaPersona(id, q){
 }
 
 /* ---------- 6 · Nota (escrita o dictada con el micrófono del teclado) ---------- */
+let temporizadorBorrador = null;
+function guardarBorrador(ya){
+  clearTimeout(temporizadorBorrador);
+  const hacer = () => {
+    if (!FN) return;
+    if (FN.texto.trim()) setAjuste('borradorNota', {...FN, guardado:ahora()}).catch(() => {});
+    else if (S.cfg.borradorNota) lote({quitar:{ajustes:['borradorNota']}}).catch(() => {});
+  };
+  if (ya) hacer(); else temporizadorBorrador = setTimeout(hacer, 500);
+}
+function borrarBorrador(){
+  clearTimeout(temporizadorBorrador);
+  return S.cfg.borradorNota ? lote({quitar:{ajustes:['borradorNota']}}) : Promise.resolve();
+}
 function vistaNota(id, q){
   if (!FN) {
-    if (id) { const n = nota(id); if (!n) return noEncontrado(); FN = {...n, _para:id, ref:`${n.refTipo}:${n.refId}`}; }
-    else FN = {_para:'nueva', fecha:hoyISO(), ocasion:'', texto:'', ref: q.persona ? `persona:${q.persona}` : `empresa:${q.empresa}`, ctxEmp: q.e || ''};
+    const b = S.cfg.borradorNota;
+    if (q.borrador && b) FN = {...b};
+    else {
+      if (id) { const n = nota(id); if (!n) return noEncontrado(); FN = {...n, _para:id, ref:`${n.refTipo}:${n.refId}`, _orig:n.texto}; }
+      else if (q.libre) FN = {_para:'nueva', libre:true, fecha:hoyISO(), ocasion:'', texto:'', ref:'', _orig:''};
+      else FN = {_para:'nueva', fecha:hoyISO(), ocasion:'', texto:'', ref: q.persona ? `persona:${q.persona}` : `empresa:${q.empresa}`, ctxEmp: q.e || '', _orig:''};
+      if (b && String(b.texto || '').trim() && b._para === FN._para && (FN._para !== 'nueva' || (FN.libre ? b.libre : b.ref === FN.ref))) {
+        FN = {...b}; setTimeout(() => aviso('Recuperamos el borrador que no alcanzó a guardar.'), 50);
+      }
+    }
+    FN.busq = '';
   }
-  const [rt, rid] = FN.ref.split(':');
+  const [rt, rid] = (FN.ref || ':').split(':');
   const opciones = [];
-  let personaBase = null;
-  if (rt === 'persona') personaBase = persona(rid);
-  else if (FN._para !== 'nueva' && FN.base) personaBase = persona(FN.base);
-  if (!personaBase && rt === 'empresa' && FN.basePersona) personaBase = persona(FN.basePersona);
-  if (personaBase) {
-    FN.basePersona = personaBase.id;
-    opciones.push({ref:'persona:' + personaBase.id, txt:personaBase.nombre});
-    const ids = [...new Set(cargosPersona(personaBase.id).filter(vigente).map(c => c.empresaId))];
-    ids.forEach(eid => { const e = empresa(eid); if (e) opciones.push({ref:'empresa:' + e.id, txt:e.nombre, c:e.color}); });
-  } else if (rt === 'empresa') {
-    const e = empresa(rid); if (!e) return noEncontrado();
-    opciones.push({ref:'empresa:' + e.id, txt:e.nombre, c:e.color});
-  } else return noEncontrado();
-  const ctxE = FN.ctxEmp && empresa(FN.ctxEmp);
-  const colorSel = (rt==='empresa' && empresa(rid)) ? cv(empresa(rid).color) : (ctxE ? cv(ctxE.color) : 'var(--boton)');
+  const personaBase = rt === 'persona' ? persona(rid) : (FN.basePersona ? persona(FN.basePersona) : null);
+  if (FN.ref) {
+    if (personaBase) {
+      FN.basePersona = personaBase.id;
+      opciones.push({ref:'persona:' + personaBase.id, txt:personaBase.nombre});
+      [...new Set(cargosPersona(personaBase.id).filter(vigente).map(c => c.empresaId))].forEach(eid => { const e = empresa(eid); if (e) opciones.push({ref:'empresa:' + e.id, txt:e.nombre}); });
+    } else if (rt === 'empresa') {
+      const e = empresa(rid); if (!e) return noEncontrado();
+      opciones.push({ref:'empresa:' + e.id, txt:e.nombre});
+    } else return noEncontrado();
+  }
+  let colorSel = 'var(--boton)';
+  if (rt === 'empresa' && empresa(rid)) colorSel = cv(empresa(rid).color);
+  else if (personaBase) { const c = (FN.ctxEmp && cargosPersona(personaBase.id).find(c => c.empresaId === FN.ctxEmp)) || cargosPersona(personaBase.id).find(vigente); const e = c && empresa(c.empresaId); if (e) colorSel = cv(e.color); }
+  const titulo = FN._para !== 'nueva' ? 'Editar nota' : (FN.libre ? 'Nota rápida' : 'Nueva nota');
+  const sobre = FN.ref
+    ? `<div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}${FN.libre ? '<button type="button" class="chip-sobre" data-action="fn-cambiar">Cambiar</button>' : ''}</div>`
+    : `<input class="input" id="fn-busq" type="search" placeholder="Busque una persona o compañía" autocomplete="off" value="${esc(FN.busq || '')}"><div class="tarjeta col" id="fn-res" style="gap:0" hidden></div>
+       <p class="ayuda" style="margin:0">Puede escribir la nota primero y escoger después a quién se refiere.</p>`;
   pintar(`<form class="form nota-form" id="f-nota" novalidate style="--c:${colorSel}">
-    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/inicio">Cancelar</button><span class="tit">${FN._para==='nueva' ? 'Nueva nota' : 'Editar nota'}</span><span class="hueco"></span></div>
-    <div class="sobre"><span>Sobre</span><div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}</div></div>
+    <div class="form-cab"><button type="button" class="volver" data-action="fn-cancelar">Cancelar</button><span class="tit">${titulo}</span><span class="hueco"></span></div>
+    <div class="sobre"><span>Sobre</span>${sobre}</div>
     <div class="dos">
       <div class="campo"><label for="fn-fecha">Fecha</label><input class="input" id="fn-fecha" type="date" value="${esc(FN.fecha)}" max="2100-12-31"></div>
       <div class="campo"><label for="fn-ocasion">Ocasión <span class="opc">(opcional)</span></label><input class="input" id="fn-ocasion" value="${esc(FN.ocasion)}" placeholder="Ej. Junta ordinaria" list="dl-ocasion"></div>
     </div>
     <datalist id="dl-ocasion">${OCASIONES.map(o => `<option value="${o}">`).join('')}<option value="Junta ordinaria"><option value="Junta extraordinaria"><option value="Comité"></datalist>
     <div class="caja-texto"><label for="fn-texto">Texto · puede dictarlo con el micrófono del teclado</label><textarea id="fn-texto" placeholder="¿Qué pasó? ¿Qué quedó pendiente?">${esc(FN.texto)}</textarea></div>
+    <p class="ayuda" style="margin:-8px 0 0">Mientras escribe, la nota se guarda como borrador por si algo la interrumpe.</p>
     <div class="guardar-final" style="margin-top:0">
       <button type="submit" class="btn-pri">Guardar nota</button>
       ${FN._para !== 'nueva' ? '<button type="button" class="btn-peligro" data-action="fn-borrar">Eliminar nota</button>' : ''}
     </div>
   </form>`);
   const f = $('#f-nota');
-  $('#fn-fecha').addEventListener('input', e => FN.fecha = e.target.value);
-  $('#fn-ocasion').addEventListener('input', e => FN.ocasion = e.target.value);
-  $('#fn-texto').addEventListener('input', e => FN.texto = e.target.value);
+  $('#fn-fecha').addEventListener('input', e => { FN.fecha = e.target.value; guardarBorrador(); });
+  $('#fn-ocasion').addEventListener('input', e => { FN.ocasion = e.target.value; guardarBorrador(); });
+  $('#fn-texto').addEventListener('input', e => { FN.texto = e.target.value; guardarBorrador(); });
+  const busq = $('#fn-busq');
+  if (busq) {
+    const res = $('#fn-res');
+    const pintarRes = () => {
+      const q2 = norm(FN.busq);
+      if (q2.length < 2) { res.hidden = true; return; }
+      const emps = empresasOrdenadas().filter(e => norm(e.nombre).includes(q2)).slice(0, 4);
+      const pers = S.personas.filter(p => norm(p.nombre).includes(q2)).sort((a,b) => compararTexto(a.nombre, b.nombre)).slice(0, 6);
+      res.hidden = false;
+      res.innerHTML = (pers.map(p => { const c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
+          return `<button type="button" class="fila" data-action="fn-elegir" data-ref="persona:${p.id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
+        + emps.map(e => `<button type="button" class="fila" data-action="fn-elegir" data-ref="empresa:${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">Compañía</span></span></button>`).join(''))
+        || '<div class="fila"><span class="sub">Sin resultados</span></div>';
+    };
+    busq.addEventListener('input', e => { FN.busq = e.target.value; pintarRes(); });
+    pintarRes();
+  }
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const texto = FN.texto.trim();
     if (!texto) { $('#fn-texto').focus(); aviso('Escriba o dicte el texto de la nota.'); return; }
+    if (!FN.ref) { $('#fn-busq')?.focus(); aviso('Escoja a quién o a qué se refiere la nota.'); return; }
     const [refTipo, refId] = FN.ref.split(':');
     const base = FN._para === 'nueva' ? {id:uid(), creada:ahora()} : nota(FN._para);
     await guardar('notas', {...base, fecha: FN.fecha || hoyISO(), ocasion: FN.ocasion.trim(), texto, refTipo, refId, editada:ahora()});
+    await borrarBorrador();
     FN = null; aviso('Nota guardada'); volver(refTipo==='persona' ? '#/persona/' + refId : '#/empresa/' + refId);
   });
-  if (FN._para === 'nueva' && !esMovil()) setTimeout(() => $('#fn-texto')?.focus(), 50);
+  if (FN._para === 'nueva' && !esMovil()) setTimeout(() => (FN && !FN.ref && !FN.texto ? $('#fn-busq') : $('#fn-texto'))?.focus(), 50);
 }
 
 /* ---------- 7 · Nueva / editar compañía ---------- */
@@ -1190,9 +1323,9 @@ function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
-    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'',
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', asistente:p.asistente||'', asistenteTel:p.asistenteTel||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:p.otros||'',
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', asistente:'', asistenteTel:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1202,6 +1335,7 @@ function vistaPersonaForm(id, q){
     <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/personas">Cancelar</button><span class="tit">${nueva ? 'Nueva persona' : 'Editar persona'}</span><span class="hueco"></span></div>
     ${eCtx ? `<p class="ayuda" style="margin:-8px 0 0">En ${esc(eCtx.nombre)}</p>` : ''}
     ${ex ? `<div class="aviso"><span>Se agregará el cargo a <b>${esc(ex.nombre)}</b>, que ya existe. Su historia se conserva.</span><button type="button" class="enlace-btn" data-action="fp-sin-existente">Cambiar</button></div>` : `
+    ${nueva && 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts ? `<button type="button" class="btn-sec" data-action="fp-contacto">${I.gente}Traer de mis contactos</button>` : ''}
     <div class="campo"><label for="fp-nombre">Nombre</label><input class="input" id="fp-nombre" value="${esc(FP.nombre)}" autocomplete="off" autocapitalize="words">
       <div class="sugerencias tarjeta" id="fp-sug" hidden></div></div>
     <div class="campo"><span class="leyenda">Cómo referirse <span class="opc" style="font-size:14px">(para los textos)</span></span><div class="chips">${trato('ella','Ella')}${trato('él','Él')}${trato('','Sin especificar')}</div></div>
@@ -1210,7 +1344,19 @@ function vistaPersonaForm(id, q){
       <div class="campo"><label for="fp-correo">Correo</label><input class="input" id="fp-correo" type="email" inputmode="email" autocapitalize="off" value="${esc(FP.correo)}" placeholder="nombre@ejemplo.com"></div>
     </div>
     <div class="campo"><label for="fp-conoci">Cómo la conocí <span class="opc">(opcional)</span></label><input class="input" id="fp-conoci" value="${esc(FP.comoLaConocio)}" placeholder="Ej. Junta de marzo 2026"></div>
-    <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>`}
+    <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>
+    <fieldset><legend>Más datos <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
+      <div class="dos">
+        <div class="campo"><label for="fp-asis">Asistente</label><input class="input" id="fp-asis" value="${esc(FP.asistente)}" placeholder="Nombre" autocapitalize="words"></div>
+        <div class="campo"><label for="fp-asistel">Tel. asistente</label><input class="input" id="fp-asistel" type="tel" inputmode="tel" value="${esc(FP.asistenteTel)}" placeholder="+57 300 000 0000"></div>
+      </div>
+      <div class="dos">
+        <div class="campo"><label for="fp-cumple">Cumpleaños</label><input class="input" id="fp-cumple" type="date" value="${esc(FP.cumpleanos)}"></div>
+        <div class="campo"><label for="fp-linkedin">LinkedIn</label><input class="input" id="fp-linkedin" type="url" inputmode="url" autocapitalize="off" value="${esc(FP.linkedin)}" placeholder="linkedin.com/in/…"></div>
+      </div>
+      <p class="ayuda" style="margin:-4px 0 0">Si no sabe el año del cumpleaños, ponga cualquiera: solo se usan el día y el mes.</p>
+      <div class="campo"><label for="fp-otros">Otros datos</label><textarea class="input" id="fp-otros" style="min-height:80px" placeholder="Familia, intereses, temas a evitar…">${esc(FP.otros)}</textarea></div>
+    </fieldset>`}
     ${nueva ? `<fieldset><legend>Cargo ${ex ? '' : '<span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span>'}</legend>${camposCargo(FP,'fp')}
       <div class="campo"><label for="fp-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fp-inicio" type="date" value="${esc(FP.inicio)}"></div></fieldset>` : ''}
     ${!nueva ? FP.cargos.map((c, i) => `<fieldset class="tarjeta" style="padding:16px"><legend style="float:left;width:100%;margin-bottom:6px">${FP.cargos.length > 1 ? `Cargo ${i+1}` : 'Cargo'}${c.fin && c.fin <= hoyISO() ? ' <span class="opc" style="font-weight:400;color:var(--texto-2)">(cerrado)</span>' : ''}</legend>${camposCargo(c,'fpc'+i)}
@@ -1224,6 +1370,7 @@ function vistaPersonaForm(id, q){
   if (!ex) {
     const b = (s, k) => $(s).addEventListener('input', e => FP[k] = e.target.value);
     b('#fp-tel','telefono'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
+    b('#fp-asis','asistente'); b('#fp-asistel','asistenteTel'); b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
   }
   if (nueva) { enlazarCargo(FP, 'fp', FP.existenteId); $('#fp-inicio').addEventListener('input', e => FP.inicio = e.target.value); }
@@ -1263,7 +1410,8 @@ async function guardarPersona(){
     }
     if (!pid) {
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
-      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(), editada:ahora()};
+      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
+        asistente:FP.asistente.trim(), asistenteTel:FP.asistenteTel.trim(), cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
       poner.personas = [p]; pid = p.id;
     }
   }
@@ -1336,7 +1484,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   const coincide = (p, q) => {
     if (!q) return true;
-    if ([p.nombre, p.correo, p.telefono].some(t => norm(t).includes(q))) return true;
+    if ([p.nombre, p.correo, p.telefono, p.asistente].some(t => norm(t).includes(q))) return true;
     return cargosPersona(p.id).some(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre].some(t => norm(t).includes(q)));
   };
   const pintarP = () => {
@@ -1408,6 +1556,12 @@ function vistaAjustes(){
     <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una compañía.</p>`}</div>
 
     <div class="sec"><h2 class="sec-titulo">Compañías archivadas</h2>${arch.length ? `<div class="tarjeta col" style="gap:0">${arch.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp"></span><span class="col"><span class="nom">${esc(e.nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="restaurar" data-id="${e.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías archivadas.</p>`}</div>
+
+    <div class="sec"><h2 class="sec-titulo">Papelera</h2>${S.papelera.length ? `<div class="tarjeta col" style="gap:0">${[...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada)).map(it => {
+        const vence = new Date(new Date(it.creada).getTime() + PAPELERA_DIAS * 86400000);
+        return `<div class="dup"><span class="col"><span class="nom">${esc(it.titulo)}</span><span class="sub">Borrado el ${fechaMedia(it.creada)} · se elimina el ${fechaMedia(iso(vence))}</span></span>
+          <div class="dos"><button type="button" class="btn-sec" data-action="papelera-restaurar" data-id="${it.id}">Restaurar</button><button type="button" class="btn-peligro" data-action="papelera-eliminar" data-id="${it.id}">Eliminar ya</button></div></div>`; }).join('')}</div>`
+      : `<p class="tarjeta vacio">La papelera está vacía. Lo que borre se guarda aquí ${PAPELERA_DIAS} días antes de eliminarse.</p>`}</div>
 
     <div class="sec"><h2 class="sec-titulo">Seguridad</h2><div class="tarjeta"><div class="ajuste">
       <p>La app pide el PIN al abrirse y se bloquea sola después de ${BLOQUEO_MIN} minutos en segundo plano.</p>
@@ -1673,11 +1827,12 @@ async function cargarEjemplo(){
   const lc = E('Logística Caribe S.A.S.', 15, 'suplente', 'turquesa', 'Logística', 'Barranquilla');
   const cs = E('Constructora Sabana', null, 'relacion-comercial', 'morado', 'Construcción', 'Chía', 'Proveedor del proyecto de Rionegro');
   const P = (nombre, trato, telefono='', correo='', comoLaConocio='', perfil='') => ({id:uid(), creada:cr(), nombre, trato, telefono, correo, comoLaConocio, perfil, foto:null, ejemplo:true});
-  const jm = P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía');
+  const jm = {...P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía'), asistente:'Marta Ríos', asistenteTel:'+57 300 000 0199'};
   const lcz = P('Laura Cárdenas','ella','+57 300 000 0102','laura@ejemplo.com','Comité de auditoría 2025','Contadora, muy rigurosa con los controles. Coincide en priorizar la deuda.');
   const av = P('Andrés Villegas','él','','andres@ejemplo.com');
   const co = P('Carlos Ospina','él','+57 300 000 0104','carlos@ejemplo.com');
-  const sr = P('Sofía Restrepo','ella','+57 300 000 0000','sofia@ejemplo.com','Junta de marzo 2026','Economista, viene de banca de inversión. Muy rigurosa con las cifras, prefiere el detalle por escrito antes de la junta. Buena interlocutora para temas de deuda.');
+  const sr = {...P('Sofía Restrepo','ella','+57 300 000 0000','sofia@ejemplo.com','Junta de marzo 2026','Economista, viene de banca de inversión. Muy rigurosa con las cifras, prefiere el detalle por escrito antes de la junta. Buena interlocutora para temas de deuda.'),
+    cumpleanos: (() => { const d = new Date(); d.setDate(d.getDate() + 2); return iso(d); })(), linkedin:'linkedin.com/in/ejemplo', otros:'Hijo empieza universidad en Bogotá. Le gusta el ciclismo.'};
   const ng = P('Natalia Gómez','ella'), fa = P('Felipe Arango','él'), mt = P('Mariana Toro','ella','','mariana@ejemplo.com');
   const rv = P('Ricardo Vélez','él','+57 300 000 0201'), dq = P('Diana Quintero','ella');
   const hp = P('Hernán Pardo','él'), ys = P('Yolanda Salcedo','ella');
@@ -1775,24 +1930,53 @@ const ACCIONES = {
   'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
   'fp-borrar': async () => {
     const p = persona(FP._para);
-    if (!await confirmar(`Se borran ${p.nombre}, sus cargos y sus notas. Esta acción no se puede deshacer. Si solo salió de una empresa, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
-    const cargos = S.cargos.filter(c => c.personaId === p.id).map(c => c.id);
-    const notas = S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id).map(n => n.id);
+    if (!await confirmar(`${p.nombre}, sus cargos y sus notas irán a la papelera; puede restaurarlos desde Ajustes durante ${PAPELERA_DIAS} días. Si solo salió de una empresa, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
+    const cargos = S.cargos.filter(c => c.personaId === p.id);
+    const notas = S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id);
     const refs = S.cargos.filter(c => c.reportaA === p.id).map(c => ({...c, reportaA:null, reportaATexto:p.nombre}));
-    await lote({quitar:{personas:[p.id], cargos, notas}, poner:{cargos:refs}});
-    FP = null; aviso('Persona eliminada'); profundidad = 0; reemplazar('#/personas');
+    await aPapelera(`Persona: ${p.nombre}`, {personas:[p], cargos, notas}, {cargos:refs});
+    FP = null; aviso('Persona enviada a la papelera'); profundidad = 0; reemplazar('#/personas');
   },
   /* Cargo */
   'fc-cerrar': () => guardarCargo(hoyISO()),
   'fc-borrar': async () => {
-    if (!await confirmar('Use esta opción solo si el cargo fue un error. Si la persona salió de la empresa, mejor cierre el cargo para conservar la historia.', {titulo:'Eliminar cargo', si:'Eliminar', peligro:true})) return;
-    const pid = FC.personaId; await lote({quitar:{cargos:[FC._para]}}); FC = null; aviso('Cargo eliminado'); volver('#/persona/' + pid);
+    if (!await confirmar('Use esta opción solo si el cargo fue un error. Si la persona salió de la empresa, mejor cierre el cargo para conservar la historia. El cargo irá a la papelera.', {titulo:'Eliminar cargo', si:'Eliminar', peligro:true})) return;
+    const c = cargo(FC._para), pid = FC.personaId;
+    await aPapelera(`Cargo de ${persona(pid)?.nombre || ''} en ${empresa(c.empresaId)?.nombre || ''}`, {cargos:[c]});
+    FC = null; aviso('Cargo enviado a la papelera'); volver('#/persona/' + pid);
   },
   /* Nota */
-  'fn-ref': b => { FN.ref = b.dataset.ref; vistaNota(FN._para === 'nueva' ? undefined : FN._para, {}); },
+  'fn-ref': b => { FN.ref = b.dataset.ref; guardarBorrador(); vistaNota(FN._para === 'nueva' ? undefined : FN._para, {}); },
+  'fn-elegir': b => { FN.ref = b.dataset.ref; FN.basePersona = null; if (FN.ref.startsWith('persona:')) FN.basePersona = FN.ref.split(':')[1]; guardarBorrador(); vistaNota(undefined, {}); },
+  'fn-cambiar': () => { FN.ref = ''; FN.basePersona = null; FN.busq = ''; vistaNota(undefined, {}); },
+  'fn-cancelar': async () => {
+    if (FN && FN.texto.trim() && FN.texto.trim() !== String(FN._orig || '').trim()) {
+      if (!await confirmar('Lo que escribió no se ha guardado.', {titulo:'¿Descartar la nota?', si:'Descartar', no:'Seguir escribiendo', peligro:true})) return;
+    }
+    await borrarBorrador(); FN = null; volver('#/inicio');
+  },
   'fn-borrar': async () => {
-    if (!await confirmar('¿Eliminar esta nota? No se puede deshacer.', {si:'Eliminar', peligro:true})) return;
-    await lote({quitar:{notas:[FN._para]}}); FN = null; aviso('Nota eliminada'); volver();
+    const n = nota(FN._para);
+    const destino = n.refTipo === 'persona' ? persona(n.refId)?.nombre : empresa(n.refId)?.nombre;
+    if (!await confirmar(`La nota irá a la papelera; puede restaurarla desde Ajustes durante ${PAPELERA_DIAS} días.`, {titulo:'Eliminar nota', si:'Eliminar', peligro:true})) return;
+    await aPapelera(`Nota del ${fechaMedia(n.fecha)}${destino ? ' · ' + destino : ''}`, {notas:[n]});
+    await borrarBorrador(); FN = null; aviso('Nota enviada a la papelera'); volver();
+  },
+  'fp-contacto': async () => {
+    try {
+      const [c] = await navigator.contacts.select(['name','tel','email'], {multiple:false});
+      if (!c) return;
+      if (c.name?.[0]) FP.nombre = c.name[0];
+      if (c.tel?.[0]) FP.telefono = c.tel[0];
+      if (c.email?.[0]) FP.correo = c.email[0];
+      vistaPersonaForm(undefined, {}); if (FP.nombre) sugerirPersonas();
+    } catch (err) { if (err.name !== 'AbortError') aviso('No se pudo abrir la lista de contactos.'); }
+  },
+  'papelera-restaurar': b => restaurarPapelera(b.dataset.id),
+  'papelera-eliminar': async b => {
+    const it = S.papelera.find(x => x.id === b.dataset.id); if (!it) return;
+    if (!await confirmar(`“${it.titulo}” se eliminará definitivamente. No se puede deshacer.`, {titulo:'Eliminar definitivamente', si:'Eliminar', peligro:true})) return;
+    await lote({quitar:{papelera:[it.id]}}); aviso('Eliminado'); render();
   }
 };
 
@@ -1828,7 +2012,7 @@ $('#archivo-respaldo').addEventListener('change', e => { const f = e.target.file
 $('#archivo-csv').addEventListener('change', e => { const f = e.target.files[0]; if (f) cargarCSV(f); });
 let ocultaDesde = 0;
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) ocultaDesde = Date.now();
+  if (document.hidden) { ocultaDesde = Date.now(); if (FN) guardarBorrador(true); }
   else if (!bloqueada && ocultaDesde && Date.now() - ocultaDesde > BLOQUEO_MIN * 60000) bloquear();
 });
 
@@ -1843,6 +2027,7 @@ async function iniciar(){
     db = await abrirDB();
     await cargarTodo();
     await asegurarTiposBase();
+    await purgarPapelera();
   } catch (err) {
     bloqueo.innerHTML = `<div class="pin"><div class="pin-cabeza"><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr">No se pudo abrir la base de datos (${esc(err.message || err)}). Si está en modo incógnito, ábrala en una ventana normal.</p></div></div>`;
     return;
