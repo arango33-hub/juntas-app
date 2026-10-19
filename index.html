@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mentor</title>
-<meta name="description" content="App personal para recordar a la gente de las empresas y juntas directivas.">
+<meta name="description" content="App personal para recordar a la gente de las entidades y juntas directivas.">
 <meta name="theme-color" content="#18202B">
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,6 +13,12 @@
 <meta name="apple-mobile-web-app-title" content="Mentor">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="./manifest.webmanifest">
+<script>
+/* Tema antes de pintar: claro, oscuro o según el sistema */
+(function(){ var t = 'sistema'; try { t = localStorage.getItem('tema') || 'sistema'; } catch (e) {}
+  var o = t === 'oscuro' || (t === 'sistema' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.setAttribute('data-tema', o ? 'oscuro' : 'claro'); })();
+</script>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,6 +29,7 @@
    1. COLORES — único lugar donde se definen. Tema "Azul noche".
    ===================================================================== */
 :root{
+  color-scheme:light;
   /* Superficies */
   --fondo:#F4F5F7;            /* fondo de pantallas */
   --tarjeta:#FFFFFF;          /* tarjetas y cabeceras */
@@ -78,8 +85,9 @@
   --f-titulo:'Source Serif 4', Georgia, 'Times New Roman', serif;
   --f-texto:'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
-@media (prefers-color-scheme: dark){
-  :root{
+/* Modo oscuro: se activa con data-tema="oscuro" (según el sistema o la elección en Ajustes) */
+:root[data-tema="oscuro"]{
+  color-scheme:dark;
     --fondo:#0F141A;
     --tarjeta:#18202B;
     --borde:#2A3441;
@@ -107,7 +115,6 @@
     --velo:rgba(0,0,0,.6);
     --sombra:0 10px 30px rgba(0,0,0,.5);
     --mezcla-avatar:40%;
-  }
 }
 
 /* =====================================================================
@@ -154,7 +161,7 @@ svg{flex-shrink:0}
 a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,var(--acento-suave) 45%,transparent)}
 .av{width:40px;height:40px;border-radius:50%;background:var(--acento-suave);color:var(--acento);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex-shrink:0}
 .av-emp{background:var(--acento-suave);background:color-mix(in srgb,var(--c) var(--mezcla-avatar),var(--tarjeta));color:var(--c)}
-@media (prefers-color-scheme: dark){.av-emp{color:#FFFFFF}}
+:root[data-tema="oscuro"] .av-emp{color:#FFFFFF}
 .av-yo{background:var(--yo-fondo);color:var(--yo-texto)}
 .area-tit{padding:12px 16px 4px;font-size:12px;font-weight:600;color:var(--texto-2);text-transform:uppercase;letter-spacing:.05em}
 .func{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px;text-decoration:none;color:var(--texto)}
@@ -294,7 +301,7 @@ select.input{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .tl-texto{font-size:15px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
 .tl-item.primera .tl-punto{background:var(--c,var(--acento))}
 .tl-item.primera .tl-fecha{color:var(--c,var(--acento))}
-@media (prefers-color-scheme: dark){.tl-item.primera .tl-fecha{color:var(--acento)}}
+:root[data-tema="oscuro"] .tl-item.primera .tl-fecha{color:var(--acento)}
 
 /* =====================================================================
    6. FORMULARIOS Y NOTA (mockups 6 y 7)
@@ -386,7 +393,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.1.3 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.2.0 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -515,6 +522,15 @@ function fragmento(texto, ps){
    BASE DE DATOS (IndexedDB) — copia en memoria + escritura inmediata
    ===================================================================== */
 let db;
+/* Tema: 'sistema' (sigue al celular), 'claro' u 'oscuro' */
+const mqOscuro = matchMedia('(prefers-color-scheme: dark)');
+function aplicarTema(){
+  const t = S.cfg.tema || 'sistema';
+  const oscuro = t === 'oscuro' || (t === 'sistema' && mqOscuro.matches);
+  document.documentElement.setAttribute('data-tema', oscuro ? 'oscuro' : 'claro');
+  try { localStorage.setItem('tema', t); } catch (e) {}
+}
+mqOscuro.addEventListener('change', () => { if ((S.cfg.tema || 'sistema') === 'sistema') aplicarTema(); });
 const S = {empresas:[],personas:[],cargos:[],reuniones:[],compromisos:[],notas:[],tiposVinculo:[],papelera:[],cfg:{}};
 
 function abrirDB(){
@@ -634,10 +650,10 @@ async function aPapelera(titulo, datos, extra = {}){
 async function restaurarPapelera(id){
   const it = S.papelera.find(x => x.id === id); if (!it) return;
   const d = it.datos, enItem = (n, pid) => (d[n] || []).some(x => x.id === pid), falta = new Set();
-  (d.cargos || []).forEach(c => { if (!persona(c.personaId) && !enItem('personas', c.personaId)) falta.add('la persona'); if (!empresa(c.empresaId)) falta.add('la compañía'); });
+  (d.cargos || []).forEach(c => { if (!persona(c.personaId) && !enItem('personas', c.personaId)) falta.add('la persona'); if (!empresa(c.empresaId)) falta.add('la entidad'); });
   (d.notas || []).forEach(n => {
     if (n.refTipo === 'persona' && !persona(n.refId) && !enItem('personas', n.refId)) falta.add('la persona');
-    if (n.refTipo === 'empresa' && !empresa(n.refId)) falta.add('la compañía');
+    if (n.refTipo === 'empresa' && !empresa(n.refId)) falta.add('la entidad');
   });
   if (falta.size) return mensaje(`No se puede restaurar porque ${[...falta].join(' y ')} a la que pertenece ya no existe. Restaure primero ese elemento desde la papelera.`, 'No se pudo restaurar');
   await lote({poner:d, quitar:{papelera:[it.id]}});
@@ -759,7 +775,7 @@ function linkVolver(texto, alterna){ return `<button type="button" class="volver
 function nav(activa){
   const it = (k, href, icono, txt) => `<a href="${href}" class="${activa===k?'act':''}" ${activa===k?'aria-current="page"':''}>${icono}${txt}</a>`;
   return `<nav class="nav" aria-label="Navegación principal"><div class="nav-in">
-    ${it('inicio','#/inicio',I.empresas,'Empresas')}${it('personas','#/personas',I.gente,'Personas')}${it('pendientes','#/pendientes',I.pendiente,'Pendientes')}
+    ${it('inicio','#/inicio',I.empresas,'Entidades')}${it('personas','#/personas',I.gente,'Personas')}${it('pendientes','#/pendientes',I.pendiente,'Pendientes')}
     <button type="button" data-action="bloquear">${I.candado}Bloquear</button></div></nav>`;
 }
 const fab = (href, etiqueta) => `<a class="fab" href="${href}" aria-label="${esc(etiqueta)}">${I.mas}</a>`;
@@ -889,7 +905,7 @@ function render(){
   window.scrollTo(0, ['inicio','personas','empresa','persona'].includes(r) ? y : 0);
 }
 function noEncontrado(){
-  pintar(`<div class="pagina"><div class="sec"><p class="tarjeta vacio">No se encontró lo que buscaba; puede haber sido borrado.</p><a class="btn-sec" href="#/inicio">Ir a Empresas</a></div></div>`);
+  pintar(`<div class="pagina"><div class="sec"><p class="tarjeta vacio">No se encontró lo que buscaba; puede haber sido borrado.</p><a class="btn-sec" href="#/inicio">Ir a Entidades</a></div></div>`);
 }
 
 /* ---------- 2 · Inicio ---------- */
@@ -951,17 +967,17 @@ function vistaInicio(){
   const f = (k, txt, n) => `<button type="button" class="filtro${FILTRO===k ? ' act' : ''}" data-action="filtro" data-f="${k}" aria-pressed="${FILTRO===k}">${txt} · ${n}</button>`;
   pintar(`<div class="pagina con-nav">
     <div class="ini-top">
-      <div class="cab-fila"><h1 class="serif t30">Empresas</h1>
+      <div class="cab-fila"><h1 class="serif t30">Entidades</h1>
         <div class="ini-botones"><a class="btn-icono" href="#/nota?libre=1" aria-label="Nota rápida">${I.micPeq}</a><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a></div></div>
-      <div class="campo-busq"><label for="buscar">Buscar persona, cargo o compañía</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
+      <div class="campo-busq"><label for="buscar">Buscar persona, cargo, entidad o palabra clave</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
       ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaCumples()}${franjaIOS()}
     </div>
     <div class="sec" style="padding-top:24px">
-      <div class="sec-fila"><h2 class="sec-titulo">Compañías y entidades</h2><button type="button" class="filtro btn-orden" data-action="orden-emp" aria-label="Orden: ${ordenEmpAsc() ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${ordenEmpAsc() ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button></div>
-      <div class="filtros" role="group" aria-label="Filtrar compañías">${f('todas','Todas',act.length)}${f('junta','Con junta',nJ)}${f('sinjunta','Sin junta',act.length - nJ)}</div>
+      <div class="sec-fila"><h2 class="sec-titulo">Mis entidades</h2><button type="button" class="filtro btn-orden" data-action="orden-emp" aria-label="Orden: ${ordenEmpAsc() ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${ordenEmpAsc() ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button></div>
+      <div class="filtros" role="group" aria-label="Filtrar entidades">${f('todas','Todas',act.length)}${f('junta','Con junta',nJ)}${f('sinjunta','Sin junta',act.length - nJ)}</div>
       <div id="lista" class="col" style="gap:12px"></div>
     </div>
-  </div>${fab('#/empresa-form','Agregar compañía')}${nav('inicio')}`);
+  </div>${fab('#/empresa-form','Agregar entidad')}${nav('inicio')}`);
   $('#buscar').addEventListener('input', e => { BUSQUEDA = e.target.value; pintarLista(); });
   pintarLista();
 }
@@ -971,13 +987,13 @@ function pintarLista(){
   const pasa = e => FILTRO==='todas' || (FILTRO==='junta') === esJunta(e);
   const q = norm(BUSQUEDA), ps = palabrasDe(BUSQUEDA);
   if (!act.length && !S.personas.length) {
-    cont.innerHTML = `<div class="tarjeta ajuste"><p>Aún no hay compañías. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
-      <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar compañía</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`;
+    cont.innerHTML = `<div class="tarjeta ajuste"><p>Aún no hay entidades. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
+      <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar entidad</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`;
     return;
   }
   if (!q) {
     const lista = act.filter(pasa);
-    cont.innerHTML = lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías en este filtro.</p>`;
+    cont.innerHTML = lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay entidades en este filtro.</p>`;
     return;
   }
   const emps = act.filter(pasa).filter(e => contieneTodas([e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre], ps));
@@ -1004,7 +1020,7 @@ function pintarLista(){
     + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '');
 }
 
-/* ---------- 3 · Compañía ---------- */
+/* ---------- 3 · Entidad ---------- */
 function vistaEmpresa(id){
   const e = empresa(id); if (!e) return noEncontrado();
   const t = tipo(e.vinculoId), junta = esJunta(e), c = cv(e.color);
@@ -1032,9 +1048,9 @@ function vistaEmpresa(id){
 
   pintar(`<div class="pagina-total" style="--c:${c}">
   <div class="banda"><div class="cabecera">
-    <div class="cab-fila">${linkVolver('Empresas','#/inicio')}<a class="enlace-btn" href="#/empresa-form/${id}">Editar</a></div>
+    <div class="cab-fila">${linkVolver('Entidades','#/inicio')}<a class="enlace-btn" href="#/empresa-form/${id}">Editar</a></div>
     <div class="emp-cab"><div class="emp-ini" aria-hidden="true">${esc(iniciales(e.nombre))}</div><h1 class="serif t28">${esc(e.nombre)}</h1></div>
-    <div class="colores" role="group" aria-label="Color de la empresa"><span>Color:</span>${PALETA.map(p => `<button type="button" class="circulo${p.k===e.color ? ' sel' : ''}" style="background:var(--emp-${p.k})" data-action="poner-color" data-id="${id}" data-c="${p.k}" aria-label="${p.n}${p.k===e.color ? ' (seleccionado)' : ''}" aria-pressed="${p.k===e.color}"></button>`).join('')}</div>
+    <div class="colores" role="group" aria-label="Color de la entidad"><span>Color:</span>${PALETA.map(p => `<button type="button" class="circulo${p.k===e.color ? ' sel' : ''}" style="background:var(--emp-${p.k})" data-action="poner-color" data-id="${id}" data-c="${p.k}" aria-label="${p.n}${p.k===e.color ? ' (seleccionado)' : ''}" aria-pressed="${p.k===e.color}"></button>`).join('')}</div>
     <div class="etiquetas">
       ${e.participacion != null ? `<span class="etq acento">Accionista ${fmtPct(e.participacion)}</span>` : `<span class="etq fuerte" style="color:var(--texto-2)">Sin participación</span>`}
       <span class="etq fuerte">${esc(t.nombre)}</span>
@@ -1104,8 +1120,8 @@ function vistaPersona(id, q){
   </div></div>
   <div class="pagina con-accion">
     <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
-    <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Empresas y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
-      ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna empresa.</p>`}</div>
+    <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
+      ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna entidad.</p>`}</div>
     <div class="sec"><h2 class="sec-titulo">${titPerfil}</h2>${p.perfil ? `<p class="tarjeta parrafo">${esc(p.perfil)}</p>` : `<p class="tarjeta vacio">Aún no ha escrito un perfil. Toque “Editar”.</p>`}</div>
     <div class="sec" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${lineaTiempo(notas)}</div>
   </div>
@@ -1161,7 +1177,7 @@ function vistaNota(id, q){
   const titulo = FN._para !== 'nueva' ? 'Editar nota' : (FN.libre ? 'Nota rápida' : 'Nueva nota');
   const sobre = FN.ref
     ? `<div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}${FN.libre ? '<button type="button" class="chip-sobre" data-action="fn-cambiar">Cambiar</button>' : ''}</div>`
-    : `<input class="input" id="fn-busq" type="search" placeholder="Busque una persona o compañía" autocomplete="off" value="${esc(FN.busq || '')}"><div class="tarjeta col" id="fn-res" style="gap:0" hidden></div>
+    : `<input class="input" id="fn-busq" type="search" placeholder="Busque una persona o entidad" autocomplete="off" value="${esc(FN.busq || '')}"><div class="tarjeta col" id="fn-res" style="gap:0" hidden></div>
        <p class="ayuda" style="margin:0">Puede escribir la nota primero y escoger después a quién se refiere.</p>`;
   pintar(`<form class="form nota-form" id="f-nota" novalidate style="--c:${colorSel}">
     <div class="form-cab"><button type="button" class="volver" data-action="fn-cancelar">Cancelar</button><span class="tit">${titulo}</span><span class="hueco"></span></div>
@@ -1193,7 +1209,7 @@ function vistaNota(id, q){
       res.hidden = false;
       res.innerHTML = (pers.map(p => { const c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
           return `<button type="button" class="fila" data-action="fn-elegir" data-ref="persona:${p.id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
-        + emps.map(e => `<button type="button" class="fila" data-action="fn-elegir" data-ref="empresa:${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">Compañía</span></span></button>`).join(''))
+        + emps.map(e => `<button type="button" class="fila" data-action="fn-elegir" data-ref="empresa:${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">Entidad</span></span></button>`).join(''))
         || '<div class="fila"><span class="sub">Sin resultados</span></div>';
     };
     busq.addEventListener('input', e => { FN.busq = e.target.value; pintarRes(); });
@@ -1213,7 +1229,7 @@ function vistaNota(id, q){
   if (FN._para === 'nueva' && !esMovil()) setTimeout(() => (FN && !FN.ref && !FN.texto ? $('#fn-busq') : $('#fn-texto'))?.focus(), 50);
 }
 
-/* ---------- 7 · Nueva / editar compañía ---------- */
+/* ---------- 7 · Nueva / editar entidad ---------- */
 function vistaEmpresaForm(id){
   if (!FE || FE._para !== (id || 'nueva')) {
     const e = id && empresa(id);
@@ -1223,13 +1239,13 @@ function vistaEmpresaForm(id){
   }
   const chip = t => `<button type="button" class="chip${FE.vinculoId===t.id ? ' sel' : ''}" data-action="fe-vinc" data-id="${t.id}" aria-pressed="${FE.vinculoId===t.id}">${esc(t.chip || t.nombre)}</button>`;
   pintar(`<form class="form" id="f-emp" novalidate>
-    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/inicio">Cancelar</button><span class="tit">${FE._para==='nueva' ? 'Nueva compañía' : 'Editar compañía'}</span><span class="hueco"></span></div>
+    <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/inicio">Cancelar</button><span class="tit">${FE._para==='nueva' ? 'Nueva entidad' : 'Editar entidad'}</span><span class="hueco"></span></div>
     <div class="campo"><label for="fe-nombre">Nombre</label><input class="input" id="fe-nombre" value="${esc(FE.nombre)}" autocomplete="off" autocapitalize="words"></div>
     <fieldset><legend>1 · Participación del family office</legend>
       <div class="opc2"><button type="button" class="opc-btn${FE.partSel==='con' ? ' sel' : ''}" data-action="fe-part" data-v="con" aria-pressed="${FE.partSel==='con'}">Con participación</button><button type="button" class="opc-btn${FE.partSel==='sin' ? ' sel' : ''}" data-action="fe-part" data-v="sin" aria-pressed="${FE.partSel==='sin'}">Sin participación</button></div>
       <div class="campo${FE.partSel==='sin' ? ' atenuado' : ''}" id="fe-pct-c"><label for="fe-pct" style="font-size:13px;font-weight:400;color:var(--texto-2)">Porcentaje (solo si tiene participación)</label><input class="input" id="fe-pct" inputmode="decimal" placeholder="Ej. 22 %" value="${esc(FE.pctTxt)}" ${FE.partSel==='sin' ? 'disabled' : ''}></div>
     </fieldset>
-    <fieldset><legend>2 · Mi vínculo con la empresa</legend>
+    <fieldset><legend>2 · Mi vínculo con la entidad</legend>
       <span class="grupo-tit">En la junta</span><div class="chips">${tiposDeGrupo('junta').map(chip).join('')}</div>
       <span class="grupo-tit sep">Sin junta</span><div class="chips">${tiposDeGrupo('sinjunta').map(chip).join('')}<button type="button" class="chip otro" data-action="fe-otro">+ Otro tipo</button></div>
     </fieldset>
@@ -1241,7 +1257,7 @@ function vistaEmpresaForm(id){
     <div class="vista-previa" aria-live="polite"><span class="et">Así se verá en el inicio</span><span class="n" id="vp-n"></span><span class="l" id="vp-l"></span></div>
     <div class="guardar-final">
       <button type="submit" class="btn-pri">Guardar</button>
-      ${FE._para !== 'nueva' ? '<button type="button" class="btn-sec" data-action="fe-archivar">Archivar compañía</button>' : ''}
+      ${FE._para !== 'nueva' ? '<button type="button" class="btn-sec" data-action="fe-archivar">Archivar entidad</button>' : ''}
     </div>
   </form>`);
   const enlazar = (sel, k) => $(sel).addEventListener('input', e => { FE[k] = e.target.value; vistaPrevia(); });
@@ -1256,22 +1272,22 @@ function textoPart(){
 }
 function vistaPrevia(){
   const n = $('#vp-n'); if (!n) return;
-  n.textContent = FE.nombre.trim() || 'Nombre de la compañía';
+  n.textContent = FE.nombre.trim() || 'Nombre de la entidad';
   $('#vp-l').textContent = [textoPart(), FE.vinculoId ? tipo(FE.vinculoId).nombre : 'Escoja el vínculo'].join(' · ');
 }
 async function guardarEmpresa(){
   const nombre = FE.nombre.trim();
-  if (!nombre) { $('#fe-nombre').setAttribute('aria-invalid','true'); $('#fe-nombre').focus(); aviso('Escriba el nombre de la compañía.'); return; }
+  if (!nombre) { $('#fe-nombre').setAttribute('aria-invalid','true'); $('#fe-nombre').focus(); aviso('Escriba el nombre de la entidad.'); return; }
   let participacion = null;
   if (FE.partSel === 'con') {
     const v = parseFloat(FE.pctTxt.replace('%','').replace(',','.'));
     if (!(v > 0 && v <= 100)) { $('#fe-pct').setAttribute('aria-invalid','true'); $('#fe-pct').focus(); aviso('Escriba un porcentaje entre 0 y 100.'); return; }
     participacion = Math.round(v * 100) / 100;
   }
-  if (!FE.vinculoId) { aviso('Escoja su vínculo con la empresa.'); return; }
+  if (!FE.vinculoId) { aviso('Escoja su vínculo con la entidad.'); return; }
   const nueva = FE._para === 'nueva';
   if (S.empresas.some(e => e.id !== FE._para && norm(e.nombre) === norm(nombre))) {
-    if (!await confirmar(`Ya existe una compañía llamada “${nombre}”. ¿Guardar de todos modos?`, {si:'Guardar'})) return;
+    if (!await confirmar(`Ya existe una entidad llamada “${nombre}”. ¿Guardar de todos modos?`, {si:'Guardar'})) return;
   }
   const cambios = {empresas:[]};
   let base;
@@ -1280,7 +1296,7 @@ async function guardarEmpresa(){
   const e = {...base, nombre, participacion, vinculoId:FE.vinculoId, detalle:FE.detalle.trim(), sector:FE.sector.trim(), ciudad:FE.ciudad.trim(), editada:ahora()};
   cambios.empresas.push(e);
   await lote({poner:cambios});
-  FE = null; aviso('Compañía guardada');
+  FE = null; aviso('Entidad guardada');
   if (nueva) reemplazar('#/empresa/' + e.id); else volver('#/empresa/' + e.id);
 }
 function pedirTipoPropio(){
@@ -1309,8 +1325,8 @@ function pedirTipoPropio(){
 function camposCargo(st, pref){
   const emps = empresasActivas();
   const areas = [...new Set([...S.cargos.map(c => c.area).filter(Boolean), ...AREAS_BASE])];
-  return `<div class="campo"><label for="${pref}-emp">Empresa</label><select class="input" id="${pref}-emp">
-      <option value="">${pref==='fp' ? 'Ninguna por ahora' : 'Escoja la empresa'}</option>${emps.map(e => `<option value="${e.id}"${st.empresaId===e.id ? ' selected' : ''}>${esc(e.nombre)}</option>`).join('')}
+  return `<div class="campo"><label for="${pref}-emp">Entidad</label><select class="input" id="${pref}-emp">
+      <option value="">${pref==='fp' ? 'Ninguna por ahora' : 'Escoja la entidad'}</option>${emps.map(e => `<option value="${e.id}"${st.empresaId===e.id ? ' selected' : ''}>${esc(e.nombre)}</option>`).join('')}
       ${st.empresaId && !emps.some(e => e.id===st.empresaId) && empresa(st.empresaId) ? `<option value="${st.empresaId}" selected>${esc(empresa(st.empresaId).nombre)} (archivada)</option>` : ''}</select></div>
     <div class="dos">
       <div class="campo"><label for="${pref}-area">Área</label><input class="input" id="${pref}-area" list="${pref}-dl-areas" value="${esc(st.area)}" placeholder="Ej. Finanzas"></div>
@@ -1431,7 +1447,7 @@ async function guardarPersona(){
     poner.cargos = [];
     for (const [i, c] of FP.cargos.entries()) {
       const n = FP.cargos.length > 1 ? ` del cargo ${i+1}` : ' del cargo';
-      if (!c.empresaId) { aviso('Escoja la empresa' + n + '.'); $(`#fpc${i}-emp`).focus(); return; }
+      if (!c.empresaId) { aviso('Escoja la entidad' + n + '.'); $(`#fpc${i}-emp`).focus(); return; }
       if (c.inicio && c.fin && c.fin < c.inicio) { aviso('La fecha “Hasta”' + n + ' es anterior a “Desde”.'); return; }
       poner.cargos.push({...cargo(c.id), empresaId:c.empresaId, area:c.area.trim(), cargo:c.cargo.trim(), rolJunta:c.rolJunta.trim(), ...resolverReporta(c.reportaTxt, c.empresaId, pid), inicio:c.inicio, fin:c.fin, editada:ahora()});
     }
@@ -1439,7 +1455,7 @@ async function guardarPersona(){
   if (nueva && FP.empresaId) {
     if (!FP.cargo.trim() && !FP.rolJunta.trim() && !FP.area.trim() && FP.existenteId) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
     poner.cargos = [{id:uid(), creada:ahora(), personaId:pid, empresaId:FP.empresaId, area:FP.area.trim(), cargo:FP.cargo.trim(), rolJunta:FP.rolJunta.trim(), ...resolverReporta(FP.reportaTxt, FP.empresaId, pid), inicio:FP.inicio || '', fin:''}];
-  } else if (nueva && FP.existenteId) { aviso('Escoja la empresa del nuevo cargo.'); return; }
+  } else if (nueva && FP.existenteId) { aviso('Escoja la entidad del nuevo cargo.'); return; }
   await lote({poner});
   const emp = FP.empresaId; FP = null; aviso('Persona guardada');
   if (nueva && !emp) reemplazar('#/persona/' + pid); else volver(nueva ? '#/empresa/' + emp : '#/persona/' + pid);
@@ -1463,7 +1479,7 @@ function vistaCargo(id, q){
       <div class="campo"><label for="fc-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fc-inicio" type="date" value="${esc(FC.inicio)}"></div>
       <div class="campo"><label for="fc-fin">Hasta <span class="opc">(si ya salió)</span></label><input class="input" id="fc-fin" type="date" value="${esc(FC.fin)}"></div>
     </div>
-    <p class="ayuda" style="margin:-12px 0 0">Cuando alguien deja la empresa, ponga la fecha “Hasta”: el cargo queda cerrado y su historia se conserva.</p>
+    <p class="ayuda" style="margin:-12px 0 0">Cuando alguien deja la entidad, ponga la fecha “Hasta”: el cargo queda cerrado y su historia se conserva.</p>
     <div class="guardar-final"><button type="submit" class="btn-pri">Guardar</button>
       ${!nuevo && !FC.fin ? '<button type="button" class="btn-sec" data-action="fc-cerrar">Cerrar cargo hoy</button>' : ''}
       ${!nuevo ? '<button type="button" class="btn-peligro" data-action="fc-borrar">Eliminar cargo (si fue un error)</button>' : ''}</div>
@@ -1475,7 +1491,7 @@ function vistaCargo(id, q){
 }
 async function guardarCargo(fin){
   if (fin !== undefined) FC.fin = fin;
-  if (!FC.empresaId) { aviso('Escoja la empresa.'); $('#fc-emp').focus(); return; }
+  if (!FC.empresaId) { aviso('Escoja la entidad.'); $('#fc-emp').focus(); return; }
   if (!FC.cargo.trim() && !FC.rolJunta.trim() && !FC.area.trim()) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
   if (FC.inicio && FC.fin && FC.fin < FC.inicio) { aviso('La fecha “Hasta” es anterior a “Desde”.'); return; }
   const base = FC._para === 'nuevo' ? {id:uid(), creada:ahora(), personaId:FC.personaId} : cargo(FC._para);
@@ -1488,10 +1504,10 @@ function vistaPersonas(){
   const asc = ordenPerAsc(), agrupar = S.cfg.agruparPersonas === true;
   pintar(`<div class="pagina con-nav"><div class="ini-top">
       <h1 class="serif t30">Personas</h1>
-      <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área o empresa</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
+      <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área, entidad o palabra clave</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
       <div class="filtros" role="group" aria-label="Ordenar y agrupar">
         <button type="button" class="filtro btn-orden" style="margin-left:0" data-action="orden-per" aria-label="Orden: ${asc ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${asc ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button>
-        <button type="button" class="filtro btn-orden${agrupar ? ' on' : ''}" style="margin-left:0" data-action="agrupar-per" aria-pressed="${agrupar}">${I.edificio}Agrupar por compañía</button>
+        <button type="button" class="filtro btn-orden${agrupar ? ' on' : ''}" style="margin-left:0" data-action="agrupar-per" aria-pressed="${agrupar}">${I.edificio}Agrupar por entidad</button>
       </div>
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   const coincide = (p, q) => {
@@ -1502,7 +1518,7 @@ function vistaPersonas(){
     const q = norm(BUSQ_PERSONAS);
     const lista = S.personas.filter(p => coincide(p, q)).sort((a,b) => compararTexto(a.nombre, b.nombre, asc));
     const cont = $('#lista-p');
-    if (!lista.length) { cont.innerHTML = `<h2 class="sec-titulo">Personas</h2><p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una compañía o con el botón +.'}</p>`; return; }
+    if (!lista.length) { cont.innerHTML = `<h2 class="sec-titulo">Personas</h2><p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una entidad o con el botón +.'}</p>`; return; }
     if (!agrupar) {
       cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
         const cs = cargosPersona(p.id);
@@ -1511,7 +1527,7 @@ function vistaPersonas(){
       }).join('')}</div>`;
       return;
     }
-    /* Agrupado: una persona aparece en cada compañía donde tiene un cargo vigente */
+    /* Agrupado: una persona aparece en cada entidad donde tiene un cargo vigente */
     let html = '', sinEmpresa = [];
     const grupos = empresasActivas().sort((a,b) => compararTexto(a.nombre, b.nombre, asc)).map(e => ({e, ps: []}));
     const porId = new Map(grupos.map(g => [g.e.id, g]));
@@ -1524,9 +1540,9 @@ function vistaPersonas(){
     grupos.filter(g => g.ps.length).forEach(({e, ps}) => {
       html += `<hr class="sep-grupo"><a class="grupo-cab" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span>${esc(e.nombre)} · ${ps.length}</a>
         <div class="tarjeta col" style="gap:0">${ps.map(({p, c, otras}) => `<a class="fila" href="#/persona/${p.id}?e=${e.id}" style="--c:${cv(e.color)}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
-          <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([c.cargo || c.rolJunta, c.cargo && c.rolJunta ? c.rolJunta : '', c.area].filter(Boolean).join(' · ') || 'Sin cargo')}${otras ? ' · también en otra compañía' : ''}</span></span>${I.chev}</a>`).join('')}</div>`;
+          <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([c.cargo || c.rolJunta, c.cargo && c.rolJunta ? c.rolJunta : '', c.area].filter(Boolean).join(' · ') || 'Sin cargo')}${otras ? ' · también en otra entidad' : ''}</span></span>${I.chev}</a>`).join('')}</div>`;
     });
-    if (sinEmpresa.length) html += `<hr class="sep-grupo"><div class="grupo-cab">Sin compañía · ${sinEmpresa.length}</div><div class="tarjeta col" style="gap:0">${sinEmpresa.map(p => filaPersonaBusq(p, null)).join('')}</div>`;
+    if (sinEmpresa.length) html += `<hr class="sep-grupo"><div class="grupo-cab">Sin entidad · ${sinEmpresa.length}</div><div class="tarjeta col" style="gap:0">${sinEmpresa.map(p => filaPersonaBusq(p, null)).join('')}</div>`;
     cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2>` + html;
   };
   $('#buscar-p').addEventListener('input', e => { BUSQ_PERSONAS = e.target.value; pintarP(); });
@@ -1551,7 +1567,12 @@ function vistaAjustes(){
   const hayEjemplo = [...S.empresas, ...S.personas].some(x => x.ejemplo);
   const opDias = [7,15,30,60].map(d => `<option value="${d}"${d===dias ? ' selected' : ''}>Cada ${d} días</option>`).join('');
   pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
-    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Empresas','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
+    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Entidades','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
+
+    <div class="sec"><h2 class="sec-titulo">Apariencia</h2><div class="tarjeta"><div class="ajuste">
+      <p>Modo claro: fondo blanco y letra oscura. Modo oscuro: fondo oscuro y letra clara. “Según el sistema” cambia solo, igual que su celular.</p>
+      <div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Apariencia">${[['sistema','Según el sistema'],['claro','Claro'],['oscuro','Oscuro']].map(([k,t]) => `<button type="button" class="opc-btn${(S.cfg.tema || 'sistema') === k ? ' sel' : ''}" data-action="tema" data-v="${k}" aria-pressed="${(S.cfg.tema || 'sistema') === k}">${t}</button>`).join('')}</div>
+    </div></div></div>
 
     <div class="sec"><h2 class="sec-titulo">Respaldo</h2><div class="tarjeta">
       <div class="ajuste"><p>${ult ? `Último respaldo: ${fechaMedia(ult)}.` : 'Aún no ha exportado ningún respaldo.'} Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
@@ -1564,9 +1585,9 @@ function vistaAjustes(){
       <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div>
     </div></div></div>
 
-    <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una compañía.</p>`}</div>
+    <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una entidad.</p>`}</div>
 
-    <div class="sec"><h2 class="sec-titulo">Compañías archivadas</h2>${arch.length ? `<div class="tarjeta col" style="gap:0">${arch.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp"></span><span class="col"><span class="nom">${esc(e.nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="restaurar" data-id="${e.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No hay compañías archivadas.</p>`}</div>
+    <div class="sec"><h2 class="sec-titulo">Entidades archivadas</h2>${arch.length ? `<div class="tarjeta col" style="gap:0">${arch.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp"></span><span class="col"><span class="nom">${esc(e.nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="restaurar" data-id="${e.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No hay entidades archivadas.</p>`}</div>
 
     <div class="sec"><h2 class="sec-titulo">Papelera</h2>${S.papelera.length ? `<div class="tarjeta col" style="gap:0">${[...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada)).map(it => {
         const vence = new Date(new Date(it.creada).getTime() + PAPELERA_DIAS * 86400000);
@@ -1579,7 +1600,7 @@ function vistaAjustes(){
       <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div></div></div>
 
     <div class="sec"><h2 class="sec-titulo">Datos de ejemplo</h2><div class="tarjeta"><div class="ajuste">
-      <p>Cargan compañías y personas ficticias para probar la app. Se borran sin tocar sus datos reales.</p>
+      <p>Cargan entidades y personas ficticias para probar la app. Se borran sin tocar sus datos reales.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="ejemplo-cargar">Cargar ejemplo</button><button type="button" class="btn-peligro" data-action="ejemplo-borrar" ${hayEjemplo ? '' : 'disabled'}>Borrar ejemplo</button></div>
     </div></div></div>
 
@@ -1635,7 +1656,7 @@ async function importarRespaldo(file){
     const k = await claveAES(clave, deb64(obj.cifrado.sal), obj.cifrado.iteraciones);
     datos = JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM', iv:deb64(obj.cifrado.iv)}, k, deb64(obj.datos))));
   } catch { return mensaje('La contraseña no es correcta o el archivo está dañado.', 'No se pudo abrir'); }
-  const ok = await confirmar(`El respaldo tiene ${plural((datos.empresas||[]).length,'compañía')} y ${plural((datos.personas||[]).length,'persona')}. Al importarlo se reemplazan todos los datos actuales de este dispositivo (su PIN se conserva).`, {titulo:'Reemplazar datos', si:'Importar y reemplazar', peligro:true});
+  const ok = await confirmar(`El respaldo tiene ${plural((datos.empresas||[]).length,'entidad','entidades')} y ${plural((datos.personas||[]).length,'persona')}. Al importarlo se reemplazan todos los datos actuales de este dispositivo (su PIN se conserva).`, {titulo:'Reemplazar datos', si:'Importar y reemplazar', peligro:true});
   if (!ok) return;
   const poner = {};
   TABLAS.forEach(n => poner[n] = Array.isArray(datos[n]) ? datos[n] : []);
@@ -1720,7 +1741,7 @@ function analizarCSV(texto){
     const r = {}; mapa.forEach((k, j) => { if (k) r[k] = (f[j] || '').trim(); });
     const nFila = i + 2;
     if (!r.empresa && !r.nombre) return;
-    if (!r.empresa) { R.omitidas.push({fila:nFila, motivo:`“${r.nombre}” no tiene empresa`}); return; }
+    if (!r.empresa) { R.omitidas.push({fila:nFila, motivo:`“${r.nombre}” no tiene entidad`}); return; }
     const ek = norm(r.empresa);
     if (!R.empresas.has(ek)) {
       const ex = S.empresas.find(e => norm(e.nombre) === ek);
@@ -1764,14 +1785,14 @@ function vistaImportar(){
     <div class="form-cab"><button type="button" class="volver" data-action="imp-cancelar">Cancelar</button><span class="tit">Resumen de importación</span><span class="hueco"></span></div>
     <p class="ayuda" style="margin:0">${esc(R.archivo || '')} · Revise antes de guardar. Nada se guarda hasta que confirme.</p>
     <div class="tarjeta cifras">
-      <div class="cifra"><b>${nuevasEmp.length}</b><span>Compañías nuevas</span></div>
-      <div class="cifra"><b>${R.existentes.size}</b><span>Compañías que ya existían</span></div>
+      <div class="cifra"><b>${nuevasEmp.length}</b><span>Entidades nuevas</span></div>
+      <div class="cifra"><b>${R.existentes.size}</b><span>Entidades que ya existían</span></div>
       <div class="cifra"><b>${nuevasPer}</b><span>Personas nuevas</span></div>
       <div class="cifra"><b>${R.duplicados.length}</b><span>Posibles duplicados</span></div>
       <div class="cifra" style="border-bottom:0"><b>${R.cargos.length}</b><span>Cargos</span></div>
       <div class="cifra" style="border-bottom:0"><b>${R.omitidas.length}</b><span>Filas omitidas</span></div>
     </div>
-    ${nuevasEmp.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo">Compañías nuevas</h2><div class="tarjeta col" style="gap:0">${nuevasEmp.map(e => `<div class="fila"><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', buscarTipo(e.vinculo)?.nombre || e.vinculo || 'Vínculo sin definir'].join(' · '))}</span></span></div>`).join('')}</div></div>` : ''}
+    ${nuevasEmp.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo">Entidades nuevas</h2><div class="tarjeta col" style="gap:0">${nuevasEmp.map(e => `<div class="fila"><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', buscarTipo(e.vinculo)?.nombre || e.vinculo || 'Vínculo sin definir'].join(' · '))}</span></span></div>`).join('')}</div></div>` : ''}
     ${R.duplicados.length ? `<div class="col" style="gap:8px"><h2 class="sec-titulo" style="color:var(--pend-texto)">Posibles duplicados</h2><div class="tarjeta col" style="gap:0">${R.duplicados.map(d => { const p = persona(d.existenteId), c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
       return `<div class="dup"><span class="col"><span class="nom">${esc(d.nombre)}</span><span class="sub">Ya existe: ${esc(p.nombre)}${e ? ' · ' + esc([c.cargo || c.rolJunta, e.nombre].filter(Boolean).join(', ')) : ''} (${d.motivo})</span></span>
         <div class="chips">${dec(d,'unir','Es la misma')}${dec(d,'nueva','Es otra persona')}${dec(d,'descartar','Descartar')}</div></div>`; }).join('')}</div></div>` : ''}
@@ -1820,7 +1841,7 @@ async function confirmarImport(){
   });
   await lote({poner});
   IMPORT = null;
-  aviso(`Importados: ${plural(poner.empresas.length,'compañía')}, ${plural(poner.personas.length,'persona')}, ${plural(poner.cargos.length,'cargo')}`);
+  aviso(`Importados: ${plural(poner.empresas.length,'entidad','entidades')}, ${plural(poner.personas.length,'persona')}, ${plural(poner.cargos.length,'cargo')}`);
   reemplazar('#/inicio');
 }
 
@@ -1873,7 +1894,7 @@ async function cargarEjemplo(){
   reemplazar('#/inicio'); render();
 }
 async function borrarEjemplo(){
-  if (!await confirmar('Se borran las compañías, personas, cargos y notas de ejemplo. Sus datos reales no se tocan.', {titulo:'Borrar datos de ejemplo', si:'Borrar', peligro:true})) return;
+  if (!await confirmar('Se borran las entidades, personas, cargos y notas de ejemplo. Sus datos reales no se tocan.', {titulo:'Borrar datos de ejemplo', si:'Borrar', peligro:true})) return;
   const eIds = new Set(S.empresas.filter(e => e.ejemplo).map(e => e.id));
   const pIds = new Set(S.personas.filter(p => p.ejemplo).map(p => p.id));
   const cargos = S.cargos.filter(c => c.ejemplo || eIds.has(c.empresaId) || pIds.has(c.personaId)).map(c => c.id);
@@ -1897,6 +1918,7 @@ const ACCIONES = {
   'pin-cancelar': () => desbloquear(),
   'cambiar-pin': () => bloquear({modo:'actual', cambiando:true}),
   filtro: b => { FILTRO = b.dataset.f; vistaInicio(); },
+  tema: async b => { await setAjuste('tema', b.dataset.v); aplicarTema(); vistaAjustes(); },
   'orden-emp': async () => { await setAjuste('ordenEmpresas', ordenEmpAsc() ? 'desc' : 'asc'); vistaInicio(); },
   'orden-per': async () => { await setAjuste('ordenPersonas', ordenPerAsc() ? 'desc' : 'asc'); vistaPersonas(); },
   'agrupar-per': async () => { await setAjuste('agruparPersonas', S.cfg.agruparPersonas !== true); vistaPersonas(); },
@@ -1915,13 +1937,13 @@ const ACCIONES = {
   'imp-confirmar': () => confirmarImport(),
   'ejemplo-cargar': () => cargarEjemplo(),
   'ejemplo-borrar': () => borrarEjemplo(),
-  restaurar: async b => { await guardar('empresas', {...empresa(b.dataset.id), archivada:false}); aviso('Compañía restaurada'); render(); },
+  restaurar: async b => { await guardar('empresas', {...empresa(b.dataset.id), archivada:false}); aviso('Entidad restaurada'); render(); },
   'tipo-borrar': async b => {
     const usada = S.empresas.some(e => e.vinculoId === b.dataset.id);
-    if (usada) return mensaje('Este tipo está asignado a una o más compañías. Cámbieles el vínculo antes de quitarlo.');
+    if (usada) return mensaje('Este tipo está asignado a una o más entidades. Cámbieles el vínculo antes de quitarlo.');
     await lote({quitar:{tiposVinculo:[b.dataset.id]}}); render();
   },
-  /* Formulario de compañía */
+  /* Formulario de entidad */
   'fe-part': b => { FE.partSel = b.dataset.v; vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para); if (FE.partSel === 'con') $('#fe-pct').focus(); },
   'fe-vinc': b => { FE.vinculoId = b.dataset.id; vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para); },
   'fe-otro': async () => {
@@ -1932,8 +1954,8 @@ const ACCIONES = {
   },
   'fe-archivar': async () => {
     const e = empresa(FE._para);
-    if (!await confirmar(`“${e.nombre}” deja de aparecer en el inicio, pero sus personas, cargos y notas se conservan. Puede restaurarla desde Ajustes.`, {titulo:'Archivar compañía', si:'Archivar'})) return;
-    await guardar('empresas', {...e, archivada:true}); FE = null; aviso('Compañía archivada'); profundidad = 0; reemplazar('#/inicio');
+    if (!await confirmar(`“${e.nombre}” deja de aparecer en el inicio, pero sus personas, cargos y notas se conservan. Puede restaurarla desde Ajustes.`, {titulo:'Archivar entidad', si:'Archivar'})) return;
+    await guardar('empresas', {...e, archivada:true}); FE = null; aviso('Entidad archivada'); profundidad = 0; reemplazar('#/inicio');
   },
   /* Formulario de persona */
   'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
@@ -1941,7 +1963,7 @@ const ACCIONES = {
   'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
   'fp-borrar': async () => {
     const p = persona(FP._para);
-    if (!await confirmar(`${p.nombre}, sus cargos y sus notas irán a la papelera; puede restaurarlos desde Ajustes durante ${PAPELERA_DIAS} días. Si solo salió de una empresa, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
+    if (!await confirmar(`${p.nombre}, sus cargos y sus notas irán a la papelera; puede restaurarlos desde Ajustes durante ${PAPELERA_DIAS} días. Si solo salió de una entidad, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
     const cargos = S.cargos.filter(c => c.personaId === p.id);
     const notas = S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id);
     const refs = S.cargos.filter(c => c.reportaA === p.id).map(c => ({...c, reportaA:null, reportaATexto:p.nombre}));
@@ -1951,7 +1973,7 @@ const ACCIONES = {
   /* Cargo */
   'fc-cerrar': () => guardarCargo(hoyISO()),
   'fc-borrar': async () => {
-    if (!await confirmar('Use esta opción solo si el cargo fue un error. Si la persona salió de la empresa, mejor cierre el cargo para conservar la historia. El cargo irá a la papelera.', {titulo:'Eliminar cargo', si:'Eliminar', peligro:true})) return;
+    if (!await confirmar('Use esta opción solo si el cargo fue un error. Si la persona salió de la entidad, mejor cierre el cargo para conservar la historia. El cargo irá a la papelera.', {titulo:'Eliminar cargo', si:'Eliminar', peligro:true})) return;
     const c = cargo(FC._para), pid = FC.personaId;
     await aPapelera(`Cargo de ${persona(pid)?.nombre || ''} en ${empresa(c.empresaId)?.nombre || ''}`, {cargos:[c]});
     FC = null; aviso('Cargo enviado a la papelera'); volver('#/persona/' + pid);
@@ -2039,6 +2061,7 @@ async function iniciar(){
     await cargarTodo();
     await asegurarTiposBase();
     await purgarPapelera();
+    aplicarTema();
   } catch (err) {
     bloqueo.innerHTML = `<div class="pin"><div class="pin-cabeza"><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr">No se pudo abrir la base de datos (${esc(err.message || err)}). Si está en modo incógnito, ábrala en una ventana normal.</p></div></div>`;
     return;

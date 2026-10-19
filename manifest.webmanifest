@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Mentor",
   "short_name": "Mentor",
-  "description": "App personal para recordar a la gente de las empresas y juntas directivas.",
+  "description": "App personal para recordar a la gente de las entidades y juntas directivas.",
   "lang": "es-CO",
   "dir": "ltr",
   "start_url": "./",
