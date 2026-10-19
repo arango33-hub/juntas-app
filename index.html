@@ -386,7 +386,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.1.2 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.1.3 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -426,6 +426,7 @@ const I = {
   atras: svg('<path d="M15 5l-7 7 7 7"/>',20,2),
   chev: `<svg class="chev" aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--texto-2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>`,
   mas: svg('<path d="M12 5v14M5 12h14"/>',24,2),
+  empresas: svg('<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>'),
   casa: svg('<path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/>'),
   gente: svg('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M21 20c0-2.6-1.6-4.8-4-5.6"/>'),
   pendiente: svg('<rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/>'),
@@ -758,7 +759,7 @@ function linkVolver(texto, alterna){ return `<button type="button" class="volver
 function nav(activa){
   const it = (k, href, icono, txt) => `<a href="${href}" class="${activa===k?'act':''}" ${activa===k?'aria-current="page"':''}>${icono}${txt}</a>`;
   return `<nav class="nav" aria-label="Navegación principal"><div class="nav-in">
-    ${it('inicio','#/inicio',I.casa,'Juntas')}${it('personas','#/personas',I.gente,'Personas')}${it('pendientes','#/pendientes',I.pendiente,'Pendientes')}
+    ${it('inicio','#/inicio',I.empresas,'Empresas')}${it('personas','#/personas',I.gente,'Personas')}${it('pendientes','#/pendientes',I.pendiente,'Pendientes')}
     <button type="button" data-action="bloquear">${I.candado}Bloquear</button></div></nav>`;
 }
 const fab = (href, etiqueta) => `<a class="fab" href="${href}" aria-label="${esc(etiqueta)}">${I.mas}</a>`;
@@ -888,7 +889,7 @@ function render(){
   window.scrollTo(0, ['inicio','personas','empresa','persona'].includes(r) ? y : 0);
 }
 function noEncontrado(){
-  pintar(`<div class="pagina"><div class="sec"><p class="tarjeta vacio">No se encontró lo que buscaba; puede haber sido borrado.</p><a class="btn-sec" href="#/inicio">Ir a Mis juntas</a></div></div>`);
+  pintar(`<div class="pagina"><div class="sec"><p class="tarjeta vacio">No se encontró lo que buscaba; puede haber sido borrado.</p><a class="btn-sec" href="#/inicio">Ir a Empresas</a></div></div>`);
 }
 
 /* ---------- 2 · Inicio ---------- */
@@ -950,7 +951,7 @@ function vistaInicio(){
   const f = (k, txt, n) => `<button type="button" class="filtro${FILTRO===k ? ' act' : ''}" data-action="filtro" data-f="${k}" aria-pressed="${FILTRO===k}">${txt} · ${n}</button>`;
   pintar(`<div class="pagina con-nav">
     <div class="ini-top">
-      <div class="cab-fila"><h1 class="serif t30">Mis juntas</h1>
+      <div class="cab-fila"><h1 class="serif t30">Empresas</h1>
         <div class="ini-botones"><a class="btn-icono" href="#/nota?libre=1" aria-label="Nota rápida">${I.micPeq}</a><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a></div></div>
       <div class="campo-busq"><label for="buscar">Buscar persona, cargo o compañía</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
       ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaCumples()}${franjaIOS()}
@@ -1031,7 +1032,7 @@ function vistaEmpresa(id){
 
   pintar(`<div class="pagina-total" style="--c:${c}">
   <div class="banda"><div class="cabecera">
-    <div class="cab-fila">${linkVolver('Mis juntas','#/inicio')}<a class="enlace-btn" href="#/empresa-form/${id}">Editar</a></div>
+    <div class="cab-fila">${linkVolver('Empresas','#/inicio')}<a class="enlace-btn" href="#/empresa-form/${id}">Editar</a></div>
     <div class="emp-cab"><div class="emp-ini" aria-hidden="true">${esc(iniciales(e.nombre))}</div><h1 class="serif t28">${esc(e.nombre)}</h1></div>
     <div class="colores" role="group" aria-label="Color de la empresa"><span>Color:</span>${PALETA.map(p => `<button type="button" class="circulo${p.k===e.color ? ' sel' : ''}" style="background:var(--emp-${p.k})" data-action="poner-color" data-id="${id}" data-c="${p.k}" aria-label="${p.n}${p.k===e.color ? ' (seleccionado)' : ''}" aria-pressed="${p.k===e.color}"></button>`).join('')}</div>
     <div class="etiquetas">
@@ -1550,7 +1551,7 @@ function vistaAjustes(){
   const hayEjemplo = [...S.empresas, ...S.personas].some(x => x.ejemplo);
   const opDias = [7,15,30,60].map(d => `<option value="${d}"${d===dias ? ' selected' : ''}>Cada ${d} días</option>`).join('');
   pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
-    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Mis juntas','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
+    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Empresas','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
 
     <div class="sec"><h2 class="sec-titulo">Respaldo</h2><div class="tarjeta">
       <div class="ajuste"><p>${ult ? `Último respaldo: ${fechaMedia(ult)}.` : 'Aún no ha exportado ningún respaldo.'} Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
