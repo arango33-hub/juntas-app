@@ -393,7 +393,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '1.2.0 · fase 1' };
+const APP = { nombre: 'Mentor', version: '1.2.1 · fase 1' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1043,8 +1043,10 @@ function vistaEmpresa(id){
   }
 
   const idsPersonas = new Set(cs.map(x => x.personaId));
-  const notas = S.notas.filter(n => (n.refTipo==='empresa' && n.refId===id) || (n.refTipo==='persona' && idsPersonas.has(n.refId))).sort(ordenNotas)
-    .map(n => ({n, titulo: [fechaMedia(n.fecha), n.ocasion, n.refTipo==='persona' ? persona(n.refId)?.nombre : ''].filter(Boolean).join(' · ')}));
+  /* La historia de la entidad tiene solo sus propias notas; las de su gente se muestran aparte */
+  const notas = S.notas.filter(n => n.refTipo==='empresa' && n.refId===id).sort(ordenNotas)
+    .map(n => ({n, titulo: [fechaMedia(n.fecha), n.ocasion].filter(Boolean).join(' · ')}));
+  const notasGente = S.notas.filter(n => n.refTipo==='persona' && idsPersonas.has(n.refId)).sort(ordenNotas);
 
   pintar(`<div class="pagina-total" style="--c:${c}">
   <div class="banda"><div class="cabecera">
@@ -1066,7 +1068,10 @@ function vistaEmpresa(id){
       ${funcHtml ? `<div class="tarjeta col" style="gap:0">${funcHtml}</div>` : `<p class="tarjeta vacio">Aún no hay funcionarios registrados.</p>`}
     </div>
     ${ant.length ? `<div class="sec mas"><h2 class="sec-titulo">Cargos anteriores</h2><div class="tarjeta col" style="gap:0">${ant.map(x => { const p = persona(x.personaId); return p ? `<a class="fila" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta || x.cargo, x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>` : ''; }).join('')}</div></div>` : ''}
-    <div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Notas</h2>${lineaTiempo(notas)}</div>
+    <div class="sec mas"${notasGente.length ? '' : ' style="padding-bottom:32px"'}><h2 class="sec-titulo">Historia de la entidad</h2>${lineaTiempo(notas)}</div>
+    ${notasGente.length ? `<div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Notas sobre sus personas · ${notasGente.length}</h2>
+      <p class="ayuda" style="margin:0">Estas notas pertenecen a cada persona; aparecen aquí solo como referencia. Para pasar una nota a la entidad, ábrala y en “Sobre” escoja la entidad.</p>
+      <div class="tarjeta col" style="gap:0">${notasGente.map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub"><b>${esc(persona(n.refId)?.nombre || '')}</b> · ${esc([fechaMedia(n.fecha), n.ocasion].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, [])}</span></a>`).join('')}</div></div>` : ''}
   </div>
   <div class="accion-fija"><a class="btn-pri" href="#/nota?empresa=${id}">${I.mic}Dictar nota</a></div>
   </div>`);
@@ -1176,7 +1181,7 @@ function vistaNota(id, q){
   else if (personaBase) { const c = (FN.ctxEmp && cargosPersona(personaBase.id).find(c => c.empresaId === FN.ctxEmp)) || cargosPersona(personaBase.id).find(vigente); const e = c && empresa(c.empresaId); if (e) colorSel = cv(e.color); }
   const titulo = FN._para !== 'nueva' ? 'Editar nota' : (FN.libre ? 'Nota rápida' : 'Nueva nota');
   const sobre = FN.ref
-    ? `<div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}${FN.libre ? '<button type="button" class="chip-sobre" data-action="fn-cambiar">Cambiar</button>' : ''}</div>`
+    ? `<div class="chips">${opciones.map(o => `<button type="button" class="chip-sobre${o.ref===FN.ref ? ' sel' : ''}" data-action="fn-ref" data-ref="${o.ref}" aria-pressed="${o.ref===FN.ref}">${esc(o.txt)}</button>`).join('')}<button type="button" class="chip-sobre" data-action="fn-cambiar">Otra…</button></div>`
     : `<input class="input" id="fn-busq" type="search" placeholder="Busque una persona o entidad" autocomplete="off" value="${esc(FN.busq || '')}"><div class="tarjeta col" id="fn-res" style="gap:0" hidden></div>
        <p class="ayuda" style="margin:0">Puede escribir la nota primero y escoger después a quién se refiere.</p>`;
   pintar(`<form class="form nota-form" id="f-nota" novalidate style="--c:${colorSel}">
@@ -1510,10 +1515,21 @@ function vistaPersonas(){
         <button type="button" class="filtro btn-orden${agrupar ? ' on' : ''}" style="margin-left:0" data-action="agrupar-per" aria-pressed="${agrupar}">${I.edificio}Agrupar por entidad</button>
       </div>
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
+  /* Busca en los datos de la persona, sus cargos, su perfil y el texto de sus notas */
+  const notasDe = p => S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id).sort(ordenNotas);
+  const camposP = p => [p.nombre, p.correo, p.telefono, p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
-    return contieneTodas([p.nombre, p.correo, p.telefono, p.asistente, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre])], palabrasDe(q));
+    return contieneTodas([...camposP(p), ...notasDe(p).flatMap(n => [n.texto, n.ocasion])], palabrasDe(q));
   };
+  /* Si la coincidencia viene de una nota, se muestra el fragmento debajo del nombre */
+  const extraNota = p => {
+    const q = BUSQ_PERSONAS, ps = palabrasDe(q);
+    if (!ps.length || contieneTodas(camposP(p), ps)) return '';
+    const n = notasDe(p).find(n => ps.some(w => norm(n.texto + ' ' + n.ocasion).includes(w)));
+    return n ? `<span class="sub" style="margin-top:2px">Nota del ${esc(fechaMedia(n.fecha))}: ${fragmento(n.texto, ps)}</span>` : '';
+  };
+  const conExtra = (html, p) => { const x = extraNota(p); return x ? html.replace('</span></span>', '</span>' + x + '</span>') : html; };
   const pintarP = () => {
     const q = norm(BUSQ_PERSONAS);
     const lista = S.personas.filter(p => coincide(p, q)).sort((a,b) => compararTexto(a.nombre, b.nombre, asc));
@@ -1523,7 +1539,7 @@ function vistaPersonas(){
       cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
         const cs = cargosPersona(p.id);
         const c = (q && cs.find(c => palabrasDe(q).some(w => norm([c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].join(' ')).includes(w)))) || cs.find(vigente) || cs[0];
-        return filaPersonaBusq(p, c);
+        return conExtra(filaPersonaBusq(p, c), p);
       }).join('')}</div>`;
       return;
     }
@@ -1540,7 +1556,7 @@ function vistaPersonas(){
     grupos.filter(g => g.ps.length).forEach(({e, ps}) => {
       html += `<hr class="sep-grupo"><a class="grupo-cab" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span>${esc(e.nombre)} · ${ps.length}</a>
         <div class="tarjeta col" style="gap:0">${ps.map(({p, c, otras}) => `<a class="fila" href="#/persona/${p.id}?e=${e.id}" style="--c:${cv(e.color)}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
-          <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([c.cargo || c.rolJunta, c.cargo && c.rolJunta ? c.rolJunta : '', c.area].filter(Boolean).join(' · ') || 'Sin cargo')}${otras ? ' · también en otra entidad' : ''}</span></span>${I.chev}</a>`).join('')}</div>`;
+          <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([c.cargo || c.rolJunta, c.cargo && c.rolJunta ? c.rolJunta : '', c.area].filter(Boolean).join(' · ') || 'Sin cargo')}${otras ? ' · también en otra entidad' : ''}</span>${extraNota(p)}</span>${I.chev}</a>`).join('')}</div>`;
     });
     if (sinEmpresa.length) html += `<hr class="sep-grupo"><div class="grupo-cab">Sin entidad · ${sinEmpresa.length}</div><div class="tarjeta col" style="gap:0">${sinEmpresa.map(p => filaPersonaBusq(p, null)).join('')}</div>`;
     cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2>` + html;
