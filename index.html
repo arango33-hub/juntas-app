@@ -435,7 +435,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.1 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.2 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -795,6 +795,12 @@ async function purgarPapelera(){
   const viejos = S.papelera.filter(x => new Date(x.creada).getTime() < limite).map(x => x.id);
   if (viejos.length) await lote({quitar:{papelera:viejos}});
 }
+/* Desde la 2.2 la ficha no tiene asistente: si una persona lo tenía, se muestra y se guarda dentro de "Otros datos" */
+function asistenteHeredado(p){
+  const n = String(p.asistente || '').trim(), t = String(p.asistenteTel || '').trim();
+  return n || t ? 'Asistente: ' + [n, t].filter(Boolean).join(' · ') : '';
+}
+function otrosConAsistente(p){ return [String(p.otros || '').trim(), asistenteHeredado(p)].filter(Boolean).join('\n'); }
 /* Proyectos y entidades comparten la misma paleta y el mismo turno de color */
 function siguienteColor(){
   const i = +S.cfg.colorSiguiente || 0;
@@ -903,6 +909,10 @@ function ruta(){
   return {partes: path.split('/').filter(Boolean), q: Object.fromEntries(new URLSearchParams(qs || ''))};
 }
 function pintar(html){ app.innerHTML = html; }
+/* Pone el contenido de una lista de resultados solo si cambió. En Android, al tocar un resultado
+   el teclado confirma la palabra en curso y dispara un "input" sin cambiar el texto; si la lista
+   se redibujara en ese instante, el botón tocado desaparecería y el toque se perdería. */
+function ponerHTML(el, html){ if (el && el._html !== html) { el.innerHTML = html; el._html = html; } }
 function linkVolver(texto, alterna){ return `<button type="button" class="volver" data-action="volver" data-a="${esc(alterna)}">${I.atras}${esc(texto)}</button>`; }
 function nav(activa){
   const it = (k, href, icono, txt) => `<a href="${href}" class="${activa===k?'act':''}" ${activa===k?'aria-current="page"':''}>${icono}${txt}</a>`;
@@ -1134,13 +1144,13 @@ function pintarLista(){
   const pasa = e => FILTRO==='todas' || (FILTRO==='junta') === esJunta(e);
   const q = norm(BUSQUEDA), ps = palabrasDe(BUSQUEDA);
   if (!act.length && !S.personas.length) {
-    cont.innerHTML = `<div class="tarjeta ajuste"><p>Aún no hay entidades. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
-      <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar entidad</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`;
+    ponerHTML(cont, `<div class="tarjeta ajuste"><p>Aún no hay entidades. Agregue la primera con el botón +, impórtelas desde Excel o, para probar, cargue datos de ejemplo.</p>
+      <div class="dos"><a class="btn-sec" href="#/empresa-form">Agregar entidad</a><button type="button" class="btn-sec" data-action="ejemplo-cargar">Datos de ejemplo</button></div></div>`);
     return;
   }
   if (!q) {
     const lista = act.filter(pasa);
-    cont.innerHTML = lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay entidades en este filtro.</p>`;
+    ponerHTML(cont, lista.length ? `<div class="emp-grid">${lista.map(tarjetaEmpresa).join('')}</div>` : `<p class="tarjeta vacio">No hay entidades en este filtro.</p>`);
     return;
   }
   const emps = act.filter(pasa).filter(e => contieneTodas([e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre], ps));
@@ -1164,11 +1174,11 @@ function pintarLista(){
   const destino = n => refsNota(n).map(r => nombreRef(r.tipo, r.id)).filter(Boolean).join(' · ');
   const notas = S.notas.filter(n => contieneTodas([n.texto, n.ocasion, destino(n), n.hitoId ? hito(n.hitoId)?.nombre : ''], ps) && notaPasa(n)).sort(ordenNotas);
   const proys = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
-  if (!emps.length && !pers.length && !notas.length && !proys.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
-  cont.innerHTML = (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
+  if (!emps.length && !pers.length && !notas.length && !proys.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`); return; }
+  ponerHTML(cont, (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
     + (proys.length ? `<h2 class="sec-titulo res-titulo">Proyectos · ${proys.length}</h2><div class="emp-grid">${proys.map(tarjetaProyecto).join('')}</div>` : '')
     + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '')
-    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '');
+    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : ''));
 }
 
 /* ---------- 3 · Entidad ---------- */
@@ -1297,10 +1307,9 @@ function vistaPersona(id, q){
     p.telefono && `<div class="dato"><span>Celular</span><a href="tel:${esc(telHref)}">${esc(p.telefono)}</a></div>`,
     p.correo && `<div class="dato"><span>Correo</span><a href="mailto:${esc(p.correo)}">${esc(p.correo)}</a></div>`,
     p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`,
-    (p.asistente || p.asistenteTel) && `<div class="dato"><span>Asistente</span><span>${esc(p.asistente || '')}${p.asistente && p.asistenteTel ? ' · ' : ''}${p.asistenteTel ? `<a href="tel:${esc((p.asistenteTel.trim().startsWith('+') ? '+' : '') + soloDigitos(p.asistenteTel))}">${esc(p.asistenteTel)}</a>` : ''}</span></div>`,
     p.cumpleanos && `<div class="dato"><span>Cumpleaños</span><span>${esc(cumpleTexto(p.cumpleanos))}</span></div>`,
     p.linkedin && `<div class="dato"><span>LinkedIn</span><a href="${esc(/^https?:\/\//.test(p.linkedin) ? p.linkedin : 'https://' + p.linkedin)}" target="_blank" rel="noopener">Ver perfil</a></div>`,
-    p.otros && `<div class="dato"><span>Otros</span><span style="white-space:pre-line">${esc(p.otros)}</span></div>`
+    otrosConAsistente(p) && `<div class="dato"><span>Otros</span><span style="white-space:pre-line">${esc(otrosConAsistente(p))}</span></div>`
   ].filter(Boolean).join('');
   const titPerfil = p.trato==='ella' ? 'Mi perfil de ella' : p.trato==='él' ? 'Mi perfil de él' : 'Mi perfil';
   const notasP = S.notas.filter(n => tocaA(n, 'persona', id));
@@ -1473,14 +1482,14 @@ function vistaNota(id, q){
   const busq = $('#fn-busq');
   if (busq) {
     const res = $('#fn-res');
-    const pintarRes = () => { if (norm(FN.busq).length < 2) { res.hidden = true; return; } res.hidden = false; res.innerHTML = resultados(FN.busq, 'fn-elegir'); };
+    const pintarRes = () => { if (norm(FN.busq).length < 2) { res.hidden = true; return; } res.hidden = false; ponerHTML(res, resultados(FN.busq, 'fn-elegir')); };
     busq.addEventListener('input', e => { FN.busq = e.target.value; pintarRes(); });
     pintarRes();
   }
   const rb = $('#fn-relbusq');
   if (rb) {
     const res = $('#fn-relres');
-    const pintarRes = () => { if (norm(FN.relBusq).length < 2) { res.hidden = true; return; } res.hidden = false; res.innerHTML = resultados(FN.relBusq, 'fn-rel-add', [FN.ref, ...FN.rel.map(r => r.tipo + ':' + r.id)]); };
+    const pintarRes = () => { if (norm(FN.relBusq).length < 2) { res.hidden = true; return; } res.hidden = false; ponerHTML(res, resultados(FN.relBusq, 'fn-rel-add', [FN.ref, ...FN.rel.map(r => r.tipo + ':' + r.id)])); };
     rb.addEventListener('input', e => { FN.relBusq = e.target.value; pintarRes(); });
     pintarRes(); setTimeout(() => rb.focus(), 30);
   }
@@ -1667,9 +1676,9 @@ function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
-    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', asistente:p.asistente||'', asistenteTel:p.asistenteTel||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:p.otros||'',
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', asistente:'', asistenteTel:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1691,10 +1700,6 @@ function vistaPersonaForm(id, q){
     <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>
     <fieldset><legend>Más datos <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
       <div class="dos">
-        <div class="campo"><label for="fp-asis">Asistente</label><input class="input" id="fp-asis" value="${esc(FP.asistente)}" placeholder="Nombre" autocapitalize="words"></div>
-        <div class="campo"><label for="fp-asistel">Tel. asistente</label><input class="input" id="fp-asistel" type="tel" inputmode="tel" value="${esc(FP.asistenteTel)}" placeholder="+57 300 000 0000"></div>
-      </div>
-      <div class="dos">
         <div class="campo"><label for="fp-cumple">Cumpleaños</label><input class="input" id="fp-cumple" type="date" value="${esc(FP.cumpleanos)}"></div>
         <div class="campo"><label for="fp-linkedin">LinkedIn</label><input class="input" id="fp-linkedin" type="url" inputmode="url" autocapitalize="off" value="${esc(FP.linkedin)}" placeholder="linkedin.com/in/…"></div>
       </div>
@@ -1714,7 +1719,7 @@ function vistaPersonaForm(id, q){
   if (!ex) {
     const b = (s, k) => $(s).addEventListener('input', e => FP[k] = e.target.value);
     b('#fp-tel','telefono'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
-    b('#fp-asis','asistente'); b('#fp-asistel','asistenteTel'); b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
+    b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
   }
   if (nueva) { enlazarCargo(FP, 'fp', FP.existenteId); $('#fp-inicio').addEventListener('input', e => FP.inicio = e.target.value); }
@@ -1731,10 +1736,10 @@ function sugerirPersonas(){
   const m = S.personas.filter(p => norm(p.nombre).includes(q)).slice(0, 5);
   if (!m.length) { cont.hidden = true; return; }
   cont.hidden = false;
-  cont.innerHTML = `<div class="area-tit">Ya existe — toque para usarla</div>` + m.map(p => {
+  ponerHTML(cont, `<div class="area-tit">Ya existe — toque para usarla</div>` + m.map(p => {
     const c = cargosPersona(p.id).find(vigente), e = c && empresa(c.empresaId);
     return `<button type="button" class="fila" data-action="fp-existente" data-id="${p.id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Sin cargo')}</span></span></button>`;
-  }).join('');
+  }).join(''));
 }
 async function guardarPersona(){
   const nueva = FP._para === 'nueva';
@@ -1755,7 +1760,7 @@ async function guardarPersona(){
     if (!pid) {
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
       const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
-        asistente:FP.asistente.trim(), asistenteTel:FP.asistenteTel.trim(), cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
+        asistente:'', asistenteTel:'', cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
       poner.personas = [p]; pid = p.id;
     }
   }
@@ -1846,13 +1851,13 @@ function vistaPersonas(){
     const q = norm(BUSQ_PERSONAS);
     const lista = S.personas.filter(p => coincide(p, q)).sort((a,b) => compararTexto(a.nombre, b.nombre, asc));
     const cont = $('#lista-p');
-    if (!lista.length) { cont.innerHTML = `<h2 class="sec-titulo">Personas</h2><p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una entidad o con el botón +.'}</p>`; return; }
+    if (!lista.length) { ponerHTML(cont, `<h2 class="sec-titulo">Personas</h2><p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una entidad o con el botón +.'}</p>`); return; }
     if (!agrupar) {
-      cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
+      ponerHTML(cont, `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
         const cs = cargosPersona(p.id);
         const c = (q && cs.find(c => palabrasDe(q).some(w => norm([c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].join(' ')).includes(w)))) || cs.find(vigente) || cs[0];
         return conExtra(filaPersonaBusq(p, c), p);
-      }).join('')}</div>`;
+      }).join('')}</div>`);
       return;
     }
     /* Agrupado: una persona aparece en cada entidad donde tiene un cargo vigente */
@@ -1871,7 +1876,7 @@ function vistaPersonas(){
           <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([c.cargo || c.rolJunta, c.cargo && c.rolJunta ? c.rolJunta : '', c.area].filter(Boolean).join(' · ') || 'Sin cargo')}${otras ? ' · también en otra entidad' : ''}</span>${extraNota(p)}</span>${I.chev}</a>`).join('')}</div>`;
     });
     if (sinEmpresa.length) html += `<hr class="sep-grupo"><div class="grupo-cab">Sin entidad · ${sinEmpresa.length}</div><div class="tarjeta col" style="gap:0">${sinEmpresa.map(p => filaPersonaBusq(p, null)).join('')}</div>`;
-    cont.innerHTML = `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2>` + html;
+    ponerHTML(cont, `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2>` + html);
   };
   $('#buscar-p').addEventListener('input', e => { BUSQ_PERSONAS = e.target.value; pintarP(); });
   pintarP();
@@ -2172,7 +2177,8 @@ function vistaPapel(id, q){
             : {_para:'nuevo', personaId:q.p || '', proyectoId:q.proy || '', papel:'', inicio:hoyISO(), fin:'', busq:'', nombreNuevo:''};
   }
   const nuevo = FPA._para === 'nuevo';
-  const pe = FPA.personaId && persona(FPA.personaId), pr = FPA.proyectoId && proyecto(FPA.proyectoId);
+  /* Una persona recién escrita con "+ Crear" aún no existe: se crea al guardar */
+  const pe = FPA.personaId && (persona(FPA.personaId) || (FPA.nombreNuevo ? {id:FPA.personaId, nombre:FPA.nombreNuevo} : null)), pr = FPA.proyectoId && proyecto(FPA.proyectoId);
   const vuelta = q.p || (!nuevo && !q.proy) ? '#/persona/' + FPA.personaId : pr ? '#/proyecto/' + pr.id : '#/proyectos';
   const fijoPersona = !nuevo || !!q.p, fijoProy = !nuevo || !!q.proy;
   const activos = proyectosOrdenados().filter(p => proyectoActivo(p) || p.id === FPA.proyectoId);
@@ -2205,9 +2211,9 @@ function vistaPapel(id, q){
       if (q2.length < 2) { res.hidden = true; return; }
       const m = S.personas.filter(x => norm(x.nombre).includes(q2)).sort((a,b) => compararTexto(a.nombre, b.nombre)).slice(0, 6);
       res.hidden = false;
-      res.innerHTML = m.map(x => { const c = cargosPersona(x.id).find(vigente), e = c && empresa(c.empresaId);
+      ponerHTML(res, m.map(x => { const c = cargosPersona(x.id).find(vigente), e = c && empresa(c.empresaId);
           return `<button type="button" class="fila" data-action="fpa-elegir" data-id="${x.id}"><span class="col"><span class="nom">${esc(x.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
-        + (m.some(x => norm(x.nombre) === q2) ? '' : `<button type="button" class="fila" data-action="fpa-nueva"><span class="col"><span class="nom" style="color:var(--acento)">+ Crear “${esc(t)}”</span><span class="sub">Persona nueva; después puede completar sus datos</span></span></button>`);
+        + (m.some(x => norm(x.nombre) === q2) ? '' : `<button type="button" class="fila" data-action="fpa-nueva"><span class="col"><span class="nom" style="color:var(--acento)">+ Crear “${esc(t)}”</span><span class="sub">Persona nueva; después puede completar sus datos</span></span></button>`));
     };
     bq.addEventListener('input', e => { FPA.busq = e.target.value; pintarRes(); });
     pintarRes();
@@ -2655,7 +2661,7 @@ async function cargarEjemplo(){
   const lc = E('Logística Caribe S.A.S.', 15, 'suplente', 'turquesa', 'Logística', 'Barranquilla');
   const cs = E('Constructora Sabana', null, 'relacion-comercial', 'morado', 'Construcción', 'Chía', 'Proveedor del proyecto de Rionegro');
   const P = (nombre, trato, telefono='', correo='', comoLaConocio='', perfil='') => ({id:uid(), creada:cr(), nombre, trato, telefono, correo, comoLaConocio, perfil, foto:null, ejemplo:true});
-  const jm = {...P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía'), asistente:'Marta Ríos', asistenteTel:'+57 300 000 0199'};
+  const jm = P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía');
   const lcz = P('Laura Cárdenas','ella','+57 300 000 0102','laura@ejemplo.com','Comité de auditoría 2025','Contadora, muy rigurosa con los controles. Coincide en priorizar la deuda.');
   const av = P('Andrés Villegas','él','','andres@ejemplo.com');
   const co = P('Carlos Ospina','él','+57 300 000 0104','carlos@ejemplo.com');
