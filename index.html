@@ -435,7 +435,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.3 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.4 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -704,8 +704,12 @@ function ultimoContacto(e){
 }
 function pendientesEmpresa(id){
   const rs = new Set(S.reuniones.filter(r => r.empresaId===id).map(r => r.id));
-  return S.compromisos.filter(c => !c.cumplido && rs.has(c.reunionId)).length;
+  return S.compromisos.filter(c => !c.cumplido && (rs.has(c.reunionId) || (c.refTipo === 'empresa' && c.refId === id))).length;
 }
+/* Compromisos (2.4): el proyecto es opcional; refTipo/refId dicen sobre qué persona o entidad es */
+const compromisosPersona = id => S.compromisos.filter(c => (c.refTipo === 'persona' && c.refId === id) || c.responsableId === id);
+const compromisosEntidad = id => S.compromisos.filter(c => c.refTipo === 'empresa' && c.refId === id);
+const ordenParaLista = l => [...l.filter(c => !c.cumplido).sort(ordenCompromisos), ...l.filter(c => c.cumplido).sort((a,b) => (b.fechaCumplido||'').localeCompare(a.fechaCumplido||'')).slice(0, 3)];
 const ordenNotas = (a,b) => (b.fecha||'').localeCompare(a.fecha||'') || String(b.creada||'').localeCompare(String(a.creada||''));
 
 /* ---------- Proyectos (fase 2) ---------- */
@@ -786,6 +790,7 @@ async function restaurarPapelera(id){
     if (x.proyectoId && !proyecto(x.proyectoId) && !enItem('proyectos', x.proyectoId)) falta.add('el proyecto');
   });
   (d.papeles || []).forEach(x => { if (!persona(x.personaId) && !enItem('personas', x.personaId)) falta.add('la persona'); });
+  (d.compromisos || []).forEach(x => { if (x.refTipo === 'persona' && !persona(x.refId) && !enItem('personas', x.refId)) falta.add('la persona'); });
   if (falta.size) return mensaje(`No se puede restaurar porque ${[...falta].join(' y ')} a la que pertenece ya no existe. Restaure primero ese elemento desde la papelera.`, 'No se pudo restaurar');
   await lote({poner:d, quitar:{papelera:[it.id]}});
   aviso('Restaurado'); render();
@@ -1064,7 +1069,7 @@ function franjaPendientes(){
   const ab = abiertos(), n = ab.length;
   if (!n) return '';
   const v = ab.filter(vencido).length;
-  return `<a class="franja" href="#/pendientes">${I.pendNaranja}<span class="col"><span class="franja-t">${plural(n,'compromiso abierto','compromisos abiertos')}</span><span class="franja-s">De sus proyectos${v ? ` · ${plural(v,'vencido')}` : ''}</span></span></a>`;
+  return `<a class="franja" href="#/pendientes">${I.pendNaranja}<span class="col"><span class="franja-t">${plural(n,'compromiso abierto','compromisos abiertos')}</span><span class="franja-s">${v ? `${plural(v,'vencido')} · ` : ''}Toque para verlos en Pendientes</span></span></a>`;
 }
 function franjaConvertir(){
   const n = porConvertir().length;
@@ -1231,6 +1236,7 @@ function vistaEmpresa(id){
     </div>
     ${ant.length ? `<div class="sec mas"><h2 class="sec-titulo">Cargos anteriores</h2><div class="tarjeta col" style="gap:0">${ant.map(x => { const p = persona(x.personaId); return p ? `<a class="fila" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta || x.cargo, x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>` : ''; }).join('')}</div></div>` : ''}
     ${proysE.length ? `<div class="sec mas"><h2 class="sec-titulo">Proyectos</h2><div class="tarjeta col" style="gap:0">${proysE.map(filaProyecto).join('')}</div></div>` : ''}
+    <div class="sec mas">${seccionCompromisos(ordenParaLista(compromisosEntidad(id)), {tipo:'empresa', id}, `#/compromiso?empresa=${id}`, true)}</div>
     <div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'empresa', id}, propiasYEnlazadas, [
       {k:'propias', txt:'Solo sobre ella', f: n => n.refTipo==='empresa' && n.refId===id},
       ...(notasGente.length ? [{k:'gente', txt:'Sus personas', lista: notasGente}] : []),
@@ -1283,6 +1289,12 @@ function filtrosPorRef(notas, sujeto, tipos){
 }
 /* Iniciales del proyecto sin la palabra “Proyecto”; con una sola palabra, sus dos primeras letras */
 function inicialesProyecto(n){ const w = String(n || '').replace(/^proyecto\s+/i, '').trim(); const i = iniciales(w); return i.length > 1 ? i : (w.slice(0, 2).toUpperCase() || '?'); }
+/* Sección "Compromisos" de una persona o entidad: abiertos y los últimos cumplidos */
+function seccionCompromisos(lista, sujeto, hrefNuevo, sinEnvoltura){
+  const cab = `<div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2><a class="enlace-btn" style="font-size:14px" href="${hrefNuevo}">+ Agregar</a></div>`;
+  const cuerpo = lista.length ? `<div class="tarjeta col" style="gap:0">${lista.map(c => filaCompromiso(c, {conProyecto:true, excluir:sujeto})).join('')}</div>` : `<p class="tarjeta vacio">Sin compromisos.</p>`;
+  return sinEnvoltura ? cab + cuerpo : `<div class="sec">${cab}${cuerpo}</div>`;
+}
 function filaProyecto(p){
   const et = lineaEtapa(p);
   return `<a class="fila" href="#/proyecto/${p.id}" style="--c:${cv(p.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub${et.venc ? ' pend' : ''}">${esc(et.txt)}</span></span>${I.chev}</a>`;
@@ -1337,6 +1349,7 @@ function vistaPersona(id, q){
       ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna entidad.</p>`}</div>
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Proyectos y papeles</h2><a class="enlace-btn" style="font-size:14px" href="#/papel?p=${id}">+ Agregar</a></div>
       ${pps.length ? `<div class="tarjeta col" style="gap:0">${pps.map(filaPapel).join('')}</div>` : `<p class="tarjeta vacio">No participa en ningún proyecto.</p>`}</div>
+    ${seccionCompromisos(ordenParaLista(compromisosPersona(id)), {tipo:'persona', id}, `#/compromiso?persona=${id}`)}
     <div class="sec"><h2 class="sec-titulo">${titPerfil}</h2>${p.perfil ? `<p class="tarjeta parrafo">${esc(p.perfil)}</p>` : `<p class="tarjeta vacio">Aún no ha escrito un perfil. Toque “Editar”.</p>`}</div>
     <div class="sec" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'persona', id}, notasP, [
       {k:'propias', txt:'Solo sobre ' + pronombre, f: n => n.refTipo==='persona' && n.refId===id},
@@ -1501,7 +1514,8 @@ function vistaNota(id, q){
     const [refTipo, refId] = FN.ref.split(':');
     const base = FN._para === 'nueva' ? {id:uid(), creada:ahora()} : nota(FN._para);
     const n = {...base, fecha: FN.fecha || hoyISO(), ocasion: FN.ocasion.trim(), texto, refTipo, refId, relacionadas: FN.rel.map(r => ({tipo:r.tipo, id:r.id})), hitoId: FN.hitoId || '', editada:ahora()};
-    const comps = FN.comps.filter(c => proyecto(c.proyectoId)).map(c => nuevoCompromiso({...c, notaId:n.id}));
+    const sobre = refTipo === 'persona' || refTipo === 'empresa' ? {refTipo, refId} : {};
+    const comps = FN.comps.map(c => nuevoCompromiso({...c, ...sobre, proyectoId: proyecto(c.proyectoId) ? c.proyectoId : '', notaId:n.id}));
     await lote({poner:{notas:[n], ...(comps.length ? {compromisos:comps} : {})}});
     await borrarBorrador();
     FN = null; aviso(comps.length ? `Nota y ${plural(comps.length, 'compromiso')} guardados` : 'Nota guardada'); volver(rutaDueno(n));
@@ -1511,7 +1525,7 @@ function vistaNota(id, q){
 const reNota = () => vistaNota(FN._para === 'nueva' ? undefined : FN._para, {});
 /* Compromiso listo para guardar a partir de lo que se llenó en un formulario u hoja */
 function nuevoCompromiso(c){
-  return {id:uid(), creada:ahora(), proyectoId:c.proyectoId, hitoId:c.hitoId || '', reunionId:null, descripcion:c.descripcion.trim(),
+  return {id:uid(), creada:ahora(), proyectoId:c.proyectoId || '', hitoId: c.proyectoId ? (c.hitoId || '') : '', refTipo:c.refTipo || '', refId:c.refId || '', reunionId:null, descripcion:c.descripcion.trim(),
     responsableId: c.responsableId && c.responsableId !== 'yo' ? c.responsableId : null, responsable: c.responsableId === 'yo' ? 'Yo' : '',
     fechaLimite:c.fechaLimite || '', cumplido:false, fechaCumplido:'', notaId:c.notaId || null};
 }
@@ -1519,8 +1533,7 @@ function nuevoCompromiso(c){
 function hojaCompromiso({proyectoId, responsableId, hitoId}){
   return new Promise(res => {
     const activos = proyectosOrdenados().filter(proyectoActivo);
-    if (!activos.length) { mensaje('Los compromisos se registran dentro de un proyecto. Cree primero el proyecto en la pestaña Proyectos.', 'No hay proyectos activos').then(() => res(null)); return; }
-    let pid = activos.some(p => p.id === proyectoId) ? proyectoId : activos[0].id;
+    let pid = activos.some(p => p.id === proyectoId) ? proyectoId : '';
     const opsResp = () => {
       const delProy = papelesProyecto(pid).filter(vigente).map(x => persona(x.personaId)).filter(Boolean);
       const ids = new Set(delProy.map(p => p.id));
@@ -1538,18 +1551,18 @@ function hojaCompromiso({proyectoId, responsableId, hitoId}){
           <div class="campo"><label for="hc-resp">Responsable</label><select class="input" id="hc-resp">${opsResp()}</select></div>
           <div class="campo"><label for="hc-fecha">Fecha límite</label><input class="input" id="hc-fecha" type="date"></div>
         </div>
-        <div class="campo"><label for="hc-proy">Proyecto</label><select class="input" id="hc-proy">${activos.map(p => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
-        <div class="campo"><label for="hc-hito">Hito <span class="opc">(opcional)</span></label><select class="input" id="hc-hito">${opsHito()}</select></div>
+        <div class="campo"><label for="hc-proy">Proyecto <span class="opc">(opcional)</span></label><select class="input" id="hc-proy"><option value="">Sin proyecto</option>${activos.map(p => `<option value="${p.id}"${p.id === pid ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
+        <div class="campo" id="hc-hito-c"${pid && hitosProyecto(pid).length ? '' : ' hidden'}><label for="hc-hito">Hito <span class="opc">(opcional)</span></label><select class="input" id="hc-hito">${opsHito()}</select></div>
         <p class="hoja-error" id="hc-err"></p>
         <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Agregar</button></div>
       </form>`, val => res(val || null));
-    $('#hc-proy', v).addEventListener('change', e => { pid = e.target.value; hitoId = ''; const r = $('#hc-resp', v).value; responsableId = r; $('#hc-resp', v).innerHTML = opsResp(); $('#hc-hito', v).innerHTML = opsHito(); });
+    $('#hc-proy', v).addEventListener('change', e => { pid = e.target.value; hitoId = ''; const r = $('#hc-resp', v).value; responsableId = r; $('#hc-resp', v).innerHTML = opsResp(); $('#hc-hito', v).innerHTML = opsHito(); $('#hc-hito-c', v).hidden = !(pid && hitosProyecto(pid).length); });
     $('[data-r]', v).addEventListener('click', () => cerrarHoja(null));
     $('form', v).addEventListener('submit', e => {
       e.preventDefault();
       const descripcion = $('#hc-desc', v).value.trim();
       if (!descripcion) { $('#hc-err', v).textContent = 'Escriba qué quedó pendiente.'; return; }
-      cerrarHoja({descripcion, responsableId: $('#hc-resp', v).value, fechaLimite: $('#hc-fecha', v).value, proyectoId: pid, hitoId: $('#hc-hito', v).value});
+      cerrarHoja({descripcion, responsableId: $('#hc-resp', v).value, fechaLimite: $('#hc-fecha', v).value, proyectoId: pid, hitoId: pid ? $('#hc-hito', v).value : ''});
     });
   });
 }
@@ -1967,14 +1980,16 @@ function vistaProyectos(){
 }
 
 /* ---------- 9 · Proyecto ---------- */
-function filaCompromiso(c, {conProyecto=false}={}){
+function filaCompromiso(c, {conProyecto=false, excluir=null}={}){
   const h = c.hitoId && hito(c.hitoId), pr = proyecto(c.proyectoId);
   const reu = !pr && c.reunionId && S.reuniones.find(r => r.id === c.reunionId), eReu = reu && empresa(reu.empresaId);
   const nH = h ? hitosProyecto(h.proyectoId).findIndex(x => x.id === h.id) + 1 : 0;
   const v = vencido(c);
   const partes = [responsableDe(c),
     c.cumplido ? (c.fechaCumplido ? 'Cumplido ' + fechaCorta(c.fechaCumplido) : 'Cumplido') : (c.fechaLimite ? 'antes del ' + fechaCorta(c.fechaLimite) : 'sin fecha límite'),
-    h ? `Hito ${nH}` : '', conProyecto ? (pr?.nombre || eReu?.nombre || '') : '', v ? 'vencido' : ''].filter(Boolean);
+    h ? `Hito ${nH}` : '', conProyecto ? (pr?.nombre || eReu?.nombre || '') : '',
+    conProyecto && c.refTipo && !(excluir && excluir.tipo === c.refTipo && excluir.id === c.refId) && !(pr && c.refTipo === 'proyecto') ? nombreRef(c.refTipo, c.refId) : '',
+    v ? 'vencido' : ''].filter(Boolean);
   return `<div class="comp${c.cumplido ? ' hecho' : ''}"><input type="checkbox"${c.cumplido ? ' checked' : ''} data-action="comp-toggle" data-id="${c.id}" aria-label="${c.cumplido ? 'Reabrir' : 'Marcar como cumplido'}: ${esc(c.descripcion)}">
     <a href="#/compromiso/${c.id}"><span class="d">${esc(c.descripcion)}</span><span class="s${v ? ' venc' : ''}">${esc(partes.join(' · '))}</span></a></div>`;
 }
@@ -2284,23 +2299,31 @@ function vistaCompromiso(id, q){
   if (!FCO || FCO._para !== (id || 'nuevo')) {
     const c = id && compromiso(id);
     if (id && !c) return noEncontrado();
-    FCO = c ? {_para:id, proyectoId:c.proyectoId || '', descripcion:c.descripcion || '', responsableId: c.responsableId || (c.responsable === 'Yo' ? 'yo' : ''), responsableTxt: c.responsableId ? '' : (c.responsable === 'Yo' ? '' : c.responsable || ''), fechaLimite:c.fechaLimite || '', hitoId:c.hitoId || '', cumplido:!!c.cumplido, fechaCumplido:c.fechaCumplido || ''}
-            : {_para:'nuevo', proyectoId:q.proy || '', descripcion:'', responsableId:'yo', responsableTxt:'', fechaLimite:'', hitoId:q.hito || '', cumplido:false, fechaCumplido:''};
+    FCO = c ? {_para:id, proyectoId:c.proyectoId || '', refTipo:c.refTipo || '', refId:c.refId || '', descripcion:c.descripcion || '', responsableId: c.responsableId || (c.responsable === 'Yo' ? 'yo' : ''), responsableTxt: c.responsableId ? '' : (c.responsable === 'Yo' ? '' : c.responsable || ''), fechaLimite:c.fechaLimite || '', hitoId:c.hitoId || '', cumplido:!!c.cumplido, fechaCumplido:c.fechaCumplido || ''}
+            : {_para:'nuevo', proyectoId:q.proy || '', refTipo: q.persona ? 'persona' : q.empresa ? 'empresa' : '', refId: q.persona || q.empresa || '', descripcion:'', responsableId:'yo', responsableTxt:'', fechaLimite:'', hitoId:q.hito || '', cumplido:false, fechaCumplido:''};
   }
   const nuevo = FCO._para === 'nuevo';
   const pr = FCO.proyectoId && proyecto(FCO.proyectoId);
   const c0 = !nuevo && compromiso(FCO._para);
-  const delProy = pr ? [...new Set(papelesProyecto(pr.id).filter(vigente).map(x => x.personaId))].map(persona).filter(Boolean).sort((a,b) => compararTexto(a.nombre, b.nombre)) : [];
+  const sobre = FCO.refTipo && objetoRef(FCO.refTipo, FCO.refId);
+  /* Responsables sugeridos: la persona del compromiso, la gente vigente de la entidad y la del proyecto */
+  const idsSug = [...new Set([
+    ...(FCO.refTipo === 'persona' ? [FCO.refId] : []),
+    ...(FCO.refTipo === 'empresa' ? cargosEmpresa(FCO.refId).filter(vigente).map(c => c.personaId) : []),
+    ...(pr ? papelesProyecto(pr.id).filter(vigente).map(x => x.personaId) : [])])];
+  const delProy = idsSug.map(persona).filter(Boolean).sort((a,b) => (b.id === FCO.refId) - (a.id === FCO.refId) || compararTexto(a.nombre, b.nombre));
   const respExtra = FCO.responsableId && FCO.responsableId !== 'yo' && !delProy.some(x => x.id === FCO.responsableId) ? [persona(FCO.responsableId)].filter(Boolean) : [];
   const otras = S.personas.filter(x => !delProy.some(y => y.id === x.id) && !respExtra.some(y => y.id === x.id)).sort((a,b) => compararTexto(a.nombre, b.nombre));
   const chipR = (v, txt) => `<button type="button" class="chip${FCO.responsableId === v ? ' sel' : ''}" data-action="fco-resp" data-v="${v}" aria-pressed="${FCO.responsableId === v}">${esc(txt)}</button>`;
   const hs = pr ? hitosProyecto(pr.id) : [];
   const activos = proyectosOrdenados().filter(p => proyectoActivo(p) || p.id === FCO.proyectoId);
-  const vuelta = pr ? '#/proyecto/' + pr.id : '#/pendientes';
-  pintar(`<form class="form" id="f-comp" novalidate${pr ? ` style="--c:${cv(pr.color)}"` : ''}>
+  const vuelta = pr ? '#/proyecto/' + pr.id : sobre ? sobre.href : '#/pendientes';
+  const color = pr ? pr.color : sobre?.color;
+  pintar(`<form class="form" id="f-comp" novalidate${color ? ` style="--c:${cv(color)}"` : ''}>
     <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="${vuelta}">Cancelar</button><span class="tit">${nuevo ? 'Nuevo compromiso' : 'Editar compromiso'}</span><span class="hueco"></span></div>
-    ${pr && (q.proy || !nuevo) && !(!nuevo && !c0?.proyectoId) ? `<p class="ayuda" style="margin:-8px 0 0">${esc(pr.nombre)}</p>` : `<div class="campo"><label for="fco-proy">Proyecto</label><select class="input" id="fco-proy"><option value="">Escoja el proyecto</option>${activos.map(p => `<option value="${p.id}"${p.id === FCO.proyectoId ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>`}
-    <div class="campo"><label for="fco-desc">Qué quedó pendiente</label><textarea class="input" id="fco-desc" style="min-height:80px" placeholder="Ej. Enviar la lista de documentos para la due diligence">${esc(FCO.descripcion)}</textarea></div>
+    ${sobre ? `<p class="ayuda" style="margin:-8px 0 0">Sobre ${esc(sobre.nombre)}</p>` : ''}
+    <div class="campo"><label for="fco-desc">Qué quedó pendiente</label><textarea class="input" id="fco-desc" style="min-height:80px" placeholder="Ej. Enviar la documentación solicitada">${esc(FCO.descripcion)}</textarea></div>
+    ${nuevo && q.proy && pr ? `<p class="ayuda" style="margin:${sobre ? '-16px' : '-8px'} 0 0">${esc(pr.nombre)}</p>` : `<div class="campo"><label for="fco-proy">Proyecto <span class="opc">(opcional)</span></label><select class="input" id="fco-proy"><option value="">Sin proyecto</option>${activos.map(p => `<option value="${p.id}"${p.id === FCO.proyectoId ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>`}
     <fieldset><legend>Responsable</legend>
       <div class="chips">${chipR('yo','Yo')}${[...respExtra, ...delProy].map(x => chipR(x.id, x.nombre)).join('')}</div>
       ${otras.length ? `<select class="input" id="fco-otra" aria-label="Otra persona"><option value="">+ Otra persona…</option>${otras.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select>` : ''}
@@ -2325,16 +2348,22 @@ function vistaCompromiso(id, q){
 }
 async function guardarCompromiso(){
   const descripcion = FCO.descripcion.trim();
-  if (!FCO.proyectoId || !proyecto(FCO.proyectoId)) { aviso('Escoja el proyecto.'); return; }
   if (!descripcion) { $('#fco-desc').setAttribute('aria-invalid','true'); $('#fco-desc').focus(); aviso('Escriba qué quedó pendiente.'); return; }
   const nuevo = FCO._para === 'nuevo';
-  const base = nuevo ? nuevoCompromiso({descripcion, proyectoId:FCO.proyectoId}) : compromiso(FCO._para);
+  const pidOk = FCO.proyectoId && proyecto(FCO.proyectoId) ? FCO.proyectoId : '';
+  const base = nuevo ? nuevoCompromiso({descripcion, proyectoId:pidOk, refTipo:FCO.refTipo, refId:FCO.refId}) : compromiso(FCO._para);
   const yo = FCO.responsableId === 'yo';
-  const c = {...base, proyectoId:FCO.proyectoId, descripcion, hitoId:FCO.hitoId || '', fechaLimite:FCO.fechaLimite,
+  const c = {...base, proyectoId:pidOk, descripcion, hitoId: pidOk ? (FCO.hitoId || '') : '', fechaLimite:FCO.fechaLimite,
     responsableId: FCO.responsableId && !yo ? FCO.responsableId : null, responsable: yo ? 'Yo' : (FCO.responsableId ? '' : FCO.responsableTxt),
     cumplido:FCO.cumplido, fechaCumplido: FCO.cumplido ? (FCO.fechaCumplido || hoyISO()) : '', editada:ahora()};
   await guardar('compromisos', c);
-  const pid = c.proyectoId; FCO = null; aviso('Compromiso guardado'); volver('#/proyecto/' + pid);
+  FCO = null; aviso('Compromiso guardado'); volver(rutaCompromiso(c));
+}
+/* A dónde volver después de guardar o borrar un compromiso */
+function rutaCompromiso(c){
+  if (c.proyectoId && proyecto(c.proyectoId)) return '#/proyecto/' + c.proyectoId;
+  const o = c.refTipo && objetoRef(c.refTipo, c.refId);
+  return o ? o.href : '#/pendientes';
 }
 async function alternarCompromiso(id){
   const c = compromiso(id); if (!c) return;
@@ -2347,18 +2376,21 @@ async function alternarCompromiso(id){
 function vistaPendientes(){
   const ab = abiertos().sort(ordenCompromisos);
   const proys = [...new Set(ab.map(c => c.proyectoId))].map(proyecto).filter(Boolean).sort((a,b) => compararTexto(a.nombre, b.nombre));
-  if (PEND_F !== 'todos' && !proys.some(p => p.id === PEND_F)) PEND_F = 'todos';
-  const pasa = c => PEND_F === 'todos' || c.proyectoId === PEND_F;
+  const sinP = ab.filter(c => !proyecto(c.proyectoId)).length;
+  const esMio = c => !c.responsableId && (c.responsable === 'Yo' || !c.responsable);
+  const mios = ab.filter(esMio).length;
+  if (PEND_F !== 'todos' && !(PEND_F === 'sin' && sinP) && !(PEND_F === 'mios' && mios) && !proys.some(p => p.id === PEND_F)) PEND_F = 'todos';
+  const pasa = c => PEND_F === 'todos' || (PEND_F === 'mios' ? esMio(c) : PEND_F === 'sin' ? !proyecto(c.proyectoId) : c.proyectoId === PEND_F);
   const lista = ab.filter(pasa), venc = lista.filter(vencido).length;
   const hechos = S.compromisos.filter(c => c.cumplido && pasa(c)).sort((a,b) => (b.fechaCumplido||'').localeCompare(a.fechaCumplido||'')).slice(0, 10);
   const f = (k, txt, n, color) => `<button type="button" class="filtro${PEND_F===k ? ' act' : ''}" data-action="pend-f" data-f="${k}" aria-pressed="${PEND_F===k}">${txt} · ${n}</button>`;
   pintar(`<div class="pagina con-nav"><div class="ini-top">${cabTab('Pendientes')}
       ${ab.length ? `<p class="ayuda" style="margin:-4px 0 0">${plural(ab.length, 'compromiso abierto', 'compromisos abiertos')}, ordenados por fecha límite. Toque la casilla cuando se cumpla.</p>` : ''}</div>
     <div class="sec">
-      ${proys.length > 1 ? `<div class="filtros desliza" role="group" aria-label="Filtrar por proyecto">${f('todos','Todos',ab.length)}${proys.map(p => f(p.id, p.nombre, ab.filter(c => c.proyectoId === p.id).length)).join('')}</div>` : ''}
+      ${ab.length ? `<div class="filtros desliza" role="group" aria-label="Filtrar compromisos">${f('todos','Todos',ab.length)}${mios && mios < ab.length ? f('mios','Míos',mios) : ''}${proys.map(p => f(p.id, p.nombre, ab.filter(c => c.proyectoId === p.id).length)).join('')}${sinP && proys.length ? f('sin','Sin proyecto',sinP) : ''}</div>` : ''}
       <h2 class="sec-titulo" style="color:var(--pend-texto)">Abiertos${venc ? ` · ${plural(venc, 'vencido')}` : ''}</h2>
       ${lista.length ? `<div class="tarjeta col" style="gap:0">${lista.map(c => filaCompromiso(c, {conProyecto:true})).join('')}</div>`
-        : `<p class="tarjeta vacio">No hay compromisos abiertos. Se agregan desde un proyecto o al dictar una nota (“+ Compromiso”).</p>`}
+        : `<p class="tarjeta vacio">No hay compromisos abiertos. Se agregan desde un proyecto, una persona o una entidad, o al dictar una nota (“+ Compromiso”).</p>`}
     </div>
     ${hechos.length ? `<div class="sec mas"><h2 class="sec-titulo">Cumplidos recientemente</h2><div class="tarjeta col" style="gap:0">${hechos.map(c => filaCompromiso(c, {conProyecto:true})).join('')}</div></div>` : ''}
   </div>${nav('pendientes')}`);
@@ -2753,7 +2785,8 @@ async function cargarEjemplo(){
   const proy = {proyectos:[orq], proyectoEntidades:[PE(ga), PE(is)], papeles:[PA(vd,'Abogada del comprador'), PA(th,'Banca de inversión'), PA(sr,'Equipo vendedor')],
     hitos:[h1,h2,h3,h4], hitoEnlaces:[HE(h1,'empresa',ga), HE(h1,'empresa',is), HE(h2,'empresa',ga), HE(h2,'persona',vd), HE(h2,'persona',sr)],
     compromisos:[CO('Enviar estados financieros auditados al data room', sr, dia(-4), h2), CO('Lista de documentos de due diligence', vd, dia(11), h2),
-      CO('Revisar el borrador del acuerdo de compraventa', 'yo', dia(32), h3), CO('Firmar acuerdo de confidencialidad', 'yo', dia(-25), h1, true)]};
+      CO('Revisar el borrador del acuerdo de compraventa', 'yo', dia(32), h3), CO('Firmar acuerdo de confidencialidad', 'yo', dia(-25), h1, true),
+      {...CO('Enviarle el artículo sobre comités de auditoría', 'yo', dia(5), null), proyectoId:'', refTipo:'persona', refId:lcz.id}]};
   cargos.forEach(c => c.ejemplo = true);
   await lote({poner:{empresas:[ga,cc,tv,lc,cs,is], personas:[jm,lcz,av,co,sr,ng,fa,mt,rv,dq,hp,ys,gm,pr,vd,th], cargos, notas, ...proy}});
   aviso('Datos de ejemplo cargados'); BUSQUEDA = ''; FILTRO = 'todas';
@@ -2835,13 +2868,14 @@ const ACCIONES = {
   'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
   'fp-borrar': async () => {
     const p = persona(FP._para);
-    if (!await confirmar(`${p.nombre}, sus cargos, sus papeles en proyectos y sus notas irán a la papelera; puede restaurarlos desde Ajustes durante ${PAPELERA_DIAS} días. Si solo salió de una entidad, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
+    if (!await confirmar(`${p.nombre}, sus cargos, sus papeles en proyectos, sus notas y sus compromisos irán a la papelera; puede restaurarlos desde Ajustes durante ${PAPELERA_DIAS} días. Si solo salió de una entidad, mejor cierre el cargo.`, {titulo:'Eliminar persona', si:'Eliminar', peligro:true})) return;
     const cargos = S.cargos.filter(c => c.personaId === p.id);
     const notas = S.notas.filter(n => n.refTipo === 'persona' && n.refId === p.id);
     const papeles = S.papeles.filter(x => x.personaId === p.id);
     const hitoEnlaces = S.hitoEnlaces.filter(x => x.tipo === 'persona' && x.refId === p.id);
     const refs = S.cargos.filter(c => c.reportaA === p.id).map(c => ({...c, reportaA:null, reportaATexto:p.nombre}));
-    await aPapelera(`Persona: ${p.nombre}`, {personas:[p], cargos, notas, papeles, hitoEnlaces}, {cargos:refs});
+    const compromisos = S.compromisos.filter(c => c.refTipo === 'persona' && c.refId === p.id && !c.proyectoId);
+    await aPapelera(`Persona: ${p.nombre}`, {personas:[p], cargos, notas, papeles, hitoEnlaces, compromisos}, {cargos:refs});
     FP = null; aviso('Persona enviada a la papelera'); profundidad = 0; reemplazar('#/personas');
   },
   /* Cargo */
@@ -2880,7 +2914,7 @@ const ACCIONES = {
     if (!c) return;
     FN.comps.push(c);
     /* El proyecto del compromiso queda relacionado con la nota */
-    if (`proyecto:${c.proyectoId}` !== FN.ref && !FN.rel.some(r => r.tipo === 'proyecto' && r.id === c.proyectoId)) FN.rel.push({tipo:'proyecto', id:c.proyectoId});
+    if (c.proyectoId && `proyecto:${c.proyectoId}` !== FN.ref && !FN.rel.some(r => r.tipo === 'proyecto' && r.id === c.proyectoId)) FN.rel.push({tipo:'proyecto', id:c.proyectoId});
     guardarBorrador(); reNota();
   },
   'fn-comp-quitar': b => { FN.comps.splice(+b.dataset.i, 1); guardarBorrador(); reNota(); },
@@ -2968,7 +3002,7 @@ const ACCIONES = {
     const c = compromiso(FCO._para);
     if (!await confirmar('El compromiso irá a la papelera. Si ya se cumplió, mejor márquelo como cumplido.', {titulo:'Eliminar compromiso', si:'Eliminar', peligro:true})) return;
     await aPapelera(`Compromiso: ${c.descripcion.slice(0, 50)}`, {compromisos:[c]});
-    const pid = c.proyectoId; FCO = null; aviso('Compromiso enviado a la papelera'); volver(pid ? '#/proyecto/' + pid : '#/pendientes');
+    FCO = null; aviso('Compromiso enviado a la papelera'); volver(rutaCompromiso(c));
   },
   convertir: b => hojaConvertir(b.dataset.id),
   'papelera-restaurar': b => restaurarPapelera(b.dataset.id),
