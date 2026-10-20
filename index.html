@@ -435,7 +435,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.2 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.3 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1047,7 +1047,7 @@ function render(){
   if (r !== 'nota') FN = null;
   if (r !== 'proyecto-form') FPR = null;
   if (r !== 'hito') FH = null;
-  if (r !== 'papel') FPA = null;
+  if (r !== 'papel' && !(r === 'persona-form' && q.desde === 'papel')) FPA = null;
   if (r !== 'compromiso') FCO = null;
   VISTAS[r](partes[1], q);
   document.title = APP.nombre;
@@ -1672,13 +1672,50 @@ function enlazarCargo(st, pref, excluirId){
   [['area','area'],['cargo','cargo'],['rol','rolJunta'],['rep','reportaTxt']].forEach(([s,k]) => $(`#${pref}-${s}`).addEventListener('input', e => st[k] = e.target.value));
   llenarRep();
 }
+const hayContactos = () => 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts;
+/* Al volver de "Editar datos" en Persona en el proyecto, la persona queda escogida en ese formulario */
+function volverAPapel(pid){
+  if (FPA) { FPA.personaId = pid; FPA.nombreNuevo = ''; FPA.busq = ''; }
+  volver('#/proyectos');
+}
+/* Escoge qué datos traer de un contacto del celular: Android entrega todos sus teléfonos y correos */
+function hojaDatosContacto(c, nueva){
+  return new Promise(res => {
+    const unicos = l => [...new Map((l || []).map(x => String(x || '').trim()).filter(Boolean).map(x => [x.replace(/[\s()-]/g, '').toLowerCase(), x])).values()];
+    const nombres = unicos(c.name), tels = unicos(c.tel), correos = unicos(c.email);
+    const actual = {nombre: FP.nombre.trim(), tel: FP.telefono.trim(), correo: FP.correo.trim()};
+    /* Si no hay nada que escoger y la persona es nueva, se llena directo */
+    if (nueva && nombres.length <= 1 && tels.length <= 1 && correos.length <= 1) return res({nombre:nombres[0], tel:tels[0], correo:correos[0]});
+    const grupo = (k, titulo, lista, act, iniSel) => {
+      if (!lista.length) return '';
+      const ops = lista.map((x, i) => `<label class="marca" style="padding:12px 14px"><input type="radio" name="hdc-${k}" value="${i}"${i === iniSel ? ' checked' : ''}><span>${esc(x)}</span></label>`).join('');
+      const no = act || !nueva ? `<label class="marca" style="padding:12px 14px;font-weight:400"><input type="radio" name="hdc-${k}" value=""${iniSel === -1 ? ' checked' : ''}><span>${act ? 'Dejar el actual: ' + esc(act) : 'No traer'}</span></label>` : '';
+      return `<fieldset><legend>${titulo}</legend>${ops}${no}</fieldset>`;
+    };
+    /* Al editar, el nombre se deja igual salvo que se escoja; teléfono y correo se proponen del contacto */
+    const v = abrirHoja(`<h2 class="hoja-titulo">¿Qué datos traer?</h2>
+      <p class="hoja-texto">Escoja ${nueva ? '' : 'qué reemplazar: '}el teléfono y el correo que quiera usar.</p>
+      <form class="hoja-form" novalidate>
+        ${grupo('tel', 'Celular', tels, actual.tel, 0)}
+        ${grupo('correo', 'Correo', correos, actual.correo, 0)}
+        ${grupo('nombre', 'Nombre', nombres, actual.nombre, nueva ? 0 : -1)}
+        <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Usar estos datos</button></div>
+      </form>`, val => res(val || null));
+    $('[data-r]', v).addEventListener('click', () => cerrarHoja(null));
+    $('form', v).addEventListener('submit', e => {
+      e.preventDefault();
+      const valor = (k, l) => { const x = $(`input[name="hdc-${k}"]:checked`, v); return x && x.value !== '' ? l[+x.value] : undefined; };
+      cerrarHoja({nombre: valor('nombre', nombres), tel: valor('tel', tels), correo: valor('correo', correos)});
+    });
+  });
+}
 function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
     FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', nombre:'', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+           : {_para:'nueva', nombre:q.nombre || '', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1688,7 +1725,7 @@ function vistaPersonaForm(id, q){
     <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="#/personas">Cancelar</button><span class="tit">${nueva ? 'Nueva persona' : 'Editar persona'}</span><span class="hueco"></span></div>
     ${eCtx ? `<p class="ayuda" style="margin:-8px 0 0">En ${esc(eCtx.nombre)}</p>` : ''}
     ${ex ? `<div class="aviso"><span>Se agregará el cargo a <b>${esc(ex.nombre)}</b>, que ya existe. Su historia se conserva.</span><button type="button" class="enlace-btn" data-action="fp-sin-existente">Cambiar</button></div>` : `
-    ${nueva && 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts ? `<button type="button" class="btn-sec" data-action="fp-contacto">${I.gente}Traer de mis contactos</button>` : ''}
+    ${hayContactos() ? `<button type="button" class="btn-sec" data-action="fp-contacto">${I.gente}${nueva ? 'Traer de mis contactos' : 'Actualizar desde mis contactos'}</button>` : ''}
     <div class="campo"><label for="fp-nombre">Nombre</label><input class="input" id="fp-nombre" value="${esc(FP.nombre)}" autocomplete="off" autocapitalize="words">
       <div class="sugerencias tarjeta" id="fp-sug" hidden></div></div>
     <div class="campo"><span class="leyenda">Cómo referirse <span class="opc" style="font-size:14px">(para los textos)</span></span><div class="chips">${trato('ella','Ella')}${trato('él','Él')}${trato('','Sin especificar')}</div></div>
@@ -1753,7 +1790,7 @@ async function guardarPersona(){
     const igual = S.personas.find(p => p.id !== FP._para && norm(p.nombre) === norm(nombre));
     if (igual) {
       const usar = await confirmar(`Ya existe “${igual.nombre}”. Una persona debe existir una sola vez. ¿Es la misma persona?`, {titulo:'Posible duplicado', si: nueva ? 'Sí, usar la existente' : 'Guardar de todos modos', no: nueva ? 'No, es otra' : 'Cancelar'});
-      if (nueva && usar && !FP.empresaId) { FP = null; reemplazar('#/persona/' + igual.id); return; }
+      if (nueva && usar && !FP.empresaId) { FP = null; if (ruta().q.desde === 'papel') return volverAPapel(igual.id); reemplazar('#/persona/' + igual.id); return; }
       if (nueva && usar) { FP.existenteId = igual.id; pid = igual.id; }
       else if (!nueva && !usar) return;
     }
@@ -1779,6 +1816,7 @@ async function guardarPersona(){
   } else if (nueva && FP.existenteId) { aviso('Escoja la entidad del nuevo cargo.'); return; }
   await lote({poner});
   const emp = FP.empresaId; FP = null; aviso('Persona guardada');
+  if (ruta().q.desde === 'papel') return volverAPapel(pid);
   if (nueva && !emp) reemplazar('#/persona/' + pid); else volver(nueva ? '#/empresa/' + emp : '#/persona/' + pid);
 }
 
@@ -2182,7 +2220,8 @@ function vistaPapel(id, q){
   const vuelta = q.p || (!nuevo && !q.proy) ? '#/persona/' + FPA.personaId : pr ? '#/proyecto/' + pr.id : '#/proyectos';
   const fijoPersona = !nuevo || !!q.p, fijoProy = !nuevo || !!q.proy;
   const activos = proyectosOrdenados().filter(p => proyectoActivo(p) || p.id === FPA.proyectoId);
-  const quien = pe ? `<div class="aviso"><span><b>${esc(pe.nombre)}</b>${FPA.nombreNuevo ? ' · persona nueva' : ''}</span>${fijoPersona ? '' : '<button type="button" class="enlace-btn" data-action="fpa-cambiar">Cambiar</button>'}</div>`
+  const hrefEditar = pe && (FPA.nombreNuevo ? `#/persona-form?desde=papel&nombre=${encodeURIComponent(FPA.nombreNuevo)}` : `#/persona-form/${pe.id}?desde=papel`);
+  const quien = pe ? `<div class="aviso"><span><b>${esc(pe.nombre)}</b>${FPA.nombreNuevo ? ' · persona nueva' : ''}</span><span style="display:flex;gap:4px;flex-shrink:0"><a class="enlace-btn" href="${hrefEditar}">${FPA.nombreNuevo ? 'Completar datos' : 'Editar datos'}</a>${fijoPersona ? '' : '<button type="button" class="enlace-btn" data-action="fpa-cambiar">Cambiar</button>'}</span></div>`
     : `<input class="input" id="fpa-busq" type="search" placeholder="Escriba el nombre" autocomplete="off" autocapitalize="words" value="${esc(FPA.busq)}"><div class="tarjeta col" id="fpa-res" style="gap:0" hidden></div>`;
   pintar(`<form class="form" id="f-papel" novalidate${pr ? ` style="--c:${cv(pr.color)}"` : ''}>
     <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="${vuelta}">Cancelar</button><span class="tit">${nuevo ? 'Persona en el proyecto' : 'Editar papel'}</span><span class="hueco"></span></div>
@@ -2792,7 +2831,7 @@ const ACCIONES = {
   },
   /* Formulario de persona */
   'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
-  'fp-existente': b => { FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
+  'fp-existente': b => { if (ruta().q.desde === 'papel') { FP = null; return volverAPapel(b.dataset.id); } FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
   'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
   'fp-borrar': async () => {
     const p = persona(FP._para);
@@ -2862,10 +2901,14 @@ const ACCIONES = {
     try {
       const [c] = await navigator.contacts.select(['name','tel','email'], {multiple:false});
       if (!c) return;
-      if (c.name?.[0]) FP.nombre = c.name[0];
-      if (c.tel?.[0]) FP.telefono = c.tel[0];
-      if (c.email?.[0]) FP.correo = c.email[0];
-      vistaPersonaForm(undefined, {}); if (FP.nombre) sugerirPersonas();
+      const nueva = FP._para === 'nueva';
+      const d = await hojaDatosContacto(c, nueva);
+      if (!d) return;
+      if (d.nombre) FP.nombre = d.nombre;
+      if (d.tel) FP.telefono = d.tel;
+      if (d.correo) FP.correo = d.correo;
+      vistaPersonaForm(nueva ? undefined : FP._para, ruta().q); if (nueva && FP.nombre) sugerirPersonas();
+      if (!nueva) aviso('Datos actualizados. Toque Guardar para conservarlos.');
     } catch (err) { if (err.name !== 'AbortError') aviso('No se pudo abrir la lista de contactos.'); }
   },
   /* Historia unificada */
