@@ -440,7 +440,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.5 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.6 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -537,6 +537,11 @@ const esIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.p
 const esInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 const esMovil = () => matchMedia('(pointer: coarse)').matches;
 /* Número para WhatsApp: si es un celular colombiano de 10 dígitos sin indicativo, se agrega el 57 */
+/* Enlace para llamar; con extensión, la coma hace que el celular espere y la marque solo */
+function hrefTel(tel, ext){
+  const t = String(tel || '').trim(), d = soloDigitos(t), x = soloDigitos(ext);
+  return d ? 'tel:' + (t.startsWith('+') ? '+' : '') + d + (x ? ',' + x : '') : '';
+}
 function numeroWhatsApp(tel){
   const t = String(tel || '').trim(), d = soloDigitos(t);
   if (!d) return '';
@@ -1180,7 +1185,7 @@ function pintarLista(){
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
     const camposCargo = c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre];
-    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
+    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
     const porCargo = cs.find(c => ps.some(w => norm(camposCargo(c).join(' ')).includes(w)));
     pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
   }
@@ -1333,6 +1338,7 @@ function vistaPersona(id, q){
   const reporta = ctx ? nombreReporta(ctx) : '';
   const datos = [
     p.telefono && `<div class="dato"><span>Celular</span><a href="tel:${esc(telHref)}">${esc(p.telefono)}</a></div>`,
+    p.telefono2 && `<div class="dato"><span>Otro teléfono</span><a href="${esc(hrefTel(p.telefono2, p.ext2))}">${esc(p.telefono2)}${p.ext2 ? ' ext. ' + esc(p.ext2) : ''}</a></div>`,
     p.correo && `<div class="dato"><span>Correo</span><a href="mailto:${esc(p.correo)}">${esc(p.correo)}</a></div>`,
     p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`,
     p.cumpleanos && `<div class="dato"><span>Cumpleaños</span><span>${esc(cumpleTexto(p.cumpleanos))}</span></div>`,
@@ -1343,8 +1349,8 @@ function vistaPersona(id, q){
   const notasP = S.notas.filter(n => tocaA(n, 'persona', id));
   const pronombre = p.trato==='él' ? 'él' : p.trato==='ella' ? 'ella' : 'esta persona';
   const filaPapel = x => { const pr = proyecto(x.proyectoId); if (!pr) return '';
-    const fechas = x.fin && !vigente(x) ? `${x.inicio ? mesAnio(x.inicio) + ' – ' : 'Hasta '}${mesAnio(x.fin)} · cerrado` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
-    return `<a class="fila" href="#/papel/${x.id}" style="--c:${cv(pr.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(pr.nombre)}${proyectoActivo(pr) ? '' : ' <span class="sub">(cerrado)</span>'}</span><span class="sub">${esc(x.papel || 'Rol sin definir')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
+    const fechas = x.fin && !vigente(x) ? `Ya no está · desde ${fechaCorta(x.fin)}` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
+    return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}" style="--c:${cv(pr.color)}"><a href="#/proyecto/${pr.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(pr.nombre)}${proyectoActivo(pr) ? '' : ' <span class="sub">(proyecto cerrado)</span>'}</span><span class="sub">${esc(x.papel || 'Rol sin definir')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol en ${esc(pr.nombre)}">Rol</button></div>`; };
   const filaCargo = x => { const e = empresa(x.empresaId); if (!e) return '';
     const fechas = x.fin && !vigente(x) ? `${x.inicio ? mesAnio(x.inicio) + ' – ' : 'Hasta '}${mesAnio(x.fin)} · cerrado` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
     return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
@@ -1723,13 +1729,13 @@ function hojaDatosContacto(c, nueva){
   return new Promise(res => {
     const unicos = l => [...new Map((l || []).map(x => String(x || '').trim()).filter(Boolean).map(x => [x.replace(/[\s()-]/g, '').toLowerCase(), x])).values()];
     const nombres = unicos(c.name), tels = unicos(c.tel), correos = unicos(c.email);
-    const actual = {nombre: FP.nombre.trim(), tel: FP.telefono.trim(), correo: FP.correo.trim()};
+    const actual = {nombre: FP.nombre.trim(), tel: FP.telefono.trim(), tel2: FP.telefono2.trim(), correo: FP.correo.trim()};
     /* Si no hay nada que escoger y la persona es nueva, se llena directo */
     if (nueva && nombres.length <= 1 && tels.length <= 1 && correos.length <= 1) return res({nombre:nombres[0], tel:tels[0], correo:correos[0]});
     const grupo = (k, titulo, lista, act, iniSel) => {
       if (!lista.length) return '';
       const ops = lista.map((x, i) => `<label class="marca" style="padding:12px 14px"><input type="radio" name="hdc-${k}" value="${i}"${i === iniSel ? ' checked' : ''}><span>${esc(x)}</span></label>`).join('');
-      const no = act || !nueva ? `<label class="marca" style="padding:12px 14px;font-weight:400"><input type="radio" name="hdc-${k}" value=""${iniSel === -1 ? ' checked' : ''}><span>${act ? 'Dejar el actual: ' + esc(act) : 'No traer'}</span></label>` : '';
+      const no = act || !nueva || k === 'tel2' ? `<label class="marca" style="padding:12px 14px;font-weight:400"><input type="radio" name="hdc-${k}" value=""${iniSel === -1 ? ' checked' : ''}><span>${act ? 'Dejar el actual: ' + esc(act) : 'No traer'}</span></label>` : '';
       return `<fieldset><legend>${titulo}</legend>${ops}${no}</fieldset>`;
     };
     /* Al editar, el nombre se deja igual salvo que se escoja; teléfono y correo se proponen del contacto */
@@ -1737,6 +1743,7 @@ function hojaDatosContacto(c, nueva){
       <p class="hoja-texto">Escoja ${nueva ? '' : 'qué reemplazar: '}el teléfono y el correo que quiera usar.</p>
       <form class="hoja-form" novalidate>
         ${grupo('tel', 'Celular', tels, actual.tel, 0)}
+        ${tels.length > 1 ? grupo('tel2', 'Otro teléfono', tels, actual.tel2, -1) : ''}
         ${grupo('correo', 'Correo', correos, actual.correo, 0)}
         ${grupo('nombre', 'Nombre', nombres, actual.nombre, nueva ? 0 : -1)}
         <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Usar estos datos</button></div>
@@ -1745,7 +1752,7 @@ function hojaDatosContacto(c, nueva){
     $('form', v).addEventListener('submit', e => {
       e.preventDefault();
       const valor = (k, l) => { const x = $(`input[name="hdc-${k}"]:checked`, v); return x && x.value !== '' ? l[+x.value] : undefined; };
-      cerrarHoja({nombre: valor('nombre', nombres), tel: valor('tel', tels), correo: valor('correo', correos)});
+      cerrarHoja({nombre: valor('nombre', nombres), tel: valor('tel', tels), tel2: valor('tel2', tels), correo: valor('correo', correos)});
     });
   });
 }
@@ -1753,9 +1760,9 @@ function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
-    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', telefono2:p.telefono2||'', ext2:p.ext2||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', nombre:q.nombre || '', trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+           : {_para:'nueva', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1772,6 +1779,10 @@ function vistaPersonaForm(id, q){
     <div class="dos">
       <div class="campo"><label for="fp-tel">Celular</label><input class="input" id="fp-tel" type="tel" inputmode="tel" value="${esc(FP.telefono)}" placeholder="+57 300 000 0000"></div>
       <div class="campo"><label for="fp-correo">Correo</label><input class="input" id="fp-correo" type="email" inputmode="email" autocapitalize="off" value="${esc(FP.correo)}" placeholder="nombre@ejemplo.com"></div>
+    </div>
+    <div class="dos" style="grid-template-columns:2fr 1fr">
+      <div class="campo"><label for="fp-tel2">Otro teléfono <span class="opc">(opcional)</span></label><input class="input" id="fp-tel2" type="tel" inputmode="tel" value="${esc(FP.telefono2)}" placeholder="601 000 0000"></div>
+      <div class="campo"><label for="fp-ext2">Ext.</label><input class="input" id="fp-ext2" inputmode="numeric" value="${esc(FP.ext2)}" placeholder="123"></div>
     </div>
     <div class="campo"><label for="fp-conoci">Cómo la conocí <span class="opc">(opcional)</span></label><input class="input" id="fp-conoci" value="${esc(FP.comoLaConocio)}" placeholder="Ej. Junta de marzo 2026"></div>
     <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>
@@ -1795,7 +1806,7 @@ function vistaPersonaForm(id, q){
   </form>`);
   if (!ex) {
     const b = (s, k) => $(s).addEventListener('input', e => FP[k] = e.target.value);
-    b('#fp-tel','telefono'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
+    b('#fp-tel','telefono'); b('#fp-tel2','telefono2'); b('#fp-ext2','ext2'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
     b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
   }
@@ -1836,7 +1847,7 @@ async function guardarPersona(){
     }
     if (!pid) {
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
-      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
+      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), telefono2:FP.telefono2.trim(), ext2:soloDigitos(FP.ext2), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
         asistente:'', asistenteTel:'', cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
       poner.personas = [p]; pid = p.id;
     }
@@ -1911,7 +1922,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   /* Busca en los datos de la persona, sus cargos, su perfil y el texto de sus notas */
   const notasDe = p => S.notas.filter(n => tocaA(n, 'persona', p.id)).sort(ordenNotas);
-  const camposP = p => [p.nombre, p.correo, p.telefono, p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
+  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
     ...papelesPersona(p.id).flatMap(x => [x.papel, proyecto(x.proyectoId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
@@ -2039,7 +2050,7 @@ function vistaProyecto(id){
   const filaPer = x => { const pe = persona(x.personaId); if (!pe) return '';
     const cg = cargosPersona(pe.id).find(vigente), eC = cg && empresa(cg.empresaId);
     const sub = [x.papel || 'Rol sin definir', eC ? `${cg.cargo || cg.rolJunta || 'cargo'} en ${eC.nombre}` : '', !vigente(x) && x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · ');
-    return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}"><a href="#/persona/${pe.id}?proy=${id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(pe.nombre))}</div><span class="col"><span class="nom">${esc(pe.nombre)}</span><span class="sub">${esc(sub)}</span></span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol de ${esc(pe.nombre)}: cambiarlo o quitarla del proyecto">Rol</button></div>`; };
+    return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}"><a href="#/persona/${pe.id}?proy=${id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(pe.nombre))}</div><span class="col"><span class="nom">${esc(pe.nombre)}</span><span class="sub">${esc(sub)}</span></span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol de ${esc(pe.nombre)} en el proyecto">Rol</button></div>`; };
   const etapa = lineaEtapa(p);
 
   pintar(`<div class="pagina-total" style="--c:${c}">
@@ -2326,6 +2337,7 @@ function hojaRol(xid){
   const x = papel(xid); if (!x) return;
   const pe = persona(x.personaId), pr = proyecto(x.proyectoId); if (!pe || !pr) return;
   const activo = vigente(x);
+  const la = pe.trato === 'él' ? 'lo' : 'la', a = pe.trato === 'él' ? 'o' : 'a';
   const sugs = [...new Set([...S.papeles.map(y => y.papel).filter(Boolean), ...PAPELES_SUG])];
   const v = abrirHoja(`<h2 class="hoja-titulo">${esc(pe.nombre)}</h2>
     <p class="hoja-texto">${activo ? 'Rol en ' + esc(pr.nombre) : `Estuvo en ${esc(pr.nombre)}${x.fin ? ' hasta el ' + esc(fechaMedia(x.fin)) : ''}`}</p>
@@ -2334,8 +2346,8 @@ function hojaRol(xid){
       <datalist id="hr-dl">${sugs.map(t => `<option value="${esc(t)}">`).join('')}</datalist>
       <button type="submit" class="btn-pri">Guardar rol</button>
       ${activo ? `<button type="button" class="btn-sec" data-r="salir">Ya no está en el proyecto</button><p class="ayuda" style="margin:-8px 0 0">Sale de la lista con fecha de hoy; su historia y notas se conservan.</p>`
-               : `<button type="button" class="btn-sec" data-r="volver">Volver a ponerla en el proyecto</button>`}
-      <button type="button" class="btn-peligro" data-r="quitar">Me equivoqué, quitarla del proyecto</button>
+               : `<button type="button" class="btn-pri" data-r="volver" style="background:var(--tarjeta);color:var(--acento);border:2px solid var(--acento)">Volver a poner${la} en el proyecto</button>`}
+      <button type="button" class="btn-peligro" data-r="quitar">Me equivoqué, quitar${la} del proyecto</button>
       <button type="button" class="btn-sec" data-r="cancelar">Cancelar</button>
     </form>`);
   const listo = async (cambios, msg) => { await guardar('papeles', {...x, ...cambios, editada:ahora()}); cerrarHoja(); aviso(msg); render(); };
@@ -2350,7 +2362,7 @@ function hojaRol(xid){
     const hitoEnlaces = otros ? [] : S.hitoEnlaces.filter(y => y.tipo === 'persona' && y.refId === pe.id && hIds.has(y.hitoId));
     cerrarHoja();
     await aPapelera(`Rol de ${pe.nombre} en ${pr.nombre}`, {papeles:[x], hitoEnlaces});
-    aviso(`${pe.nombre} quitada del proyecto`); render();
+    aviso(`${pe.nombre} quitad${a} del proyecto`); render();
   });
 }
 
@@ -2998,6 +3010,7 @@ const ACCIONES = {
       if (!d) return;
       if (d.nombre) FP.nombre = d.nombre;
       if (d.tel) FP.telefono = d.tel;
+      if (d.tel2) { FP.telefono2 = d.tel2; FP.ext2 = ''; }
       if (d.correo) FP.correo = d.correo;
       vistaPersonaForm(nueva ? undefined : FP._para, ruta().q); if (nueva && FP.nombre) sugerirPersonas();
       if (!nueva) aviso('Datos actualizados. Toque Guardar para conservarlos.');
