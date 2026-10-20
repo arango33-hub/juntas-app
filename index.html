@@ -416,6 +416,9 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
 .comps-nota{display:flex;flex-direction:column;gap:0}
 .comps-nota .comp{padding:12px 14px}
 .quitar{border:0;background:none;color:var(--texto-2);min-width:36px;min-height:36px;font-size:20px;line-height:1;padding:0;margin-left:auto}
+.marca{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:14px;background:var(--tarjeta);border:1px solid var(--borde);font-size:15px;font-weight:600;cursor:pointer}
+.marca input{width:22px;height:22px;margin:0;flex-shrink:0;accent-color:var(--acento)}
+.marca .sub{font-weight:400;margin-top:2px}
 .btn-lin{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border-radius:12px;border:1px dashed var(--punto);background:transparent;color:var(--acento);font-size:15px;font-weight:600;padding:0 16px;width:100%}
 </style>
 </head>
@@ -432,14 +435,13 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.0 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.1 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
 const DB_VERSION = 3;   /* 3 = fase 2: proyectos, papeles, hitos y sus enlaces */
 const TABLAS = ['empresas','personas','cargos','reuniones','compromisos','notas','tiposVinculo','papelera',
                 'proyectos','proyectoEntidades','papeles','hitos','hitoEnlaces'];
-const TIPOS_PROYECTO = [{k:'entidades',n:'Con entidades'},{k:'empresarial',n:'Empresarial'},{k:'personal',n:'Personal'}];
 const ESTADOS_HITO = [{k:'pendiente',n:'Pendiente'},{k:'en-curso',n:'En curso'},{k:'cumplido',n:'Cumplido'}];
 const PAPELES_SUG = ['Banca de inversión','Abogado del comprador','Abogada del comprador','Abogado del vendedor','Equipo comprador','Equipo vendedor','Auditor','Asesor','Contraparte'];
 const PAPELERA_DIAS = 30;
@@ -711,7 +713,8 @@ const proyecto = id => S.proyectos.find(x => x.id===id);
 const hito = id => S.hitos.find(x => x.id===id);
 const papel = id => S.papeles.find(x => x.id===id);
 const compromiso = id => S.compromisos.find(x => x.id===id);
-const nombreTipoProy = k => (TIPOS_PROYECTO.find(t => t.k===k) || TIPOS_PROYECTO[1]).n;
+/* Un proyecto es de trabajo, salvo que se marque como personal (en la 2.0 se guardaba en "tipo") */
+const esPersonal = p => p.personal === true || (p.personal === undefined && p.tipo === 'personal');
 const nombreEstadoHito = k => (ESTADOS_HITO.find(t => t.k===k) || ESTADOS_HITO[0]).n;
 const proyectoActivo = p => p.estado !== 'cerrado';
 const proyectosOrdenados = () => [...S.proyectos].sort((a,b) => compararTexto(a.nombre, b.nombre));
@@ -1160,7 +1163,7 @@ function pintarLista(){
   };
   const destino = n => refsNota(n).map(r => nombreRef(r.tipo, r.id)).filter(Boolean).join(' · ');
   const notas = S.notas.filter(n => contieneTodas([n.texto, n.ocasion, destino(n), n.hitoId ? hito(n.hitoId)?.nombre : ''], ps) && notaPasa(n)).sort(ordenNotas);
-  const proys = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, nombreTipoProy(p.tipo), ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
+  const proys = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
   if (!emps.length && !pers.length && !notas.length && !proys.length) { cont.innerHTML = `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`; return; }
   cont.innerHTML = (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
     + (proys.length ? `<h2 class="sec-titulo res-titulo">Proyectos · ${proys.length}</h2><div class="emp-grid">${proys.map(tarjetaProyecto).join('')}</div>` : '')
@@ -1877,7 +1880,7 @@ function vistaPersonas(){
 /* =====================================================================
    FASE 2 · PROYECTOS, HITOS, PAPELES Y COMPROMISOS
    ===================================================================== */
-let FILTRO_PROY = {estado:'activos', tipo:'todos'}, PEND_F = 'todos';
+let FILTRO_PROY = {estado:'activos', ambito:'todos'}, PEND_F = 'todos';
 let FPR = null, FH = null, FPA = null, FCO = null;
 
 /* ---------- 8 · Proyectos ---------- */
@@ -1887,8 +1890,8 @@ function tarjetaProyecto(p){
   const pend = compromisosProyecto(p.id).filter(c => !c.cumplido).length;
   const pild = !proyectoActivo(p) ? '<span class="pild pild-neutra">Cerrado</span>'
     : hs.length ? `<span class="pild pild-acento">${hs.filter(h => h.estado === 'cumplido').length} de ${hs.length} hitos</span>`
-    : `<span class="pild pild-neutra">${esc(nombreTipoProy(p.tipo))}</span>`;
-  const linea = [hs.length || !proyectoActivo(p) ? nombreTipoProy(p.tipo) : '', ents.length ? ents.map(e => e.nombre).join(', ') : '', nPer ? plural(nPer, 'persona') : ''].filter(Boolean).join(' · ') || 'Sin entidades ni personas todavía';
+    : '';
+  const linea = [esPersonal(p) ? 'Personal' : '', ents.length ? ents.map(e => e.nombre).join(', ') : '', nPer ? plural(nPer, 'persona') : ''].filter(Boolean).join(' · ') || 'Sin entidades ni personas todavía';
   return `<div class="emp-card" data-go="#/proyecto/${p.id}" role="link" tabindex="0" aria-label="${esc(p.nombre)}">
     <div class="emp-top"><span class="emp-nom-fila"><button type="button" class="circulo" style="background:${cv(p.color)}" data-action="color-proy" data-id="${p.id}" aria-label="Cambiar color de ${esc(p.nombre)}"></button><span class="emp-nombre">${esc(p.nombre)}</span></span>${pild}</div>
     <span class="emp-linea">${esc(linea)}</span>
@@ -1896,13 +1899,15 @@ function tarjetaProyecto(p){
   </div>`;
 }
 function vistaProyectos(){
-  const est = FILTRO_PROY.estado, tp = FILTRO_PROY.tipo;
+  const est = FILTRO_PROY.estado, amb = FILTRO_PROY.ambito;
   const delEstado = proyectosOrdenados().filter(p => (est === 'activos') === proyectoActivo(p));
-  const lista = delEstado.filter(p => tp === 'todos' || p.tipo === tp);
+  const hayPersonales = S.proyectos.some(esPersonal);
+  const pasaAmb = p => !hayPersonales || amb === 'todos' || (amb === 'personal') === esPersonal(p);
+  const lista = delEstado.filter(pasaAmb);
   const nAct = S.proyectos.filter(proyectoActivo).length, nCer = S.proyectos.length - nAct;
   const fe = (k, txt, n) => `<button type="button" class="filtro${est===k ? ' act' : ''}" data-action="proy-estado" data-f="${k}" aria-pressed="${est===k}">${txt} · ${n}</button>`;
-  const ft = (k, txt) => { const n = k === 'todos' ? delEstado.length : delEstado.filter(p => p.tipo === k).length;
-    return `<button type="button" class="filtro${tp===k ? ' act' : ''}" data-action="proy-tipo" data-f="${k}" aria-pressed="${tp===k}">${txt} · ${n}</button>`; };
+  const fa = (k, txt) => { const n = k === 'todos' ? delEstado.length : delEstado.filter(p => (k === 'personal') === esPersonal(p)).length;
+    return `<button type="button" class="filtro${amb===k ? ' act' : ''}" data-action="proy-ambito" data-f="${k}" aria-pressed="${amb===k}">${txt} · ${n}</button>`; };
   let cuerpo;
   if (!S.proyectos.length) cuerpo = `<div class="tarjeta ajuste"><p>Un proyecto es un trabajo con inicio y cierre al que le hace seguimiento, por ejemplo una compraventa de acciones. Por confidencialidad, use un nombre clave (ej. “Proyecto Orquídea”).</p>
       <a class="btn-sec" href="#/proyecto-form">Crear el primer proyecto</a>${porConvertir().length ? `<a class="btn-sec" href="#/ajustes?convertir=1">Convertir entidades que son proyectos</a>` : ''}</div>`;
@@ -1912,7 +1917,7 @@ function vistaProyectos(){
     <div class="sec" style="padding-top:24px">
       <h2 class="sec-titulo">Mis proyectos</h2>
       ${S.proyectos.length ? `<div class="filtros" role="group" aria-label="Activos o cerrados">${fe('activos','Activos',nAct)}${fe('cerrados','Cerrados',nCer)}</div>
-      <div class="filtros desliza" role="group" aria-label="Filtrar por tipo">${ft('todos','Todos los tipos')}${TIPOS_PROYECTO.map(t => ft(t.k, t.n)).join('')}</div>` : ''}
+      ${hayPersonales ? `<div class="filtros" role="group" aria-label="Trabajo o personales">${fa('todos','Todos')}${fa('trabajo','Trabajo')}${fa('personal','Personales')}</div>` : ''}` : ''}
       ${cuerpo}
     </div>
   </div>${fab('#/proyecto-form','Agregar proyecto')}${nav('proyectos')}`);
@@ -1959,15 +1964,15 @@ function vistaProyecto(id){
     <div class="colores" role="group" aria-label="Color del proyecto"><span>Color:</span>${PALETA.map(k => `<button type="button" class="circulo${k.k===p.color ? ' sel' : ''}" style="background:var(--emp-${k.k})" data-action="poner-color-proy" data-id="${id}" data-c="${k.k}" aria-label="${k.n}${k.k===p.color ? ' (seleccionado)' : ''}" aria-pressed="${k.k===p.color}"></button>`).join('')}</div>
     <div class="etiquetas">
       <span class="etq ${activo ? 'acento' : 'fuerte'}">${activo ? 'Activo' : esc(etapa.txt)}</span>
-      <span class="etq fuerte">${esc(nombreTipoProy(p.tipo))}</span>
+      ${esPersonal(p) ? '<span class="etq fuerte">Personal</span>' : ''}
       ${p.inicio ? `<span class="etq">Desde ${esc(fechaMedia(p.inicio))}</span>` : ''}
       ${activo && p.cierreEstimado ? `<span class="etq">Cierre estimado ${esc(fechaMedia(p.cierreEstimado))}</span>` : ''}
     </div>
     ${p.detalle ? `<p class="detalle-rel">${esc(p.detalle)}</p>` : ''}
   </div></div>
   <div class="pagina con-accion">
-    ${p.tipo === 'entidades' || ents.length ? `<div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades</h2><button type="button" class="enlace-btn" style="font-size:14px" data-action="proy-entidades" data-id="${id}">${ents.length ? 'Cambiar' : '+ Agregar'}</button></div>
-      ${ents.length ? `<div class="tarjeta col" style="gap:0">${ents.map(e => `<a class="fila" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', tipo(e.vinculoId).nombre].join(' · '))}</span></span>${I.chev}</a>`).join('')}</div>` : `<p class="tarjeta vacio">Aún no hay entidades enlazadas.</p>`}</div>` : ''}
+    <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades</h2><button type="button" class="enlace-btn" style="font-size:14px" data-action="proy-entidades" data-id="${id}">${ents.length ? 'Cambiar' : '+ Enlazar'}</button></div>
+      ${ents.length ? `<div class="tarjeta col" style="gap:0">${ents.map(e => `<a class="fila" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', tipo(e.vinculoId).nombre].join(' · '))}</span></span>${I.chev}</a>`).join('')}</div>` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Hitos${hs.length ? ` <span class="avance">· ${cumpl} de ${hs.length} cumplidos</span>` : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/hito?proy=${id}">+ Agregar</a></div>
       ${hs.length ? `<div class="tarjeta col" style="gap:0">${hs.map(filaHito).join('')}</div>` : `<p class="tarjeta vacio">Sin hitos. Son opcionales: sirven para ver en qué etapa va el proyecto.</p>`}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Personas</h2><a class="enlace-btn" style="font-size:14px" href="#/papel?proy=${id}">+ Agregar</a></div>
@@ -1993,8 +1998,8 @@ function vistaProyectoForm(id){
   if (!FPR || FPR._para !== (id || 'nuevo')) {
     const p = id && proyecto(id);
     if (id && !p) return noEncontrado();
-    FPR = p ? {_para:id, nombre:p.nombre, tipo:p.tipo || 'empresarial', detalle:p.detalle || '', inicio:p.inicio || '', cierreEstimado:p.cierreEstimado || '', ents: entidadesProyecto(id).map(e => e.id)}
-            : {_para:'nuevo', nombre:'', tipo:'entidades', detalle:'', inicio:hoyISO(), cierreEstimado:'', ents:[]};
+    FPR = p ? {_para:id, nombre:p.nombre, personal:esPersonal(p), detalle:p.detalle || '', inicio:p.inicio || '', cierreEstimado:p.cierreEstimado || '', ents: entidadesProyecto(id).map(e => e.id)}
+            : {_para:'nuevo', nombre:'', personal:false, detalle:'', inicio:hoyISO(), cierreEstimado:'', ents:[]};
   }
   const nuevo = FPR._para === 'nuevo';
   const emps = empresasOrdenadas();
@@ -2004,10 +2009,8 @@ function vistaProyectoForm(id){
     <div class="form-cab"><button type="button" class="volver" data-action="volver" data-a="${nuevo ? '#/proyectos' : '#/proyecto/' + FPR._para}">Cancelar</button><span class="tit">${nuevo ? 'Nuevo proyecto' : 'Editar proyecto'}</span><span class="hueco"></span></div>
     <div class="campo"><label for="fpr-nombre">Nombre clave</label><input class="input" id="fpr-nombre" value="${esc(FPR.nombre)}" placeholder="Ej. Proyecto Orquídea" autocomplete="off" autocapitalize="words">
       <span class="ayuda">Por confidencialidad, use un nombre clave y no los nombres de las compañías.</span></div>
-    <fieldset><legend>Tipo de proyecto</legend>
-      <div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))">${TIPOS_PROYECTO.map(t => `<button type="button" class="opc-btn${FPR.tipo===t.k ? ' sel' : ''}" data-action="fpr-tipo" data-v="${t.k}" aria-pressed="${FPR.tipo===t.k}">${t.n}</button>`).join('')}</div>
-    </fieldset>
-    <fieldset><legend>Entidades enlazadas <span class="opc" style="font-weight:400;color:var(--texto-2)">(${FPR.tipo === 'entidades' ? 'una o varias' : 'opcional'})</span></legend>
+    <label class="marca"><input type="checkbox" id="fpr-personal"${FPR.personal ? ' checked' : ''}><span>Es un proyecto personal<span class="sub" style="display:block">Si no lo marca, queda como proyecto de trabajo.</span></span></label>
+    <fieldset><legend>Entidades enlazadas <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
       ${emps.length ? `<div class="chips">${emps.map(ent).join('')}</div>` : '<p class="ayuda" style="margin:0">Aún no tiene entidades registradas.</p>'}
     </fieldset>
     <div class="campo"><label for="fpr-detalle">Detalle <span class="opc">(opcional)</span></label><input class="input" id="fpr-detalle" value="${esc(FPR.detalle)}" placeholder="Ej. Compraventa de acciones"></div>
@@ -2019,6 +2022,7 @@ function vistaProyectoForm(id){
       ${!nuevo ? '<button type="button" class="btn-peligro" data-action="fpr-borrar">Eliminar proyecto (si fue un error)</button>' : ''}</div>
   </form>`);
   const b = (s, k) => $(s).addEventListener('input', e => FPR[k] = e.target.value);
+  $('#fpr-personal').addEventListener('change', e => FPR.personal = e.target.checked);
   b('#fpr-nombre','nombre'); b('#fpr-detalle','detalle'); b('#fpr-inicio','inicio'); b('#fpr-cierre','cierreEstimado');
   $('#f-proy').addEventListener('submit', e => { e.preventDefault(); guardarProyecto(); });
 }
@@ -2041,7 +2045,7 @@ async function guardarProyecto(){
   let base;
   if (nuevo) { const sc = siguienteColor(); base = {id:uid(), creada:ahora(), color:sc.color, estado:'activo', cierre:''}; poner.ajustes = [{clave:'colorSiguiente', valor:sc.siguiente}]; }
   else base = proyecto(FPR._para);
-  const p = {...base, nombre, tipo:FPR.tipo, detalle:FPR.detalle.trim(), inicio:FPR.inicio, cierreEstimado:FPR.cierreEstimado, editada:ahora()};
+  const p = {...base, nombre, personal:FPR.personal, tipo: FPR.personal ? 'personal' : (base.tipo && base.tipo !== 'personal' ? base.tipo : 'empresarial'), detalle:FPR.detalle.trim(), inicio:FPR.inicio, cierreEstimado:FPR.cierreEstimado, editada:ahora()};
   poner.proyectos.push(p);
   const ce = cambiosEntidadesProyecto(p.id, FPR.ents);
   if (ce.poner.length) poner.proyectoEntidades = ce.poner;
@@ -2321,16 +2325,16 @@ function hojaConvertir(eid){
   const cs = S.cargos.filter(c => c.empresaId === eid);
   const nPer = new Set(cs.map(c => c.personaId)).size;
   const nNot = S.notas.filter(n => tocaA(n, 'empresa', eid)).length;
-  let tipoSel = 'entidades';
+  let personal = false;
   const v = abrirHoja(`<h2 class="hoja-titulo">Convertir en proyecto</h2>
     <p class="hoja-texto">“${esc(e.nombre)}” pasará a Proyectos con ${plural(nPer, 'persona')} (cada cargo se vuelve un papel) y ${plural(nNot, 'nota')}. La entidad queda archivada, no se borra.</p>
-    <div class="campo"><span class="leyenda">Tipo de proyecto</span><div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))">${TIPOS_PROYECTO.map(t => `<button type="button" class="opc-btn${t.k===tipoSel ? ' sel' : ''}" data-t="${t.k}">${t.n}</button>`).join('')}</div></div>
+    <label class="marca"><input type="checkbox" id="hcv-personal"><span>Es un proyecto personal<span class="sub" style="display:block">Si no lo marca, queda como proyecto de trabajo.</span></span></label>
     <p class="ayuda" style="margin:0">Después puede enlazar las entidades del proyecto y agregar sus hitos.</p>
     <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="button" class="btn-pri" data-r="1">Convertir</button></div>`);
-  $$('[data-t]', v).forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); tipoSel = b.dataset.t; $$('[data-t]', v).forEach(x => x.classList.toggle('sel', x === b)); }));
+  $('#hcv-personal', v).addEventListener('change', ev => personal = ev.target.checked);
   $('[data-r="0"]', v).addEventListener('click', () => cerrarHoja());
   $('[data-r="1"]', v).addEventListener('click', async () => {
-    const pr = {id:uid(), creada:ahora(), nombre:e.nombre, tipo:tipoSel, detalle:[e.detalle, e.sector, e.ciudad].filter(Boolean).join(' · '), color:e.color,
+    const pr = {id:uid(), creada:ahora(), nombre:e.nombre, personal, tipo: personal ? 'personal' : 'empresarial', detalle:[e.detalle, e.sector, e.ciudad].filter(Boolean).join(' · '), color:e.color,
       inicio:String(e.creada || '').slice(0, 10), cierreEstimado:'', cierre:'', estado:'activo', convertidaDe:e.id};
     const papeles = cs.map(c => ({id:uid(), creada:c.creada || ahora(), personaId:c.personaId, proyectoId:pr.id, papel:[c.rolJunta, c.cargo, c.area].filter(Boolean).join(' · '), inicio:c.inicio || '', fin:c.fin || ''}));
     const notas = S.notas.filter(n => tocaA(n, 'empresa', eid)).map(n => {
@@ -2686,7 +2690,7 @@ async function cargarEjemplo(){
   const vd = P('Valeria Duarte','ella','+57 300 000 0401','valeria@ejemplo.com','Reunión de arranque de Orquídea','Abogada corporativa, directa y muy precisa con los plazos.');
   const th = P('Tomás Herrera','él','+57 300 000 0402','tomas@ejemplo.com');
   cargos.push(C(vd, ga, 'Jurídica', 'Asesora legal externa'), C(th, is, 'Gerencia', 'Socio director'));
-  const orq = {id:uid(), creada:cr(), nombre:'Proyecto Orquídea', tipo:'entidades', detalle:'Compraventa de acciones', color:'rosa', inicio:dia(-40), cierreEstimado:dia(103), cierre:'', estado:'activo', ejemplo:true};
+  const orq = {id:uid(), creada:cr(), nombre:'Proyecto Orquídea', personal:false, tipo:'entidades', detalle:'Compraventa de acciones', color:'rosa', inicio:dia(-40), cierreEstimado:dia(103), cierre:'', estado:'activo', ejemplo:true};
   const PE = e => ({id:uid(), creada:cr(), proyectoId:orq.id, empresaId:e.id, ejemplo:true});
   const PA = (p, papelTxt) => ({id:uid(), creada:cr(), personaId:p.id, proyectoId:orq.id, papel:papelTxt, inicio:dia(-40), fin:'', ejemplo:true});
   const H = (orden, nombre, fechaObjetivo, estado, fechaCumplido='', nota='') => ({id:uid(), creada:cr(), proyectoId:orq.id, orden, nombre, fechaObjetivo, estado, fechaCumplido, nota, ejemplo:true});
@@ -2862,7 +2866,7 @@ const ACCIONES = {
   hist: b => { HIST[b.dataset.clave] = b.dataset.k; render(); },
   /* Proyectos */
   'proy-estado': b => { FILTRO_PROY.estado = b.dataset.f; vistaProyectos(); },
-  'proy-tipo': b => { FILTRO_PROY.tipo = b.dataset.f; vistaProyectos(); },
+  'proy-ambito': b => { FILTRO_PROY.ambito = b.dataset.f; vistaProyectos(); },
   'color-proy': b => {
     const p = proyecto(b.dataset.id);
     abrirHoja(`<h2 class="hoja-titulo">Color de ${esc(p.nombre)}</h2><div class="paleta">${PALETA.map(k => `<button type="button" class="circulo${k.k===p.color ? ' sel' : ''}" style="background:var(--emp-${k.k})" data-action="poner-color-proy" data-id="${p.id}" data-c="${k.k}" aria-label="${k.n}${k.k===p.color ? ' (seleccionado)' : ''}"></button>`).join('')}</div><button type="button" class="btn-sec" data-action="cerrar-hoja">Cerrar</button>`);
@@ -2871,7 +2875,6 @@ const ACCIONES = {
   'proy-entidades': b => hojaEntidadesProyecto(b.dataset.id),
   'cerrar-proy': b => hojaCerrarProyecto(b.dataset.id),
   'reabrir-proy': async b => { await guardar('proyectos', {...proyecto(b.dataset.id), estado:'activo', cierre:'', editada:ahora()}); aviso('Proyecto reabierto'); render(); },
-  'fpr-tipo': b => { FPR.tipo = b.dataset.v; vistaProyectoForm(FPR._para === 'nuevo' ? undefined : FPR._para); },
   'fpr-ent': b => { const id = b.dataset.id; FPR.ents = FPR.ents.includes(id) ? FPR.ents.filter(x => x !== id) : [...FPR.ents, id]; vistaProyectoForm(FPR._para === 'nuevo' ? undefined : FPR._para); },
   'fpr-borrar': async () => {
     const p = proyecto(FPR._para);
