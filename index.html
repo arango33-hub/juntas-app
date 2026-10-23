@@ -440,7 +440,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.7 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.8 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1152,7 +1152,7 @@ function vistaInicio(){
     <div class="ini-top">
       <div class="cab-fila"><h1 class="serif t30">Entidades</h1>
         <div class="ini-botones"><a class="btn-icono" href="#/nota?libre=1" aria-label="Nota rápida">${I.micPeq}</a><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a>${btnBloquear()}</div></div>
-      <div class="campo-busq"><label for="buscar">Buscar persona, cargo, entidad o palabra clave</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
+      <div class="campo-busq"><label for="buscar">Buscar persona, cargo, entidad, proyecto, compromiso o palabra clave</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
       ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaConvertir()}${franjaCumples()}${franjaIOS()}
     </div>
     <div class="sec" style="padding-top:24px">
@@ -1199,11 +1199,19 @@ function pintarLista(){
   };
   const destino = n => refsNota(n).map(r => nombreRef(r.tipo, r.id)).filter(Boolean).join(' · ');
   const notas = S.notas.filter(n => contieneTodas([n.texto, n.ocasion, destino(n), n.hitoId ? hito(n.hitoId)?.nombre : ''], ps) && notaPasa(n)).sort(ordenNotas);
+  const compPasa = c => {
+    if (FILTRO === 'todas') return true;
+    if (c.refTipo === 'empresa') { const e = empresa(c.refId); return e && pasa(e); }
+    if (c.refTipo === 'persona') return cargosPersona(c.refId).some(x => { const e = empresa(x.empresaId); return e && pasa(e); });
+    return false;
+  };
+  const comps = S.compromisos.filter(c => contieneTodas(textosCompromiso(c), ps) && compPasa(c)).sort(ordenBusqComp);
   const proys = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
-  if (!emps.length && !pers.length && !notas.length && !proys.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`); return; }
+  if (!emps.length && !pers.length && !notas.length && !proys.length && !comps.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`); return; }
   ponerHTML(cont, (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
-    + (proys.length ? `<h2 class="sec-titulo res-titulo">Proyectos · ${proys.length}</h2><div class="emp-grid">${proys.map(tarjetaProyecto).join('')}</div>` : '')
+    + (proys.length ? `<h2 class="sec-titulo res-titulo">Proyectos · ${proys.length}</h2><div class="emp-grid">${proys.map(p => tarjetaProyecto(p)).join('')}</div>` : '')
     + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '')
+    + (comps.length ? `<h2 class="sec-titulo res-titulo">Compromisos · ${comps.length}</h2><div class="tarjeta col" style="gap:0">${comps.slice(0, 40).map(c => filaCompromiso(c, {conProyecto:true, resaltar:ps})).join('')}</div>` : '')
     + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : ''));
 }
 
@@ -1914,7 +1922,7 @@ function vistaPersonas(){
   const asc = ordenPerAsc(), agrupar = S.cfg.agruparPersonas === true;
   pintar(`<div class="pagina con-nav"><div class="ini-top">
       ${cabTab('Personas')}
-      <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área, entidad o palabra clave</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
+      <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área, entidad, compromiso o palabra clave</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
       <div class="filtros" role="group" aria-label="Ordenar y agrupar">
         <button type="button" class="filtro btn-orden" style="margin-left:0" data-action="orden-per" aria-label="Orden: ${asc ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${asc ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button>
         <button type="button" class="filtro btn-orden${agrupar ? ' on' : ''}" style="margin-left:0" data-action="agrupar-per" aria-pressed="${agrupar}">${I.edificio}Agrupar por entidad</button>
@@ -1926,14 +1934,16 @@ function vistaPersonas(){
     ...papelesPersona(p.id).flatMap(x => [x.papel, proyecto(x.proyectoId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
-    return contieneTodas([...camposP(p), ...notasDe(p).flatMap(n => [n.texto, n.ocasion])], palabrasDe(q));
+    return contieneTodas([...camposP(p), ...notasDe(p).flatMap(n => [n.texto, n.ocasion]), ...compromisosPersona(p.id).map(c => c.descripcion)], palabrasDe(q));
   };
   /* Si la coincidencia viene de una nota, se muestra el fragmento debajo del nombre */
   const extraNota = p => {
     const q = BUSQ_PERSONAS, ps = palabrasDe(q);
     if (!ps.length || contieneTodas(camposP(p), ps)) return '';
     const n = notasDe(p).find(n => ps.some(w => norm(n.texto + ' ' + n.ocasion).includes(w)));
-    return n ? `<span class="sub" style="margin-top:2px">Nota del ${esc(fechaMedia(n.fecha))}: ${fragmento(n.texto, ps)}</span>` : '';
+    if (n) return `<span class="sub" style="margin-top:2px">Nota del ${esc(fechaMedia(n.fecha))}: ${fragmento(n.texto, ps)}</span>`;
+    const c = compromisosPersona(p.id).find(c => ps.some(w => norm(c.descripcion).includes(w)));
+    return c ? `<span class="sub" style="margin-top:2px">Compromiso${c.cumplido ? ' cumplido' : ''}: ${fragmento(c.descripcion, ps)}</span>` : '';
   };
   const conExtra = (html, p) => { const x = extraNota(p); return x ? html.replace('</span></span>', '</span>' + x + '</span>') : html; };
   const pintarP = () => {
@@ -1974,11 +1984,11 @@ function vistaPersonas(){
 /* =====================================================================
    FASE 2 · PROYECTOS, HITOS, PAPELES Y COMPROMISOS
    ===================================================================== */
-let FILTRO_PROY = {estado:'activos', ambito:'todos'}, PEND_F = 'todos';
+let BUSQ_PROY = '', FILTRO_PROY = {estado:'activos', ambito:'todos'}, PEND_F = 'todos';
 let FPR = null, FH = null, FPA = null, FCO = null;
 
 /* ---------- 8 · Proyectos ---------- */
-function tarjetaProyecto(p){
+function tarjetaProyecto(p, extra=''){
   const et = lineaEtapa(p), ents = entidadesProyecto(p.id), hs = hitosProyecto(p.id);
   const nPer = new Set(papelesProyecto(p.id).filter(vigente).map(x => x.personaId)).size;
   const pend = compromisosProyecto(p.id).filter(c => !c.cumplido).length;
@@ -1989,7 +1999,7 @@ function tarjetaProyecto(p){
   return `<div class="emp-card" data-go="#/proyecto/${p.id}" role="link" tabindex="0" aria-label="${esc(p.nombre)}">
     <div class="emp-top"><span class="emp-nom-fila"><button type="button" class="circulo" style="background:${cv(p.color)}" data-action="color-proy" data-id="${p.id}" aria-label="Cambiar color de ${esc(p.nombre)}"></button><span class="emp-nombre">${esc(p.nombre)}</span></span>${pild}</div>
     <span class="emp-linea">${esc(linea)}</span>
-    <div class="emp-pie"><span${et.venc ? ' class="pend"' : ''}>${esc(et.txt)}</span>${pend ? `<span class="pend">${plural(pend,'pendiente')}</span>` : '<span class="t2">Sin pendientes</span>'}</div>
+    <div class="emp-pie"><span${et.venc ? ' class="pend"' : ''}>${esc(et.txt)}</span>${pend ? `<span class="pend">${plural(pend,'pendiente')}</span>` : '<span class="t2">Sin pendientes</span>'}</div>${extra}
   </div>`;
 }
 function vistaProyectos(){
@@ -2005,20 +2015,48 @@ function vistaProyectos(){
   let cuerpo;
   if (!S.proyectos.length) cuerpo = `<div class="tarjeta ajuste"><p>Un proyecto es un trabajo con inicio y cierre al que le hace seguimiento, por ejemplo una compraventa de acciones. Por confidencialidad, use un nombre clave (ej. “Proyecto Orquídea”).</p>
       <a class="btn-sec" href="#/proyecto-form">Crear el primer proyecto</a>${porConvertir().length ? `<a class="btn-sec" href="#/ajustes?convertir=1">Convertir entidades que son proyectos</a>` : ''}</div>`;
-  else cuerpo = lista.length ? `<div class="emp-grid">${lista.map(tarjetaProyecto).join('')}</div>` : `<p class="tarjeta vacio">No hay proyectos en este filtro.</p>`;
+  else cuerpo = '';
   pintar(`<div class="pagina con-nav">
-    <div class="ini-top">${cabTab('Proyectos')}${franjaConvertir()}</div>
+    <div class="ini-top">${cabTab('Proyectos')}
+      ${S.proyectos.length ? `<div class="campo-busq"><label for="buscar-pr">Buscar en nombre, entidades, hitos, personas, compromisos o notas</label><input class="input" id="buscar-pr" type="search" placeholder="Ej. data room" value="${esc(BUSQ_PROY)}" autocomplete="off" enterkeyhint="search"></div>` : ''}
+      ${franjaConvertir()}</div>
     <div class="sec" style="padding-top:24px">
       <h2 class="sec-titulo">Mis proyectos</h2>
-      ${S.proyectos.length ? `<div class="filtros" role="group" aria-label="Activos o cerrados">${fe('activos','Activos',nAct)}${fe('cerrados','Cerrados',nCer)}</div>
-      ${hayPersonales ? `<div class="filtros" role="group" aria-label="Trabajo o personales">${fa('todos','Todos')}${fa('trabajo','Trabajo')}${fa('personal','Personales')}</div>` : ''}` : ''}
-      ${cuerpo}
+      <div id="filtros-pr">${S.proyectos.length ? `<div class="filtros" role="group" aria-label="Activos o cerrados" style="margin-bottom:12px">${fe('activos','Activos',nAct)}${fe('cerrados','Cerrados',nCer)}</div>
+      ${hayPersonales ? `<div class="filtros" role="group" aria-label="Trabajo o personales">${fa('todos','Todos')}${fa('trabajo','Trabajo')}${fa('personal','Personales')}</div>` : ''}` : ''}</div>
+      <div id="lista-pr" class="col" style="gap:12px">${cuerpo}</div>
     </div>
   </div>${fab('#/proyecto-form','Agregar proyecto')}${nav('proyectos')}`);
+  if (!S.proyectos.length) return;
+  /* Con texto en el buscador se busca en todos los proyectos (activos y cerrados) */
+  const pintarPr = () => {
+    const ps = palabrasDe(BUSQ_PROY), cont = $('#lista-pr');
+    $('#filtros-pr').hidden = ps.length > 0;
+    if (!ps.length) { ponerHTML(cont, lista.length ? `<div class="emp-grid">${lista.map(p => tarjetaProyecto(p)).join('')}</div>` : `<p class="tarjeta vacio">No hay proyectos en este filtro.</p>`); return; }
+    const notasDe = p => S.notas.filter(n => tocaA(n, 'proyecto', p.id));
+    const propios = p => [p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre),
+      ...hitosProyecto(p.id).flatMap(h => [h.nombre, h.nota]), ...papelesProyecto(p.id).flatMap(x => [x.papel, persona(x.personaId)?.nombre])];
+    const res = proyectosOrdenados().filter(p => contieneTodas([...propios(p), ...compromisosProyecto(p.id).map(c => c.descripcion), ...notasDe(p).map(n => n.texto)], ps));
+    if (!res.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQ_PROY.trim())}”.</p>`); return; }
+    /* Si la coincidencia viene de un compromiso o de una nota, se muestra el fragmento en la tarjeta */
+    const extra = p => {
+      if (contieneTodas(propios(p), ps)) return '';
+      const c = compromisosProyecto(p.id).find(c => ps.some(w => norm(c.descripcion).includes(w)));
+      if (c) return `<span class="sub">Compromiso${c.cumplido ? ' cumplido' : ''}: ${fragmento(c.descripcion, ps)}</span>`;
+      const n = notasDe(p).sort(ordenNotas).find(n => ps.some(w => norm(n.texto).includes(w)));
+      return n ? `<span class="sub">Nota del ${esc(fechaMedia(n.fecha))}: ${fragmento(n.texto, ps)}</span>` : '';
+    };
+    ponerHTML(cont, `<h2 class="sec-titulo res-titulo" style="margin-top:0">${plural(res.length, 'proyecto')}</h2><div class="emp-grid">${res.map(p => tarjetaProyecto(p, extra(p))).join('')}</div>`);
+  };
+  $('#buscar-pr').addEventListener('input', e => { BUSQ_PROY = e.target.value; pintarPr(); });
+  pintarPr();
 }
 
 /* ---------- 9 · Proyecto ---------- */
-function filaCompromiso(c, {conProyecto=false, excluir=null}={}){
+/* Textos en los que se busca un compromiso */
+const textosCompromiso = c => [c.descripcion, responsableDe(c), c.refTipo ? nombreRef(c.refTipo, c.refId) : '', proyecto(c.proyectoId)?.nombre, c.hitoId ? hito(c.hitoId)?.nombre : ''];
+const ordenBusqComp = (a,b) => (a.cumplido - b.cumplido) || ordenCompromisos(a,b);
+function filaCompromiso(c, {conProyecto=false, excluir=null, resaltar=null}={}){
   const h = c.hitoId && hito(c.hitoId), pr = proyecto(c.proyectoId);
   const reu = !pr && c.reunionId && S.reuniones.find(r => r.id === c.reunionId), eReu = reu && empresa(reu.empresaId);
   const nH = h ? hitosProyecto(h.proyectoId).findIndex(x => x.id === h.id) + 1 : 0;
@@ -2029,7 +2067,7 @@ function filaCompromiso(c, {conProyecto=false, excluir=null}={}){
     conProyecto && c.refTipo && !(excluir && excluir.tipo === c.refTipo && excluir.id === c.refId) && !(pr && c.refTipo === 'proyecto') ? nombreRef(c.refTipo, c.refId) : '',
     v ? 'vencido' : ''].filter(Boolean);
   return `<div class="comp${c.cumplido ? ' hecho' : ''}"><input type="checkbox"${c.cumplido ? ' checked' : ''} data-action="comp-toggle" data-id="${c.id}" aria-label="${c.cumplido ? 'Reabrir' : 'Marcar como cumplido'}: ${esc(c.descripcion)}">
-    <a href="#/compromiso/${c.id}"><span class="d">${esc(c.descripcion)}</span><span class="s${v ? ' venc' : ''}">${esc(partes.join(' · '))}</span></a></div>`;
+    <a href="#/compromiso/${c.id}"><span class="d">${resaltar ? fragmento(c.descripcion, resaltar) : esc(c.descripcion)}</span><span class="s${v ? ' venc' : ''}">${esc(partes.join(' · '))}</span></a></div>`;
 }
 function vistaProyecto(id){
   const p = proyecto(id); if (!p) return noEncontrado();
