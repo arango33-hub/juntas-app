@@ -440,7 +440,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.8 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.9 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -730,7 +730,13 @@ const compromiso = id => S.compromisos.find(x => x.id===id);
 /* Un proyecto es de trabajo, salvo que se marque como personal (en la 2.0 se guardaba en "tipo") */
 const esPersonal = p => p.personal === true || (p.personal === undefined && p.tipo === 'personal');
 const nombreEstadoHito = k => (ESTADOS_HITO.find(t => t.k===k) || ESTADOS_HITO[0]).n;
-const proyectoActivo = p => p.estado !== 'cerrado';
+const proyectoActivo = p => p.estado !== 'cerrado' && !p.archivado;
+/* Archivo (2.9): entidades y proyectos que ya no interesan; no se borran ni aparecen en las listas */
+const MOTIVOS_ARCHIVO = {empresa:['Se vendió','Salí de la junta','Terminó la relación','Otro'], proyecto:['Terminó','Se canceló','Otro']};
+const archivadoDe = (tipo, o) => tipo === 'empresa' ? !!o.archivada : !!o.archivado;
+const motivoArchivo = o => o.motivoArchivo || (o.convertidaEn ? 'Convertida en proyecto' : '');
+const lineaArchivo = o => [motivoArchivo(o), (o.archivadaEl || o.archivadoEl) ? mesAnio(o.archivadaEl || o.archivadoEl) : ''].filter(Boolean).join(' · ');
+const proyectosVisibles = () => proyectosOrdenados().filter(p => !p.archivado);
 const proyectosOrdenados = () => [...S.proyectos].sort((a,b) => compararTexto(a.nombre, b.nombre));
 const entidadesProyecto = pid => S.proyectoEntidades.filter(x => x.proyectoId===pid).map(x => empresa(x.empresaId)).filter(Boolean).sort((a,b) => compararTexto(a.nombre, b.nombre));
 const proyectosEntidad = eid => [...new Set(S.proyectoEntidades.filter(x => x.empresaId===eid).map(x => x.proyectoId))].map(proyecto).filter(Boolean);
@@ -1051,7 +1057,13 @@ async function olvidoPin(){
 /* =====================================================================
    PANTALLAS
    ===================================================================== */
-let FILTRO = 'todas', BUSQUEDA = '', BUSQ_PERSONAS = '';
+let FILTRO = 'todas', BUSQUEDA = '', BUSQ_PERSONAS = '', ARCH_VER = false;
+/* Resultados archivados: una línea pequeña que se abre con un toque */
+function bloqueArchivo(filas){
+  if (!filas.length) return '';
+  return `<button type="button" class="enlace-btn" style="padding:0;font-size:14px;color:var(--texto-2);font-weight:500" data-action="busq-arch" aria-expanded="${ARCH_VER}">${ARCH_VER ? '▾' : '▸'} En el archivo · ${filas.length}</button>
+    ${ARCH_VER ? `<div class="tarjeta col" style="gap:0">${filas.join('')}</div>` : ''}`;
+}
 let FE = null, FP = null, FC = null, FN = null, IMPORT = null;
 
 const VISTAS = {
@@ -1206,13 +1218,18 @@ function pintarLista(){
     return false;
   };
   const comps = S.compromisos.filter(c => contieneTodas(textosCompromiso(c), ps) && compPasa(c)).sort(ordenBusqComp);
-  const proys = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
-  if (!emps.length && !pers.length && !notas.length && !proys.length && !comps.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`); return; }
+  const proysTodos = FILTRO === 'todas' ? proyectosOrdenados().filter(p => contieneTodas([p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre), ...hitosProyecto(p.id).map(h => h.nombre)], ps)) : [];
+  const proys = proysTodos.filter(p => !p.archivado);
+  const empsArch = S.empresas.filter(e => e.archivada && pasa(e) && contieneTodas([e.nombre, e.sector, e.ciudad, e.detalle, tipo(e.vinculoId).nombre, motivoArchivo(e)], ps)).sort((a,b) => compararTexto(a.nombre, b.nombre));
+  const filasArch = [...empsArch.map(e => `<a class="fila" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc(['Entidad', lineaArchivo(e)].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`),
+    ...proysTodos.filter(p => p.archivado).map(filaProyecto)];
+  const enArchivo = filasArch.length ? `<div class="col" style="gap:8px;margin-top:16px">${bloqueArchivo(filasArch)}</div>` : '';
+  if (!emps.length && !pers.length && !notas.length && !proys.length && !comps.length) { ponerHTML(cont, (filasArch.length ? '' : `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQUEDA.trim())}”.</p>`) + enArchivo); return; }
   ponerHTML(cont, (emps.length ? `<div class="emp-grid">${emps.map(tarjetaEmpresa).join('')}</div>` : '')
     + (proys.length ? `<h2 class="sec-titulo res-titulo">Proyectos · ${proys.length}</h2><div class="emp-grid">${proys.map(p => tarjetaProyecto(p)).join('')}</div>` : '')
     + (pers.length ? `<h2 class="sec-titulo res-titulo">Personas · ${pers.length}</h2><div class="tarjeta col" style="gap:0">${pers.join('')}</div>` : '')
     + (comps.length ? `<h2 class="sec-titulo res-titulo">Compromisos · ${comps.length}</h2><div class="tarjeta col" style="gap:0">${comps.slice(0, 40).map(c => filaCompromiso(c, {conProyecto:true, resaltar:ps})).join('')}</div>` : '')
-    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : ''));
+    + (notas.length ? `<h2 class="sec-titulo res-titulo">Notas · ${notas.length}</h2><div class="tarjeta col" style="gap:0">${notas.slice(0, 40).map(n => `<a class="res-nota" href="#/nota/${n.id}"><span class="sub">${esc([fechaMedia(n.fecha), n.ocasion, destino(n)].filter(Boolean).join(' · '))}</span><span class="txt">${fragmento(n.texto, ps)}</span></a>`).join('')}</div>${notas.length > 40 ? '<p class="ayuda" style="margin:0">Se muestran las 40 más recientes. Escriba algo más específico para afinar.</p>' : ''}` : '') + enArchivo);
 }
 
 /* ---------- 3 · Entidad ---------- */
@@ -1257,6 +1274,7 @@ function vistaEmpresa(id){
     ${e.detalle ? `<p class="detalle-rel">${esc(e.detalle)}</p>` : ''}
   </div></div>
   <div class="pagina con-accion">
+    ${franjaArchivada('empresa', e)}
     ${junta ? `<div class="sec"><h2 class="sec-titulo">Junta directiva</h2><div class="tarjeta col" style="gap:0">${board.map(filaJunta).join('')}${yo}</div>
       ${board.length ? '' : '<p class="ayuda" style="margin:0">Para agregar miembros de junta, use “+ Agregar” y llene el campo “Rol en junta”.</p>'}</div>` : ''}
     <div class="sec mas">
@@ -1325,7 +1343,7 @@ function seccionCompromisos(lista, sujeto, hrefNuevo, sinEnvoltura){
   return sinEnvoltura ? cab + cuerpo : `<div class="sec">${cab}${cuerpo}</div>`;
 }
 function filaProyecto(p){
-  const et = lineaEtapa(p);
+  const et = p.archivado ? {txt: 'En el archivo' + (lineaArchivo(p) ? ' · ' + lineaArchivo(p) : ''), venc:false} : lineaEtapa(p);
   return `<a class="fila" href="#/proyecto/${p.id}" style="--c:${cv(p.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub${et.venc ? ' pend' : ''}">${esc(et.txt)}</span></span>${I.chev}</a>`;
 }
 
@@ -1358,10 +1376,10 @@ function vistaPersona(id, q){
   const pronombre = p.trato==='él' ? 'él' : p.trato==='ella' ? 'ella' : 'esta persona';
   const filaPapel = x => { const pr = proyecto(x.proyectoId); if (!pr) return '';
     const fechas = x.fin && !vigente(x) ? `Ya no está · desde ${fechaCorta(x.fin)}` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
-    return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}" style="--c:${cv(pr.color)}"><a href="#/proyecto/${pr.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(pr.nombre)}${proyectoActivo(pr) ? '' : ' <span class="sub">(proyecto cerrado)</span>'}</span><span class="sub">${esc(x.papel || 'Rol sin definir')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol en ${esc(pr.nombre)}">Rol</button></div>`; };
+    return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}" style="--c:${cv(pr.color)}"><a href="#/proyecto/${pr.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(pr.nombre)}${proyectoActivo(pr) ? '' : ` <span class="sub">(${pr.archivado ? 'en el archivo' : 'proyecto cerrado'})</span>`}</span><span class="sub">${esc(x.papel || 'Rol sin definir')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol en ${esc(pr.nombre)}">Rol</button></div>`; };
   const filaCargo = x => { const e = empresa(x.empresaId); if (!e) return '';
     const fechas = x.fin && !vigente(x) ? `${x.inicio ? mesAnio(x.inicio) + ' – ' : 'Hasta '}${mesAnio(x.fin)} · cerrado` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
-    return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
+    return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}${e.archivada ? ' <span class="sub">(en el archivo)</span>' : ''}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
 
   pintar(`<div style="--c:${c}">
   <div class="banda"><div class="cabecera" style="gap:16px">
@@ -1636,7 +1654,7 @@ function vistaEmpresaForm(id){
     <div class="vista-previa" aria-live="polite"><span class="et">Así se verá en el inicio</span><span class="n" id="vp-n"></span><span class="l" id="vp-l"></span></div>
     <div class="guardar-final">
       <button type="submit" class="btn-pri">Guardar</button>
-      ${FE._para !== 'nueva' ? '<button type="button" class="btn-sec" data-action="fe-archivar">Archivar entidad</button>' : ''}
+      ${FE._para !== 'nueva' && !empresa(FE._para)?.archivada ? '<button type="button" class="btn-sec" data-action="fe-archivar">Archivar entidad</button>' : ''}
     </div>
   </form>`);
   const enlazar = (sel, k) => $(sel).addEventListener('input', e => { FE[k] = e.target.value; vistaPrevia(); });
@@ -2004,11 +2022,11 @@ function tarjetaProyecto(p, extra=''){
 }
 function vistaProyectos(){
   const est = FILTRO_PROY.estado, amb = FILTRO_PROY.ambito;
-  const delEstado = proyectosOrdenados().filter(p => (est === 'activos') === proyectoActivo(p));
+  const delEstado = proyectosVisibles().filter(p => (est === 'activos') === proyectoActivo(p));
   const hayPersonales = S.proyectos.some(esPersonal);
   const pasaAmb = p => !hayPersonales || amb === 'todos' || (amb === 'personal') === esPersonal(p);
   const lista = delEstado.filter(pasaAmb);
-  const nAct = S.proyectos.filter(proyectoActivo).length, nCer = S.proyectos.length - nAct;
+  const nAct = S.proyectos.filter(proyectoActivo).length, nCer = proyectosVisibles().length - nAct;
   const fe = (k, txt, n) => `<button type="button" class="filtro${est===k ? ' act' : ''}" data-action="proy-estado" data-f="${k}" aria-pressed="${est===k}">${txt} · ${n}</button>`;
   const fa = (k, txt) => { const n = k === 'todos' ? delEstado.length : delEstado.filter(p => (k === 'personal') === esPersonal(p)).length;
     return `<button type="button" class="filtro${amb===k ? ' act' : ''}" data-action="proy-ambito" data-f="${k}" aria-pressed="${amb===k}">${txt} · ${n}</button>`; };
@@ -2036,8 +2054,10 @@ function vistaProyectos(){
     const notasDe = p => S.notas.filter(n => tocaA(n, 'proyecto', p.id));
     const propios = p => [p.nombre, p.detalle, esPersonal(p) ? 'personal' : '', ...entidadesProyecto(p.id).map(e => e.nombre),
       ...hitosProyecto(p.id).flatMap(h => [h.nombre, h.nota]), ...papelesProyecto(p.id).flatMap(x => [x.papel, persona(x.personaId)?.nombre])];
-    const res = proyectosOrdenados().filter(p => contieneTodas([...propios(p), ...compromisosProyecto(p.id).map(c => c.descripcion), ...notasDe(p).map(n => n.texto)], ps));
-    if (!res.length) { ponerHTML(cont, `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQ_PROY.trim())}”.</p>`); return; }
+    const todos = proyectosOrdenados().filter(p => contieneTodas([...propios(p), ...compromisosProyecto(p.id).map(c => c.descripcion), ...notasDe(p).map(n => n.texto)], ps));
+    const res = todos.filter(p => !p.archivado), arch = todos.filter(p => p.archivado);
+    const enArchivo = bloqueArchivo(arch.map(filaProyecto));
+    if (!res.length) { ponerHTML(cont, (arch.length ? '' : `<p class="tarjeta vacio">Sin resultados para “${esc(BUSQ_PROY.trim())}”.</p>`) + enArchivo); return; }
     /* Si la coincidencia viene de un compromiso o de una nota, se muestra el fragmento en la tarjeta */
     const extra = p => {
       if (contieneTodas(propios(p), ps)) return '';
@@ -2046,7 +2066,7 @@ function vistaProyectos(){
       const n = notasDe(p).sort(ordenNotas).find(n => ps.some(w => norm(n.texto).includes(w)));
       return n ? `<span class="sub">Nota del ${esc(fechaMedia(n.fecha))}: ${fragmento(n.texto, ps)}</span>` : '';
     };
-    ponerHTML(cont, `<h2 class="sec-titulo res-titulo" style="margin-top:0">${plural(res.length, 'proyecto')}</h2><div class="emp-grid">${res.map(p => tarjetaProyecto(p, extra(p))).join('')}</div>`);
+    ponerHTML(cont, `<h2 class="sec-titulo res-titulo" style="margin-top:0">${plural(res.length, 'proyecto')}</h2><div class="emp-grid">${res.map(p => tarjetaProyecto(p, extra(p))).join('')}</div>` + enArchivo);
   };
   $('#buscar-pr').addEventListener('input', e => { BUSQ_PROY = e.target.value; pintarPr(); });
   pintarPr();
@@ -2105,6 +2125,7 @@ function vistaProyecto(id){
     ${p.detalle ? `<p class="detalle-rel">${esc(p.detalle)}</p>` : ''}
   </div></div>
   <div class="pagina con-accion">
+    ${franjaArchivada('proyecto', p)}
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades</h2><button type="button" class="enlace-btn" style="font-size:14px" data-action="proy-entidades" data-id="${id}">${ents.length ? 'Cambiar' : '+ Enlazar'}</button></div>
       ${ents.length ? `<div class="tarjeta col" style="gap:0">${ents.map(e => `<a class="fila" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', tipo(e.vinculoId).nombre].join(' · '))}</span></span>${I.chev}</a>`).join('')}</div>` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Hitos${hs.length ? ` <span class="avance">· ${cumpl} de ${hs.length} cumplidos</span>` : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/hito?proy=${id}">+ Agregar</a></div>
@@ -2119,9 +2140,10 @@ function vistaProyecto(id){
       ...hs.map((h, i) => ({k:'hito:' + h.id, txt:`Hito ${i + 1}`, f: n => n.hitoId === h.id})),
       ...filtrosPorRef(notasPr, {tipo:'proyecto', id}, ['empresa'])
     ])}</div>
-    <div class="sec mas" style="padding-bottom:32px">${activo
+    <div class="sec mas" style="padding-bottom:32px">${p.archivado ? '' : activo
       ? `<button type="button" class="btn-sec" data-action="cerrar-proy" data-id="${id}">Cerrar proyecto</button>`
-      : `<button type="button" class="btn-sec" data-action="reabrir-proy" data-id="${id}">Reabrir proyecto</button>`}</div>
+      : `<button type="button" class="btn-sec" data-action="reabrir-proy" data-id="${id}">Reabrir proyecto</button>`}
+      ${p.archivado ? '' : `<button type="button" class="enlace-btn" style="align-self:center;color:var(--texto-2);font-weight:500" data-action="archivar-proy" data-id="${id}">Archivar proyecto</button>`}</div>
   </div>
   <div class="accion-fija"><a class="btn-pri" href="#/nota?proyecto=${id}">${I.mic}Dictar nota</a></div>
   </div>`);
@@ -2370,6 +2392,50 @@ async function guardarPapel(fin){
   volver(nuevo ? '#/proyecto/' + pid : '#/persona/' + per);
 }
 
+/* Hoja para archivar una entidad o un proyecto, con motivo y opciones de cierre */
+function hojaArchivar(tipo, id){
+  const o = tipo === 'empresa' ? empresa(id) : proyecto(id); if (!o) return;
+  const motivos = MOTIVOS_ARCHIVO[tipo];
+  const comps = (tipo === 'empresa' ? compromisosEntidad(id) : compromisosProyecto(id)).filter(c => !c.cumplido);
+  const cargos = tipo === 'empresa' ? cargosEmpresa(id).filter(vigente) : [];
+  const nPers = new Set(cargos.map(c => c.personaId)).size;
+  let motivo = '';
+  const v = abrirHoja(`<h2 class="hoja-titulo">Archivar ${esc(o.nombre)}</h2>
+    <p class="hoja-texto">${tipo === 'empresa' ? 'Deja de aparecer en Entidades' : 'Deja de aparecer en Proyectos, también en “Cerrados”'}, pero no se borra: queda en Ajustes → Archivo con toda su historia, y aparece en la búsqueda como “En el archivo”.</p>
+    <form class="hoja-form" novalidate>
+      <fieldset><legend>Motivo</legend><div class="chips">${motivos.map(m => `<button type="button" class="chip" data-m="${esc(m)}" aria-pressed="false">${esc(m)}</button>`).join('')}</div>
+        <input class="input" id="ha-otro" placeholder="Escriba el motivo" hidden></fieldset>
+      ${nPers ? `<label class="marca"><input type="checkbox" id="ha-cargos"><span>Cerrar hoy los cargos vigentes de ${plural(nPers, 'persona')}<span class="sub" style="display:block">Así dejan de figurar como funcionarios actuales. Las personas no se borran.</span></span></label>` : ''}
+      ${comps.length ? `<label class="marca"><input type="checkbox" id="ha-comps" checked><span>${comps.length === 1 ? 'Dar por terminado su compromiso abierto' : `Dar por terminados sus ${comps.length} compromisos abiertos`}<span class="sub" style="display:block">Si lo desmarca, ${comps.length === 1 ? 'sigue' : 'siguen'} en Pendientes.</span></span></label>` : ''}
+      <p class="hoja-error" id="ha-err"></p>
+      <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button><button type="submit" class="btn-pri">Archivar</button></div>
+    </form>`);
+  $$('[data-m]', v).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); motivo = b.dataset.m;
+    $$('[data-m]', v).forEach(x => { x.classList.toggle('sel', x === b); x.setAttribute('aria-pressed', x === b); });
+    $('#ha-otro', v).hidden = motivo !== 'Otro'; if (motivo === 'Otro') $('#ha-otro', v).focus(); }));
+  $('[data-r="0"]', v).addEventListener('click', () => cerrarHoja());
+  $('form', v).addEventListener('submit', async e => {
+    e.preventDefault();
+    const m = motivo === 'Otro' ? $('#ha-otro', v).value.trim() : motivo;
+    if (!m) { $('#ha-err', v).textContent = motivo === 'Otro' ? 'Escriba el motivo.' : 'Escoja el motivo.'; return; }
+    const hoy = hoyISO(), poner = {};
+    if (tipo === 'empresa') poner.empresas = [{...o, archivada:true, archivadaEl:hoy, motivoArchivo:m, editada:ahora()}];
+    else poner.proyectos = [{...o, archivado:true, archivadoEl:hoy, motivoArchivo:m, ...(o.estado !== 'cerrado' ? {estado:'cerrado', cierre:hoy} : {}), editada:ahora()}];
+    if ($('#ha-cargos', v)?.checked) poner.cargos = cargos.map(c => ({...c, fin:hoy, editada:ahora()}));
+    if ($('#ha-comps', v)?.checked) poner.compromisos = comps.map(c => ({...c, cumplido:true, fechaCumplido:hoy, terminadoAlArchivar:true, editada:ahora()}));
+    await lote({poner});
+    cerrarHoja(); FE = null; aviso(`${o.nombre} quedó en el archivo`); profundidad = 0;
+    reemplazar(tipo === 'empresa' ? '#/inicio' : '#/proyectos');
+  });
+}
+async function restaurarArchivo(tipo, id){
+  if (tipo === 'empresa') { const e = empresa(id); if (!e) return; await guardar('empresas', {...e, archivada:false, archivadaEl:'', motivoArchivo:'', editada:ahora()}); }
+  else { const p = proyecto(id); if (!p) return; await guardar('proyectos', {...p, archivado:false, archivadoEl:'', motivoArchivo:'', editada:ahora()}); }
+  aviso(tipo === 'empresa' ? 'Entidad restaurada' : 'Proyecto restaurado; quedó en Cerrados'); render();
+}
+/* Franja en la pantalla de algo archivado */
+const franjaArchivada = (tipo, o) => archivadoDe(tipo, o) ? `<div class="sec"><div class="franja info">${I.info}<span class="col"><span class="franja-t">${tipo === 'empresa' ? 'Archivada' : 'Archivado'}${lineaArchivo(o) ? ' · ' + esc(lineaArchivo(o)) : ''}</span><span class="franja-s">No aparece en ${tipo === 'empresa' ? 'Entidades' : 'Proyectos'}; su historia se conserva.</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:inherit" data-action="restaurar-arch" data-t="${tipo}" data-id="${o.id}">Restaurar</button></div></div>` : '';
+
 /* Hoja del rol de una persona en un proyecto: cambiarlo, sacarla del proyecto o quitarla si fue un error */
 function hojaRol(xid){
   const x = papel(xid); if (!x) return;
@@ -2542,7 +2608,8 @@ function vistaAjustes(id, q = {}){
       ${conv.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc(tipo(e.vinculoId).nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="convertir" data-id="${e.id}">Convertir</button></div>`).join('')}
     </div></div>` : '';
   const propios = S.tiposVinculo.filter(t => t.propio);
-  const arch = S.empresas.filter(e => e.archivada);
+  const arch = [...S.empresas.filter(e => e.archivada).map(o => ({t:'empresa', o})), ...S.proyectos.filter(p => p.archivado).map(o => ({t:'proyecto', o}))]
+    .sort((a,b) => String(b.o.archivadaEl || b.o.archivadoEl || '').localeCompare(String(a.o.archivadaEl || a.o.archivadoEl || '')) || compararTexto(a.o.nombre, b.o.nombre));
   const hayEjemplo = [...S.empresas, ...S.personas].some(x => x.ejemplo);
   const opDias = [7,15,30,60].map(d => `<option value="${d}"${d===dias ? ' selected' : ''}>Cada ${d} días</option>`).join('');
   pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
@@ -2567,7 +2634,7 @@ function vistaAjustes(id, q = {}){
 
     <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una entidad.</p>`}</div>
 
-    <div class="sec"><h2 class="sec-titulo">Entidades archivadas</h2>${arch.length ? `<div class="tarjeta col" style="gap:0">${arch.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp"></span><span class="col"><span class="nom">${esc(e.nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="restaurar" data-id="${e.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No hay entidades archivadas.</p>`}</div>
+    <div class="sec" id="archivo"><h2 class="sec-titulo">Archivo</h2>${arch.length ? `<p class="ayuda" style="margin:0">Entidades y proyectos que ya no aparecen en las listas. Toque uno para consultarlo.</p><div class="tarjeta col" style="gap:0">${arch.map(({t, o}) => `<div class="fila fila-rol" style="--c:${cv(o.color)}"><a href="#/${t}/${o.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(o.nombre)}</span><span class="sub">${esc([t === 'empresa' ? 'Entidad' : 'Proyecto', lineaArchivo(o)].filter(Boolean).join(' · '))}</span></span></a><button type="button" class="rol-btn" data-action="restaurar-arch" data-t="${t}" data-id="${o.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">El archivo está vacío. Una entidad se archiva desde “Editar”; un proyecto, desde abajo en su pantalla.</p>`}</div>
 
     <div class="sec"><h2 class="sec-titulo">Papelera</h2>${S.papelera.length ? `<div class="tarjeta col" style="gap:0">${[...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada)).map(it => {
         const vence = new Date(new Date(it.creada).getTime() + PAPELERA_DIAS * 86400000);
@@ -2949,7 +3016,7 @@ const ACCIONES = {
   'imp-confirmar': () => confirmarImport(),
   'ejemplo-cargar': () => cargarEjemplo(),
   'ejemplo-borrar': () => borrarEjemplo(),
-  restaurar: async b => { await guardar('empresas', {...empresa(b.dataset.id), archivada:false}); aviso('Entidad restaurada'); render(); },
+  restaurar: b => restaurarArchivo('empresa', b.dataset.id),
   'tipo-borrar': async b => {
     const usada = S.empresas.some(e => e.vinculoId === b.dataset.id);
     if (usada) return mensaje('Este tipo está asignado a una o más entidades. Cámbieles el vínculo antes de quitarlo.');
@@ -2964,11 +3031,10 @@ const ACCIONES = {
     await guardar('tiposVinculo', t); FE.vinculoId = t.id;
     vistaEmpresaForm(FE._para === 'nueva' ? undefined : FE._para);
   },
-  'fe-archivar': async () => {
-    const e = empresa(FE._para);
-    if (!await confirmar(`“${e.nombre}” deja de aparecer en el inicio, pero sus personas, cargos y notas se conservan. Puede restaurarla desde Ajustes.`, {titulo:'Archivar entidad', si:'Archivar'})) return;
-    await guardar('empresas', {...e, archivada:true}); FE = null; aviso('Entidad archivada'); profundidad = 0; reemplazar('#/inicio');
-  },
+  'fe-archivar': () => hojaArchivar('empresa', FE._para),
+  'archivar-proy': b => hojaArchivar('proyecto', b.dataset.id),
+  'restaurar-arch': b => restaurarArchivo(b.dataset.t, b.dataset.id),
+  'busq-arch': () => { ARCH_VER = !ARCH_VER; render(); },
   /* Formulario de persona */
   'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
   'fp-existente': b => { if (ruta().q.desde === 'papel') { FP = null; return volverAPapel(b.dataset.id); } FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
