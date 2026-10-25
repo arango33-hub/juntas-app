@@ -424,6 +424,10 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
 .fila-rol > a:hover{color:var(--texto)}
 .rol-btn{flex-shrink:0;min-height:36px;margin-right:12px;padding:0 14px;border-radius:999px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--acento);font-size:14px;font-weight:600}
 .fila-rol.atenuado{opacity:1}.fila-rol.atenuado > a{opacity:.6}
+.mini-acc{display:flex;gap:6px;padding-right:12px;flex-shrink:0}
+.btn-mini{width:40px;height:40px;border-radius:12px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);display:flex;align-items:center;justify-content:center;text-decoration:none}
+.btn-mini:hover{color:var(--texto)}
+.btn-mini[aria-disabled="true"]{opacity:.35}
 .btn-lin{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border-radius:12px;border:1px dashed var(--punto);background:transparent;color:var(--acento);font-size:15px;font-weight:600;padding:0 16px;width:100%}
 </style>
 </head>
@@ -440,7 +444,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '2.9 · fase 2' };
+const APP = { nombre: 'Mentor', version: '2.10 · fase 2' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -827,6 +831,17 @@ async function purgarPapelera(){
   const viejos = S.papelera.filter(x => new Date(x.creada).getTime() < limite).map(x => x.id);
   if (viejos.length) await lote({quitar:{papelera:viejos}});
 }
+/* Asistentes (2.10): cada asistente es una persona más; el jefe guarda la lista de sus ids */
+const asistentesDe = p => [...new Set(p.asistentes || [])].map(persona).filter(Boolean);
+const jefesDe = id => S.personas.filter(x => (x.asistentes || []).includes(id));
+const nombresY = l => l.length <= 1 ? (l[0] || '') : l.slice(0, -1).join(', ') + ' y ' + l[l.length - 1];
+/* Asistente anotado como texto en versiones anteriores ("Asistente: Marta Ríos · +57 …") */
+function asistenteTexto(p){
+  if (String(p.asistente || '').trim() || String(p.asistenteTel || '').trim()) return {nombre: String(p.asistente || '').trim(), tel: String(p.asistenteTel || '').trim(), deCampo:true};
+  const m = String(p.otros || '').match(/^Asistente: (.+)$/m); if (!m) return null;
+  const [nombre, tel] = m[1].split(' · ').map(x => x.trim());
+  return {nombre: /\d/.test(nombre) && !tel ? '' : nombre, tel: tel || (/\d/.test(nombre) ? nombre : ''), linea: m[0]};
+}
 /* Desde la 2.2 la ficha no tiene asistente: si una persona lo tenía, se muestra y se guarda dentro de "Otros datos" */
 function asistenteHeredado(p){
   const n = String(p.asistente || '').trim(), t = String(p.asistenteTel || '').trim();
@@ -1152,7 +1167,8 @@ function tarjetaEmpresa(e){
 }
 function filaPersonaBusq(p, c){
   const e = c && empresa(c.empresaId);
-  const sub = c ? [c.cargo || c.rolJunta, c.area, e && e.nombre].filter(Boolean).join(' · ') : 'Sin cargo registrado';
+  const jefes = !c ? jefesDe(p.id) : [];
+  const sub = c ? [c.cargo || c.rolJunta, c.area, e && e.nombre].filter(Boolean).join(' · ') : jefes.length ? 'Asistente de ' + nombresY(jefes.map(j => j.nombre)) : 'Sin cargo registrado';
   return `<a class="fila" href="#/persona/${p.id}${e ? '?e=' + e.id : ''}" style="--c:${e ? cv(e.color) : 'var(--acento)'}">
     <div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
     <span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(sub)}</span></span>${I.chev}</a>`;
@@ -1197,7 +1213,7 @@ function pintarLista(){
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
     const camposCargo = c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre];
-    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
+    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
     const porCargo = cs.find(c => ps.some(w => norm(camposCargo(c).join(' ')).includes(w)));
     pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
   }
@@ -1388,10 +1404,12 @@ function vistaPersona(id, q){
       <div class="col"><h1 class="serif t26">${esc(p.nombre)}</h1>
         ${ctx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([ctx.cargo || ctx.rolJunta, ctx.area].filter(Boolean).join(' · '))}</span>` : ''}
         ${papCtx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([papCtx.papel || 'Rol sin definir', pCtx.nombre].join(' · '))}</span>` : ''}
-        ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}</div></div>
+        ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}
+        ${jefesDe(id).length ? `<span class="sub">Asistente de ${jefesDe(id).map(j => `<a href="#/persona/${j.id}">${esc(j.nombre)}</a>`).reduce((t, x, i, l) => t + (i === 0 ? '' : i === l.length - 1 ? ' y ' : ', ') + x, '')}</span>` : ''}</div></div>
     <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${acc(wa && 'https://wa.me/' + wa, I.mensaje, 'WhatsApp')}</div>
   </div></div>
   <div class="pagina con-accion">
+    ${seccionAsistentes(p)}
     <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
       ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna entidad.</p>`}</div>
@@ -1406,6 +1424,30 @@ function vistaPersona(id, q){
   </div>
   <div class="accion-fija"><a class="btn-pri" href="#/nota?persona=${id}${pCtx ? '&proy=' + pCtx.id : eCtx ? '&e=' + eCtx.id : ''}">${I.mic}Dictar nota</a></div>
   </div>`);
+}
+
+/* Asistentes en la ficha del jefe: nombre (abre su ficha) y botones para llamar, WhatsApp y correo */
+function seccionAsistentes(p){
+  const as = asistentesDe(p), legado = !as.length && asistenteTexto(p);
+  if (!as.length && !legado) return '';
+  const boton = (href, icono, txt) => href ? `<a class="btn-mini" href="${esc(href)}"${href.startsWith('http') ? ' target="_blank" rel="noopener"' : ''} aria-label="${esc(txt)}">${icono}</a>` : `<span class="btn-mini" aria-disabled="true" aria-label="${esc(txt)}: sin dato">${icono}</span>`;
+  const fila = a => { const cg = cargosPersona(a.id).find(vigente), e = cg && empresa(cg.empresaId), wa = numeroWhatsApp(a.telefono);
+    return `<div class="fila fila-rol"><a href="#/persona/${a.id}"><div class="av" aria-hidden="true">${esc(iniciales(a.nombre))}</div><span class="col"><span class="nom">${esc(a.nombre)}</span><span class="sub">${esc(cg ? [cg.cargo || cg.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Asistente')}</span></span></a>
+      <span class="mini-acc">${boton(a.telefono && hrefTel(a.telefono), I.tel, 'Llamar a ' + a.nombre)}${boton(wa && 'https://wa.me/' + wa, I.mensaje, 'WhatsApp a ' + a.nombre)}${boton(a.correo && 'mailto:' + a.correo, I.correo, 'Correo a ' + a.nombre)}</span></div>`; };
+  const aviso = legado ? `<div class="franja info">${I.info}<span class="col"><span class="franja-t">Asistente anotado: ${esc([legado.nombre, legado.tel].filter(Boolean).join(' · '))}</span><span class="franja-s">Conviértalo en persona para llamarlo, escribirle o enlazarlo.</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:inherit" data-action="as-convertir" data-id="${p.id}">Convertir</button></div>` : '';
+  return `<div class="sec"><h2 class="sec-titulo">${as.length > 1 ? 'Asistentes' : 'Asistente'}</h2>${as.length ? `<div class="tarjeta col" style="gap:0">${as.map(fila).join('')}</div>` : ''}${aviso}</div>`;
+}
+async function convertirAsistente(pid){
+  const p = persona(pid), t = p && asistenteTexto(p); if (!t) return;
+  if (!t.nombre) return mensaje('El asistente anotado no tiene nombre. Edite la persona y agréguelo en “Asistentes”.');
+  const ya = S.personas.find(x => x.id !== pid && norm(x.nombre) === norm(t.nombre));
+  const poner = {personas:[]};
+  let aid = ya?.id;
+  if (!ya) { aid = uid(); poner.personas.push({id:aid, creada:ahora(), nombre:t.nombre, trato:'', telefono:t.tel, correo:'', comoLaConocio:'', perfil:'', foto:null}); }
+  const otros = t.linea ? String(p.otros || '').split('\n').filter(l => l !== t.linea).join('\n').trim() : p.otros;
+  poner.personas.push({...p, asistentes:[...new Set([...(p.asistentes || []), aid])], asistente:'', asistenteTel:'', otros, editada:ahora()});
+  await lote({poner});
+  aviso(ya ? `${t.nombre} quedó como asistente (ya existía)` : `${t.nombre} quedó creada como asistente`); render();
 }
 
 /* ---------- 6 · Nota (escrita o dictada con el micrófono del teclado) ---------- */
@@ -1787,8 +1829,9 @@ function vistaPersonaForm(id, q){
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
     FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', telefono2:p.telefono2||'', ext2:p.ext2||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
+             asis: asistentesDe(p).map(a => ({id:a.id})), asBusq:'',
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
+           : {_para:'nueva', asis:[], asBusq:'', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1819,6 +1862,13 @@ function vistaPersonaForm(id, q){
       </div>
       <p class="ayuda" style="margin:-4px 0 0">Si no sabe el año del cumpleaños, ponga cualquiera: solo se usan el día y el mes.</p>
       <div class="campo"><label for="fp-otros">Otros datos</label><textarea class="input" id="fp-otros" style="min-height:80px" placeholder="Familia, intereses, temas a evitar…">${esc(FP.otros)}</textarea></div>
+    </fieldset>
+    <fieldset><legend>Asistentes <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
+      ${FP.asis.length ? `<div class="tarjeta col" style="gap:0">${FP.asis.map((a, i) => { const x = persona(a.id);
+        return `<div class="fila"><span class="col"><span class="nom">${esc(x ? x.nombre : a.nombre)}</span><span class="sub">${x ? esc((cargosPersona(x.id).find(vigente)?.cargo) || 'Persona') : 'Persona nueva; se crea al guardar'}</span></span><button type="button" class="quitar" data-action="fp-as-quitar" data-i="${i}" aria-label="Quitar asistente">×</button></div>`; }).join('')}</div>` : ''}
+      <input class="input" id="fp-asbusq" type="search" placeholder="Escriba el nombre del asistente" autocomplete="off" autocapitalize="words" value="${esc(FP.asBusq)}">
+      <div class="tarjeta col" id="fp-asres" style="gap:0" hidden></div>
+      <p class="ayuda" style="margin:0">Escoja a alguien que ya existe (por ejemplo, un funcionario de la entidad) o créelo; puede ser alguien que no está en ninguna entidad.</p>
     </fieldset>`}
     ${nueva ? `<fieldset><legend>Cargo ${ex ? '' : '<span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span>'}</legend>${camposCargo(FP,'fp')}
       <div class="campo"><label for="fp-inicio">Desde <span class="opc">(opcional)</span></label><input class="input" id="fp-inicio" type="date" value="${esc(FP.inicio)}"></div></fieldset>` : ''}
@@ -1835,6 +1885,19 @@ function vistaPersonaForm(id, q){
     b('#fp-tel','telefono'); b('#fp-tel2','telefono2'); b('#fp-ext2','ext2'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
     b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
+    const asRes = $('#fp-asres');
+    const pintarAs = () => {
+      const t = FP.asBusq.trim(), q2 = norm(t);
+      if (q2.length < 2) { asRes.hidden = true; return; }
+      const fuera = new Set([FP._para, ...FP.asis.map(a => a.id)]);
+      const m = S.personas.filter(x => !fuera.has(x.id) && norm(x.nombre).includes(q2)).sort((a,b) => compararTexto(a.nombre, b.nombre)).slice(0, 6);
+      asRes.hidden = false;
+      ponerHTML(asRes, m.map(x => { const c = cargosPersona(x.id).find(vigente), e = c && empresa(c.empresaId);
+          return `<button type="button" class="fila" data-action="fp-as-add" data-id="${x.id}"><span class="col"><span class="nom">${esc(x.nombre)}</span><span class="sub">${esc(c ? [c.cargo || c.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
+        + (m.some(x => norm(x.nombre) === q2) || FP.asis.some(a => norm(a.nombre || '') === q2) ? '' : `<button type="button" class="fila" data-action="fp-as-crear"><span class="col"><span class="nom" style="color:var(--acento)">+ Crear “${esc(t)}”</span><span class="sub">Asistente nuevo; después puede completar sus datos</span></span></button>`));
+    };
+    $('#fp-asbusq').addEventListener('input', e => { FP.asBusq = e.target.value; pintarAs(); });
+    pintarAs();
   }
   if (nueva) { enlazarCargo(FP, 'fp', FP.existenteId); $('#fp-inicio').addEventListener('input', e => FP.inicio = e.target.value); }
   else FP.cargos.forEach((c, i) => {
@@ -1875,7 +1938,10 @@ async function guardarPersona(){
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
       const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), telefono2:FP.telefono2.trim(), ext2:soloDigitos(FP.ext2), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
         asistente:'', asistenteTel:'', cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
-      poner.personas = [p]; pid = p.id;
+      /* Asistentes nuevos escritos con "+ Crear": se crean ahora como personas sin entidad */
+      const nuevosAs = FP.asis.filter(a => !persona(a.id)).map(a => ({id:a.id, creada:ahora(), nombre:a.nombre, trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', foto:null}));
+      p.asistentes = FP.asis.map(a => a.id).filter(x => x !== p.id);
+      poner.personas = [p, ...nuevosAs]; pid = p.id;
     }
   }
   if (!nueva) {
@@ -1948,7 +2014,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   /* Busca en los datos de la persona, sus cargos, su perfil y el texto de sus notas */
   const notasDe = p => S.notas.filter(n => tocaA(n, 'persona', p.id)).sort(ordenNotas);
-  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
+  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
     ...papelesPersona(p.id).flatMap(x => [x.papel, proyecto(x.proyectoId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
@@ -2906,7 +2972,8 @@ async function cargarEjemplo(){
   const lc = E('Logística Caribe S.A.S.', 15, 'suplente', 'turquesa', 'Logística', 'Barranquilla');
   const cs = E('Constructora Sabana', null, 'relacion-comercial', 'morado', 'Construcción', 'Chía', 'Proveedor del proyecto de Rionegro');
   const P = (nombre, trato, telefono='', correo='', comoLaConocio='', perfil='') => ({id:uid(), creada:cr(), nombre, trato, telefono, correo, comoLaConocio, perfil, foto:null, ejemplo:true});
-  const jm = P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía');
+  const mr = P('Marta Ríos','ella','+57 300 000 0199','marta@ejemplo.com','Asistente personal de Jorge Mejía');
+  const jm = {...P('Jorge Mejía','él','+57 300 000 0101','jorge@ejemplo.com','Fundador de la compañía'), asistentes:[mr.id]};
   const lcz = P('Laura Cárdenas','ella','+57 300 000 0102','laura@ejemplo.com','Comité de auditoría 2025','Contadora, muy rigurosa con los controles. Coincide en priorizar la deuda.');
   const av = P('Andrés Villegas','él','','andres@ejemplo.com');
   const co = P('Carlos Ospina','él','+57 300 000 0104','carlos@ejemplo.com');
@@ -2962,7 +3029,7 @@ async function cargarEjemplo(){
       CO('Revisar el borrador del acuerdo de compraventa', 'yo', dia(32), h3), CO('Firmar acuerdo de confidencialidad', 'yo', dia(-25), h1, true),
       {...CO('Enviarle el artículo sobre comités de auditoría', 'yo', dia(5), null), proyectoId:'', refTipo:'persona', refId:lcz.id}]};
   cargos.forEach(c => c.ejemplo = true);
-  await lote({poner:{empresas:[ga,cc,tv,lc,cs,is], personas:[jm,lcz,av,co,sr,ng,fa,mt,rv,dq,hp,ys,gm,pr,vd,th], cargos, notas, ...proy}});
+  await lote({poner:{empresas:[ga,cc,tv,lc,cs,is], personas:[jm,mr,lcz,av,co,sr,ng,fa,mt,rv,dq,hp,ys,gm,pr,vd,th], cargos, notas, ...proy}});
   aviso('Datos de ejemplo cargados'); BUSQUEDA = ''; FILTRO = 'todas';
   reemplazar('#/inicio'); render();
 }
@@ -3038,6 +3105,10 @@ const ACCIONES = {
   /* Formulario de persona */
   'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
   'fp-existente': b => { if (ruta().q.desde === 'papel') { FP = null; return volverAPapel(b.dataset.id); } FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
+  'fp-as-add': b => { if (!FP.asis.some(a => a.id === b.dataset.id)) FP.asis.push({id:b.dataset.id}); FP.asBusq = ''; vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
+  'fp-as-crear': () => { const n = FP.asBusq.trim(); if (!n) return; FP.asis.push({id:uid(), nombre:n}); FP.asBusq = ''; vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
+  'fp-as-quitar': b => { FP.asis.splice(+b.dataset.i, 1); vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
+  'as-convertir': b => convertirAsistente(b.dataset.id),
   'fp-sin-existente': () => { FP.existenteId = null; vistaPersonaForm(undefined, {}); },
   'fp-borrar': async () => {
     const p = persona(FP._para);
