@@ -455,7 +455,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.0 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.1 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1114,7 +1114,7 @@ function render(){
   if (r !== 'hito') FH = null;
   if (r !== 'papel' && !(r === 'persona-form' && q.desde === 'papel')) FPA = null;
   if (r !== 'compromiso') FCO = null;
-  if (r !== 'junta-form') FJ = null;
+  if (r !== 'junta-form' && !(r === 'persona-form' && q.desde === 'junta')) FJ = null;
   VISTAS[r](partes[1], q);
   document.title = APP.nombre;
   rutaActual = location.hash;
@@ -1831,6 +1831,17 @@ function enlazarCargo(st, pref, excluirId){
 }
 const hayContactos = () => 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts;
 /* Al volver de "Editar datos" en Persona en el proyecto, la persona queda escogida en ese formulario */
+/* Igual que en los proyectos: al guardar la ficha de un invitado se vuelve al formulario de la junta */
+function volverAJunta(pid){
+  const tmp = ruta().q.tmp;
+  if (FJ) {
+    const i = tmp ? FJ.invitados.findIndex(x => x.id === tmp) : -1;
+    if (i >= 0) FJ.invitados[i] = {id:pid};
+    else if (!FJ.invitados.some(x => x.id === pid) && !FJ.asistentes.includes(pid)) FJ.invitados.push({id:pid});
+    FJ.invBusq = '';
+  }
+  volver('#/inicio');
+}
 function volverAPapel(pid){
   if (FPA) { FPA.personaId = pid; FPA.nombreNuevo = ''; FPA.busq = ''; }
   volver('#/proyectos');
@@ -1973,7 +1984,7 @@ async function guardarPersona(){
     const igual = S.personas.find(p => p.id !== FP._para && norm(p.nombre) === norm(nombre));
     if (igual) {
       const usar = await confirmar(`Ya existe “${igual.nombre}”. Una persona debe existir una sola vez. ¿Es la misma persona?`, {titulo:'Posible duplicado', si: nueva ? 'Sí, usar la existente' : 'Guardar de todos modos', no: nueva ? 'No, es otra' : 'Cancelar'});
-      if (nueva && usar && !FP.empresaId) { FP = null; if (ruta().q.desde === 'papel') return volverAPapel(igual.id); reemplazar('#/persona/' + igual.id); return; }
+      if (nueva && usar && !FP.empresaId) { FP = null; if (ruta().q.desde === 'papel') return volverAPapel(igual.id); if (ruta().q.desde === 'junta') return volverAJunta(igual.id); reemplazar('#/persona/' + igual.id); return; }
       if (nueva && usar) { FP.existenteId = igual.id; pid = igual.id; }
       else if (!nueva && !usar) return;
     }
@@ -2003,6 +2014,7 @@ async function guardarPersona(){
   await lote({poner});
   const emp = FP.empresaId; FP = null; aviso('Persona guardada');
   if (ruta().q.desde === 'papel') return volverAPapel(pid);
+  if (ruta().q.desde === 'junta') return volverAJunta(pid);
   if (nueva && !emp) reemplazar('#/persona/' + pid); else volver(nueva ? '#/empresa/' + emp : '#/persona/' + pid);
 }
 
@@ -2751,6 +2763,10 @@ function vistaJunta(id){
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos de esta junta</h2><a class="enlace-btn" style="font-size:14px" href="#/compromiso?empresa=${e.id}&junta=${id}">+ Agregar</a></div>
       ${comps.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}</div>` : `<p class="tarjeta vacio">Sin compromisos. También puede dejarlos al dictar la nota de la junta.</p>`}</div>
     <div class="sec mas"><h2 class="sec-titulo">Mis notas</h2>${lineaTiempo(notas, {tipo:'empresa', id:e.id}, 'Aún no hay notas de esta junta. Use el botón de abajo.')}</div>
+    ${asistentesJunta(r).length || invitadosJunta(r).length ? `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">${futura ? 'Convocados' : 'Asistentes e invitados'}</h2><a class="enlace-btn" style="font-size:14px" href="#/junta-form/${id}">Cambiar</a></div><div class="tarjeta col" style="gap:0">${[
+      ...asistentesJunta(r).map(p => ({p, sub: [cargosPersona(p.id).find(x => x.empresaId === e.id && vigente(x))?.rolJunta || 'Asistente'].join('')})),
+      ...invitadosJunta(r).map(p => ({p, sub: ['Invitado', (() => { const cg = cargosPersona(p.id).find(vigente), en = cg && empresa(cg.empresaId); return cg ? [cg.cargo || cg.rolJunta, en?.nombre].filter(Boolean).join(' · ') : ''; })()].filter(Boolean).join(' · ')}))
+    ].map(({p, sub}) => `<a class="fila" href="#/persona/${p.id}?e=${e.id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(sub)}</span></span>${I.chev}</a>`).join('')}</div></div>` : ''}
     ${futura ? '<div style="height:32px"></div>' : `<div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Acta</h2><div class="tarjeta datos">
       <div class="dato"><span>Estado</span><span${r.acta === 'pendiente' ? ' class="pend"' : ''}>${esc(actaTxt)}</span></div>
       ${r.actaDonde ? `<div class="dato"><span>Dónde está</span>${esURL(r.actaDonde) ? `<a href="${esc(r.actaDonde.trim())}" target="_blank" rel="noopener">Abrir enlace</a>` : `<span>${esc(r.actaDonde)}</span>`}</div>` : ''}
@@ -2789,7 +2805,8 @@ function vistaJuntaForm(id, q){
     </fieldset>
     <fieldset><legend>Invitados <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
       ${FJ.invitados.length ? `<div class="tarjeta col" style="gap:0">${FJ.invitados.map((x, i) => { const p = persona(x.id);
-        return `<div class="fila"><span class="col"><span class="nom">${esc(p ? p.nombre : x.nombre)}</span><span class="sub">${p ? esc((cargosPersona(p.id).find(vigente)?.cargo) || 'Persona') : 'Persona nueva; se crea al guardar'}</span></span><button type="button" class="quitar" data-action="fj-inv-quitar" data-i="${i}" aria-label="Quitar invitado">×</button></div>`; }).join('')}</div>` : ''}
+        const href = p ? `#/persona-form/${p.id}?desde=junta` : `#/persona-form?desde=junta&tmp=${encodeURIComponent(x.id)}&nombre=${encodeURIComponent(x.nombre)}`;
+        return `<div class="fila"><span class="col"><span class="nom">${esc(p ? p.nombre : x.nombre)}</span><span class="sub">${p ? esc((cargosPersona(p.id).find(vigente)?.cargo) || 'Persona') : 'Persona nueva'}</span></span><a class="enlace-btn" style="margin-left:auto;font-size:14px" href="${href}">${p ? 'Editar datos' : 'Completar datos'}</a><button type="button" class="quitar" style="margin-left:0" data-action="fj-inv-quitar" data-i="${i}" aria-label="Quitar invitado">×</button></div>`; }).join('')}</div>` : ''}
       <input class="input" id="fj-invbusq" type="search" placeholder="Escriba el nombre del invitado" autocomplete="off" autocapitalize="words" value="${esc(FJ.invBusq)}">
       <div class="tarjeta col" id="fj-invres" style="gap:0" hidden></div>
     </fieldset>
@@ -3366,7 +3383,7 @@ const ACCIONES = {
   'busq-arch': () => { ARCH_VER = !ARCH_VER; render(); },
   /* Formulario de persona */
   'fp-trato': b => { FP.trato = b.dataset.v; $$('[data-action="fp-trato"]').forEach(x => { x.classList.toggle('sel', x===b); x.setAttribute('aria-pressed', x===b); }); },
-  'fp-existente': b => { if (ruta().q.desde === 'papel') { FP = null; return volverAPapel(b.dataset.id); } FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
+  'fp-existente': b => { if (ruta().q.desde === 'papel') { FP = null; return volverAPapel(b.dataset.id); } if (ruta().q.desde === 'junta') { FP = null; return volverAJunta(b.dataset.id); } FP.existenteId = b.dataset.id; vistaPersonaForm(undefined, {}); },
   'fp-as-add': b => { if (!FP.asis.some(a => a.id === b.dataset.id)) FP.asis.push({id:b.dataset.id}); FP.asBusq = ''; vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
   'fp-as-crear': () => { const n = FP.asBusq.trim(); if (!n) return; FP.asis.push({id:uid(), nombre:n}); FP.asBusq = ''; vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
   'fp-as-quitar': b => { FP.asis.splice(+b.dataset.i, 1); vistaPersonaForm(FP._para === 'nueva' ? undefined : FP._para, ruta().q); },
