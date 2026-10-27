@@ -439,6 +439,8 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
 .lista-num{margin:0;padding:16px 16px 16px 36px;display:flex;flex-direction:column;gap:10px;font-size:15px;line-height:1.45}
 .item-lista{padding:14px 16px;border-bottom:1px solid var(--linea);font-size:15px;line-height:1.45;overflow-wrap:anywhere}
 .item-lista:last-child{border-bottom:0}
+button.per-acc,button.btn-mini{padding:0;font-family:inherit;cursor:pointer;width:100%}
+button.btn-mini{width:40px}
 .btn-lin{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border-radius:12px;border:1px dashed var(--punto);background:transparent;color:var(--acento);font-size:15px;font-weight:600;padding:0 16px;width:100%}
 </style>
 </head>
@@ -455,7 +457,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.4 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.5 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -557,6 +559,22 @@ const esMovil = () => matchMedia('(pointer: coarse)').matches;
 function hrefTel(tel, ext){
   const t = String(tel || '').trim(), d = soloDigitos(t), x = soloDigitos(ext);
   return d ? 'tel:' + (t.startsWith('+') ? '+' : '') + d + (x ? ',' + x : '') : '';
+}
+/* Usuario de WhatsApp (sin la @): letras, números, punto y guion bajo */
+const limpiarUsuarioWA = u => String(u || '').trim().replace(/^@+/, '').replace(/\s+/g, '');
+const usuarioWAValido = u => !u || /^[A-Za-z][A-Za-z0-9._]{2,34}$/.test(u);
+/* Botón de WhatsApp: con teléfono abre el chat directo; si solo hay usuario, lo copia y abre WhatsApp para pegarlo en "Nuevo chat" */
+function botonWA(p, clase, contenido, etiqueta){
+  const wa = numeroWhatsApp(p.telefono);
+  if (wa) return `<a class="${clase}" href="https://wa.me/${wa}" target="_blank" rel="noopener"${etiqueta ? ` aria-label="${esc(etiqueta)}"` : ''}>${contenido}</a>`;
+  if (p.waUsuario) return `<button type="button" class="${clase}" data-action="wa-usuario" data-u="${esc(p.waUsuario)}"${etiqueta ? ` aria-label="${esc(etiqueta)} (@${esc(p.waUsuario)})"` : ''}>${contenido}</button>`;
+  return `<span class="${clase}" aria-disabled="true"${etiqueta ? ` aria-label="${esc(etiqueta)}: sin dato"` : ''}>${contenido}</span>`;
+}
+async function abrirUsuarioWA(u){
+  let copiado = false;
+  try { await navigator.clipboard.writeText('@' + u); copiado = true; } catch (e) {}
+  aviso(copiado ? `Copiado @${u}. En WhatsApp toque “Nuevo chat” y péguelo en la búsqueda.` : `En WhatsApp toque “Nuevo chat” y busque @${u}.`);
+  setTimeout(() => { location.href = 'whatsapp://'; }, 900);
 }
 function numeroWhatsApp(tel){
   const t = String(tel || '').trim(), d = soloDigitos(t);
@@ -1229,7 +1247,7 @@ function pintarLista(){
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
     const camposCargo = c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre];
-    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
+    if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, p.waUsuario, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
     const porCargo = cs.find(c => ps.some(w => norm(camposCargo(c).join(' ')).includes(w)));
     pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
   }
@@ -1420,6 +1438,7 @@ function vistaPersona(id, q){
   const reporta = ctx ? nombreReporta(ctx) : '';
   const datos = [
     p.telefono && `<div class="dato"><span>Celular</span><a href="tel:${esc(telHref)}">${esc(p.telefono)}</a></div>`,
+    p.waUsuario && `<div class="dato"><span>Usuario WhatsApp</span><button type="button" class="enlace-btn" style="padding:0;min-height:0;font-weight:400;text-decoration:underline" data-action="wa-usuario" data-u="${esc(p.waUsuario)}">@${esc(p.waUsuario)}</button></div>`,
     p.telefono2 && `<div class="dato"><span>Otro teléfono</span><a href="${esc(hrefTel(p.telefono2, p.ext2))}">${esc(p.telefono2)}${p.ext2 ? ' ext. ' + esc(p.ext2) : ''}</a></div>`,
     p.correo && `<div class="dato"><span>Correo</span><a href="mailto:${esc(p.correo)}">${esc(p.correo)}</a></div>`,
     p.comoLaConocio && `<div class="dato"><span>${p.trato==='él' ? 'Lo conocí' : 'La conocí'}</span><span>${esc(p.comoLaConocio)}</span></div>`,
@@ -1446,7 +1465,7 @@ function vistaPersona(id, q){
         ${papCtx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([papCtx.papel || 'Rol sin definir', pCtx.nombre].join(' · '))}</span>` : ''}
         ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}
         ${jefesDe(id).length ? `<span class="sub">Asistente de ${jefesDe(id).map(j => `<a href="#/persona/${j.id}">${esc(j.nombre)}</a>`).reduce((t, x, i, l) => t + (i === 0 ? '' : i === l.length - 1 ? ' y ' : ', ') + x, '')}</span>` : ''}</div></div>
-    <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${acc(wa && 'https://wa.me/' + wa, I.mensaje, 'WhatsApp')}</div>
+    <div class="per-acciones">${acc(telHref && 'tel:' + telHref, I.tel, 'Llamar')}${acc(p.correo && 'mailto:' + p.correo, I.correo, 'Correo')}${botonWA(p, 'per-acc', I.mensaje + 'WhatsApp')}</div>
   </div></div>
   <div class="pagina con-accion">
     ${seccionAsistentes(p)}
@@ -1476,7 +1495,7 @@ function seccionAsistentes(p){
   const boton = (href, icono, txt) => href ? `<a class="btn-mini" href="${esc(href)}"${href.startsWith('http') ? ' target="_blank" rel="noopener"' : ''} aria-label="${esc(txt)}">${icono}</a>` : `<span class="btn-mini" aria-disabled="true" aria-label="${esc(txt)}: sin dato">${icono}</span>`;
   const fila = a => { const cg = cargosPersona(a.id).find(vigente), e = cg && empresa(cg.empresaId), wa = numeroWhatsApp(a.telefono);
     return `<div class="fila fila-rol"><a href="#/persona/${a.id}"><div class="av" aria-hidden="true">${esc(iniciales(a.nombre))}</div><span class="col"><span class="nom">${esc(a.nombre)}</span><span class="sub">${esc(cg ? [cg.cargo || cg.rolJunta, e?.nombre].filter(Boolean).join(' · ') : 'Asistente')}</span></span></a>
-      <span class="mini-acc">${boton(a.telefono && hrefTel(a.telefono), I.tel, 'Llamar a ' + a.nombre)}${boton(wa && 'https://wa.me/' + wa, I.mensaje, 'WhatsApp a ' + a.nombre)}${boton(a.correo && 'mailto:' + a.correo, I.correo, 'Correo a ' + a.nombre)}</span></div>`; };
+      <span class="mini-acc">${boton(a.telefono && hrefTel(a.telefono), I.tel, 'Llamar a ' + a.nombre)}${botonWA(a, 'btn-mini', I.mensaje, 'WhatsApp a ' + a.nombre)}${boton(a.correo && 'mailto:' + a.correo, I.correo, 'Correo a ' + a.nombre)}</span></div>`; };
   const aviso = legado ? `<div class="franja info">${I.info}<span class="col"><span class="franja-t">Asistente anotado: ${esc([legado.nombre, legado.tel].filter(Boolean).join(' · '))}</span><span class="franja-s">Conviértalo en persona para llamarlo, escribirle o enlazarlo.</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:inherit" data-action="as-convertir" data-id="${p.id}">Convertir</button></div>` : '';
   return `<div class="sec"><h2 class="sec-titulo">${as.length > 1 ? 'Asistentes' : 'Asistente'}</h2>${as.length ? `<div class="tarjeta col" style="gap:0">${as.map(fila).join('')}</div>` : ''}${aviso}</div>`;
 }
@@ -1900,10 +1919,10 @@ function vistaPersonaForm(id, q){
   if (!FP || FP._para !== (id || 'nueva')) {
     const p = id && persona(id);
     if (id && !p) return noEncontrado();
-    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', telefono2:p.telefono2||'', ext2:p.ext2||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
+    FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', telefono2:p.telefono2||'', ext2:p.ext2||'', waUsuario:p.waUsuario||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
              asis: asistentesDe(p).map(a => ({id:a.id})), asBusq:'',
              cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', asis:[], asBusq:'', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta: q.rj ? 'Miembro principal' : '', reportaTxt:'', inicio:''};
+           : {_para:'nueva', asis:[], asBusq:'', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', waUsuario:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta: q.rj ? 'Miembro principal' : '', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -1925,6 +1944,7 @@ function vistaPersonaForm(id, q){
       <div class="campo"><label for="fp-tel2">Otro teléfono <span class="opc">(opcional)</span></label><input class="input" id="fp-tel2" type="tel" inputmode="tel" value="${esc(FP.telefono2)}" placeholder="601 000 0000"></div>
       <div class="campo"><label for="fp-ext2">Ext.</label><input class="input" id="fp-ext2" inputmode="numeric" value="${esc(FP.ext2)}" placeholder="123"></div>
     </div>
+    <div class="campo"><label for="fp-wau">Usuario de WhatsApp <span class="opc">(si no tiene el celular)</span></label><input class="input" id="fp-wau" autocapitalize="off" autocomplete="off" spellcheck="false" value="${FP.waUsuario ? '@' + esc(FP.waUsuario) : ''}" placeholder="@usuario"></div>
     <div class="campo"><label for="fp-conoci">Cómo la conocí <span class="opc">(opcional)</span></label><input class="input" id="fp-conoci" value="${esc(FP.comoLaConocio)}" placeholder="Ej. Junta de marzo 2026"></div>
     <div class="campo"><label for="fp-perfil">Perfil corto <span class="opc">(opcional)</span></label><textarea class="input" id="fp-perfil" placeholder="Formación, estilo, temas en los que es buena interlocutora…">${esc(FP.perfil)}</textarea></div>
     <fieldset><legend>Más datos <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
@@ -1954,7 +1974,7 @@ function vistaPersonaForm(id, q){
   </form>`);
   if (!ex) {
     const b = (s, k) => $(s).addEventListener('input', e => FP[k] = e.target.value);
-    b('#fp-tel','telefono'); b('#fp-tel2','telefono2'); b('#fp-ext2','ext2'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
+    b('#fp-tel','telefono'); b('#fp-tel2','telefono2'); b('#fp-ext2','ext2'); b('#fp-wau','waUsuario'); b('#fp-correo','correo'); b('#fp-conoci','comoLaConocio'); b('#fp-perfil','perfil');
     b('#fp-cumple','cumpleanos'); b('#fp-linkedin','linkedin'); b('#fp-otros','otros');
     $('#fp-nombre').addEventListener('input', e => { FP.nombre = e.target.value; if (nueva) sugerirPersonas(); });
     const asRes = $('#fp-asres');
@@ -1998,6 +2018,8 @@ async function guardarPersona(){
     const nombre = FP.nombre.trim();
     if (!nombre) { $('#fp-nombre').setAttribute('aria-invalid','true'); $('#fp-nombre').focus(); aviso('Escriba el nombre.'); return; }
     const correo = FP.correo.trim();
+    const waU = limpiarUsuarioWA(FP.waUsuario);
+    if (!usuarioWAValido(waU)) { $('#fp-wau').setAttribute('aria-invalid','true'); $('#fp-wau').focus(); aviso('Revise el usuario de WhatsApp: empieza con una letra y usa letras, números, punto o guion bajo (3 a 35).'); return; }
     if (correo && !/^\S+@\S+\.\S+$/.test(correo)) { $('#fp-correo').setAttribute('aria-invalid','true'); $('#fp-correo').focus(); aviso('Revise el correo.'); return; }
     const igual = S.personas.find(p => p.id !== FP._para && norm(p.nombre) === norm(nombre));
     if (igual) {
@@ -2008,7 +2030,7 @@ async function guardarPersona(){
     }
     if (!pid) {
       const base = nueva ? {id:uid(), creada:ahora(), foto:null} : persona(FP._para);
-      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), telefono2:FP.telefono2.trim(), ext2:soloDigitos(FP.ext2), correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
+      const p = {...base, nombre, trato:FP.trato, telefono:FP.telefono.trim(), telefono2:FP.telefono2.trim(), ext2:soloDigitos(FP.ext2), waUsuario:waU, correo, comoLaConocio:FP.comoLaConocio.trim(), perfil:FP.perfil.trim(),
         asistente:'', asistenteTel:'', cumpleanos:FP.cumpleanos, linkedin:FP.linkedin.trim(), otros:FP.otros.trim(), editada:ahora()};
       /* Asistentes nuevos escritos con "+ Crear": se crean ahora como personas sin entidad */
       const nuevosAs = FP.asis.filter(a => !persona(a.id)).map(a => ({id:a.id, creada:ahora(), nombre:a.nombre, trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', foto:null}));
@@ -2087,7 +2109,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   /* Busca en los datos de la persona, sus cargos, su perfil y el texto de sus notas */
   const notasDe = p => S.notas.filter(n => tocaA(n, 'persona', p.id)).sort(ordenNotas);
-  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
+  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, p.waUsuario, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
     ...papelesPersona(p.id).flatMap(x => [x.papel, proyecto(x.proyectoId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
@@ -3787,6 +3809,7 @@ const ACCIONES = {
   },
   /* Compromisos */
   'comp-toggle': b => alternarCompromiso(b.dataset.id),
+  'wa-usuario': b => abrirUsuarioWA(b.dataset.u),
   /* Juntas */
   'fj-tipo': b => { FJ.tipo = b.dataset.v; reJunta(); },
   'pj-organo': b => { FPJ.comiteId = b.dataset.v; reProg(); },
