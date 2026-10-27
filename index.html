@@ -457,7 +457,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.6 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.7 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1473,8 +1473,8 @@ function vistaPersona(id, q){
     <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
       ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna entidad.</p>`}</div>
-    ${comitesPersona(id).length ? `<div class="sec"><h2 class="sec-titulo">Comités</h2><div class="tarjeta col" style="gap:0">${comitesPersona(id).map(cm => { const en = empresa(cm.empresaId);
-      return `<a class="fila" href="#/comite/${cm.id}" style="--c:${cv(en?.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(nombreComite(cm))}</span><span class="sub">${esc(en?.nombre || '')}</span></span>${I.chev}</a>`; }).join('')}</div></div>` : ''}
+    ${comitesPersona(id).length || comitesInvitado(id).length ? `<div class="sec"><h2 class="sec-titulo">Comités</h2><div class="tarjeta col" style="gap:0">${[...comitesPersona(id).map(cm => [cm, '']), ...comitesInvitado(id).map(cm => [cm, 'Invitado habitual'])].map(([cm, papel]) => { const en = empresa(cm.empresaId);
+      return `<a class="fila" href="#/comite/${cm.id}" style="--c:${cv(en?.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(nombreComite(cm))}</span><span class="sub">${esc([papel, en?.nombre || ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`; }).join('')}</div></div>` : ''}
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Proyectos y roles</h2><a class="enlace-btn" style="font-size:14px" href="#/papel?p=${id}">+ Agregar</a></div>
       ${pps.length ? `<div class="tarjeta col" style="gap:0">${pps.map(filaPapel).join('')}</div>` : `<p class="tarjeta vacio">No participa en ningún proyecto.</p>`}</div>
     ${seccionCompromisos(ordenParaLista(compromisosPersona(id)), {tipo:'persona', id}, `#/compromiso?persona=${id}`)}
@@ -2834,7 +2834,7 @@ function vistaJuntaForm(id, q){
     FJ = r ? {_para:id, empresaId:eid, comiteId:r.comiteId || '', fecha:r.fecha || '', hora:r.hora || '', tipo: r.tipo === 'Comité' ? 'Ordinaria' : (r.tipo || 'Ordinaria'), comite:r.comite || '', asistentes:[...(r.asistentes || [])], invitados:[...(r.invitados || [])].map(x => ({id:x})),
               asisti: r.asisti !== false, motivo:r.motivo || '', motivoDetalle:r.motivoDetalle || '', fuente:r.fuente || '', fuentePersonaId:r.fuentePersonaId || '', fuenteTexto:r.fuenteTexto || '',
               temas:(r.temas || []).join('\n'), decisiones:(r.decisiones || []).join('\n'), acta:r.acta || 'sin', actaFecha:r.actaFecha || '', actaDonde:r.actaDonde || '', invBusq:''}
-           : {_para:'nueva', empresaId:eid, comiteId: q.comite && comite(q.comite) ? q.comite : '', fecha: q.prox ? '' : hoyISO(), hora: reunionesOrgano(eid, q.comite && comite(q.comite) ? q.comite : '')[0]?.hora || '', tipo:'Ordinaria', comite:'', asistentes: asistentesPropuestos(eid, q.comite && comite(q.comite) ? q.comite : ''), invitados:[], asisti:true, motivo:'', motivoDetalle:'',
+           : {_para:'nueva', empresaId:eid, comiteId: q.comite && comite(q.comite) ? q.comite : '', fecha: q.prox ? '' : hoyISO(), hora: reunionesOrgano(eid, q.comite && comite(q.comite) ? q.comite : '')[0]?.hora || '', tipo:'Ordinaria', comite:'', asistentes: asistentesPropuestos(eid, q.comite && comite(q.comite) ? q.comite : ''), invitados: invitadosPropuestos(q.comite && comite(q.comite) ? q.comite : '').map(x => ({id:x})), asisti:true, motivo:'', motivoDetalle:'',
               fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:'', decisiones:'', acta:'sin', actaFecha:'', actaDonde:'', invBusq:''};
   }
   const e = empresa(FJ.empresaId), nueva = FJ._para === 'nueva';
@@ -2858,6 +2858,7 @@ function vistaJuntaForm(id, q){
       ${FJ.invitados.length ? `<div class="tarjeta col" style="gap:0">${FJ.invitados.map((x, i) => { const p = persona(x.id);
         const href = p ? `#/persona-form/${p.id}?desde=junta` : `#/persona-form?desde=junta&tmp=${encodeURIComponent(x.id)}&nombre=${encodeURIComponent(x.nombre)}`;
         return `<div class="fila"><span class="col"><span class="nom">${esc(p ? p.nombre : x.nombre)}</span><span class="sub">${p ? esc((cargosPersona(p.id).find(vigente)?.cargo) || 'Persona') : 'Persona nueva'}</span></span><a class="enlace-btn" style="margin-left:auto;font-size:14px" href="${href}">${p ? 'Editar datos' : 'Completar datos'}</a><button type="button" class="quitar" style="margin-left:0" data-action="fj-inv-quitar" data-i="${i}" aria-label="Quitar invitado">×</button></div>`; }).join('')}</div>` : ''}
+      ${FJ.comiteId && invitadosPropuestos(FJ.comiteId).length && FJ._para === 'nueva' ? '<p class="ayuda" style="margin:0">Vienen puestos los invitados habituales del comité; quite con × a quien no fue.</p>' : ''}
       <input class="input" id="fj-invbusq" type="search" placeholder="Escriba el nombre del invitado" autocomplete="off" autocapitalize="words" value="${esc(FJ.invBusq)}">
       <div class="tarjeta col" id="fj-invres" style="gap:0" hidden></div>
     </fieldset>
@@ -2938,6 +2939,13 @@ const nombreCorto = n => { const t = String(n || '').trim().replace(/^(comit[eé
 const nombreComite = c => c ? 'Comité de ' + nombreCorto(c.nombre) : 'Comité';
 const reunionesOrgano = (eid, comiteId) => juntasEntidad(eid).filter(r => (r.comiteId || '') === (comiteId || ''));
 const comitesPersona = pid => S.comites.filter(c => c.activo !== false && (c.miembros || []).includes(pid));
+/* 3.7 · Comités donde la persona es invitada habitual */
+const comitesInvitado = pid => S.comites.filter(c => c.activo !== false && (c.invitados || []).includes(pid) && !(c.miembros || []).includes(pid));
+/* Invitados que vienen puestos en una reunión nueva del comité: sus invitados habituales */
+function invitadosPropuestos(comiteId){
+  const c = comiteId && comite(comiteId);
+  return c ? (c.invitados || []).filter(persona) : [];
+}
 /* Propuesta de asistentes de una reunión nueva del comité: sus miembros habituales o, si no hay, los de la última reunión */
 function asistentesPropuestos(eid, comiteId){
   if (!comiteId) return juntaDirectiva(eid).map(p => p.id);
@@ -2960,17 +2968,32 @@ function botonPrepararOrgano(e, comiteId){
 }
 function filaComite(c){
   const e = empresa(c.empresaId), b = botonPrepararOrgano(e, c.id);
-  const n = (c.miembros || []).filter(persona).length;
+  const n = (c.miembros || []).filter(persona).length, ni = (c.invitados || []).filter(persona).length;
   return `<a class="fila${c.activo === false ? ' atenuado' : ''}" href="#/comite/${c.id}"><span class="col"><span class="nom">${esc(nombreComite(c))}${c.activo === false ? ' <span class="sub">(inactivo)</span>' : ''}</span>
-    <span class="sub">${esc([c.miRol ? 'Yo: ' + c.miRol : '', n ? plural(n, 'miembro') : '', c.activo === false ? '' : (b.t.startsWith('Preparar') ? 'Próximo: ' + b.s.split(' · ')[0] : b.s)].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`;
+    <span class="sub">${esc([c.miRol ? 'Yo: ' + c.miRol : '', n ? plural(n, 'miembro') : '', ni ? plural(ni, 'invitado') : '', c.activo === false ? '' : (b.t.startsWith('Preparar') ? 'Próximo: ' + b.s.split(' · ')[0] : b.s)].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`;
 }
 
 /* ---------- Pantalla de un comité ---------- */
-let BUSQ_CM = '';
+let BUSQ_CM = {miembros:'', invitados:''};
+const LISTAS_CM = {
+  miembros: {tit:'Miembros habituales', ph:'+ Agregar miembro: escriba el nombre', quitar:'del comité',
+    ayuda:'Se proponen como asistentes en cada reunión nueva, y se pueden desmarcar. Si cambian, edite la lista: las reuniones pasadas conservan quién asistió. Si no anota miembros, la app propone los asistentes de la última reunión.'},
+  invitados: {tit:'Invitados habituales', ph:'+ Agregar invitado: escriba el nombre', quitar:'de los invitados',
+    ayuda:'Quienes asisten siempre sin ser miembros (ej. revisor fiscal, gerente). Vienen puestos como invitados en cada reunión nueva y se pueden quitar.'}
+};
+function seccionListaComite(c, e, campo){
+  const L = LISTAS_CM[campo], gente = (c[campo] || []).map(persona).filter(Boolean);
+  return `<div class="sec${campo === 'invitados' ? ' mas' : ''}"><div class="sec-fila"><h2 class="sec-titulo">${L.tit}</h2></div>
+      ${gente.length ? `<div class="tarjeta col" style="gap:0">${gente.map(p => { const cg = cargosPersona(p.id).find(x => x.empresaId === e.id && vigente(x)) || cargosPersona(p.id).find(vigente), en = cg && empresa(cg.empresaId);
+        return `<div class="fila fila-rol"><a href="#/persona/${p.id}?e=${e.id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(cg ? [cg.rolJunta || cg.cargo, en?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></a><button type="button" class="quitar" style="margin-right:8px" data-action="cm-quitar" data-id="${c.id}" data-l="${campo}" data-p="${p.id}" aria-label="Quitar a ${esc(p.nombre)} ${L.quitar}">×</button></div>`; }).join('')}</div>` : ''}
+      <input class="input" id="cm-busq-${campo}" type="search" placeholder="${L.ph}" autocomplete="off" autocapitalize="words" value="${esc(BUSQ_CM[campo])}">
+      <div class="tarjeta col" id="cm-res-${campo}" style="gap:0" hidden></div>
+      <p class="ayuda" style="margin:0">${L.ayuda}</p>
+    </div>`;
+}
 function vistaComite(id){
   const c = comite(id); if (!c) return noEncontrado();
   const e = empresa(c.empresaId); if (!e) return noEncontrado();
-  const miembros = (c.miembros || []).map(persona).filter(Boolean);
   const reus = reunionesOrgano(e.id, c.id);
   const b = botonPrepararOrgano(e, c.id);
   pintar(`<div class="pagina-total" style="--c:${cv(e.color)}">
@@ -2982,36 +3005,38 @@ function vistaComite(id){
     ${c.activo === false ? '' : `<a class="btn-preparar" href="${b.href}"><span class="col"><span class="t">${esc(b.t)}</span><span class="s">${esc(b.s)}</span></span>${I.chevBlanco}</a>`}
   </div></div>
   <div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
-    <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Miembros habituales</h2></div>
-      ${miembros.length ? `<div class="tarjeta col" style="gap:0">${miembros.map(p => { const cg = cargosPersona(p.id).find(x => x.empresaId === e.id && vigente(x)) || cargosPersona(p.id).find(vigente), en = cg && empresa(cg.empresaId);
-        return `<div class="fila fila-rol"><a href="#/persona/${p.id}?e=${e.id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(cg ? [cg.rolJunta || cg.cargo, en?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></a><button type="button" class="quitar" style="margin-right:8px" data-action="cm-quitar" data-id="${id}" data-p="${p.id}" aria-label="Quitar a ${esc(p.nombre)} del comité">×</button></div>`; }).join('')}</div>` : ''}
-      <input class="input" id="cm-busq" type="search" placeholder="+ Agregar miembro: escriba el nombre" autocomplete="off" autocapitalize="words" value="${esc(BUSQ_CM)}">
-      <div class="tarjeta col" id="cm-res" style="gap:0" hidden></div>
-      <p class="ayuda" style="margin:0">Se proponen como asistentes en cada reunión nueva, y se pueden desmarcar. Si cambian, edite la lista: las reuniones pasadas conservan quién asistió. Si no anota miembros, la app propone los asistentes de la última reunión.</p>
-    </div>
+    ${seccionListaComite(c, e, 'miembros')}
+    ${seccionListaComite(c, e, 'invitados')}
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Próximas reuniones</h2><a class="enlace-btn" style="font-size:14px" href="#/programar?e=${e.id}&comite=${id}">Programar</a></div>
       ${reus.filter(r => r.fecha >= hoyISO()).length ? `<div class="tarjeta col" style="gap:0">${reus.filter(r => r.fecha >= hoyISO()).sort((a,b) => a.fecha.localeCompare(b.fecha)).map(filaProxima).join('')}</div>` : `<p class="tarjeta vacio">No hay reuniones programadas.</p>`}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Historial</h2><a class="enlace-btn" style="font-size:14px" href="#/junta-form?e=${e.id}&comite=${id}">+ Agregar</a></div>
       ${reus.filter(r => r.fecha < hoyISO()).length ? `<div class="tarjeta col" style="gap:0">${reus.filter(r => r.fecha < hoyISO()).map(filaJuntaHist).join('')}</div>` : `<p class="tarjeta vacio">Aún no hay reuniones pasadas de este comité.</p>`}</div>
   </div></div>`);
-  const res = $('#cm-res');
-  const pintarCm = () => {
-    const t = BUSQ_CM.trim(), q2 = norm(t);
-    if (q2.length < 2) { res.hidden = true; return; }
-    const fuera = new Set(c.miembros || []);
-    const m = S.personas.filter(x => !fuera.has(x.id) && norm(x.nombre).includes(q2)).sort((a,b) => compararTexto(a.nombre, b.nombre)).slice(0, 6);
-    res.hidden = false;
-    ponerHTML(res, m.map(x => { const cg = cargosPersona(x.id).find(vigente), en = cg && empresa(cg.empresaId);
-        return `<button type="button" class="fila" data-action="cm-add" data-id="${id}" data-p="${x.id}"><span class="col"><span class="nom">${esc(x.nombre)}</span><span class="sub">${esc(cg ? [cg.cargo || cg.rolJunta, en?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
-      + (m.some(x => norm(x.nombre) === q2) ? '' : `<button type="button" class="fila" data-action="cm-crear" data-id="${id}"><span class="col"><span class="nom" style="color:var(--acento)">+ Crear “${esc(t)}”</span><span class="sub">Persona nueva; después puede completar sus datos tocando su nombre</span></span></button>`));
-  };
-  $('#cm-busq').addEventListener('input', ev => { BUSQ_CM = ev.target.value; pintarCm(); });
-  pintarCm();
+  ['miembros', 'invitados'].forEach(campo => {
+    const res = $('#cm-res-' + campo);
+    const pintarCm = () => {
+      const t = BUSQ_CM[campo].trim(), q2 = norm(t);
+      if (q2.length < 2) { res.hidden = true; return; }
+      const fuera = new Set([...(c.miembros || []), ...(c.invitados || [])]);
+      const m = S.personas.filter(x => !fuera.has(x.id) && norm(x.nombre).includes(q2)).sort((a,b) => compararTexto(a.nombre, b.nombre)).slice(0, 6);
+      const ya = S.personas.filter(x => fuera.has(x.id) && norm(x.nombre).includes(q2)).slice(0, 3);
+      res.hidden = false;
+      ponerHTML(res, m.map(x => { const cg = cargosPersona(x.id).find(vigente), en = cg && empresa(cg.empresaId);
+          return `<button type="button" class="fila" data-action="cm-add" data-id="${id}" data-l="${campo}" data-p="${x.id}"><span class="col"><span class="nom">${esc(x.nombre)}</span><span class="sub">${esc(cg ? [cg.cargo || cg.rolJunta, en?.nombre].filter(Boolean).join(' · ') : 'Persona')}</span></span></button>`; }).join('')
+        + ya.map(x => `<p class="ayuda" style="margin:0;padding:10px 12px">${esc(x.nombre)} ya está como ${(c.miembros || []).includes(x.id) ? 'miembro' : 'invitado'} de este comité.</p>`).join('')
+        + ([...m, ...ya].some(x => norm(x.nombre) === q2) ? '' : `<button type="button" class="fila" data-action="cm-crear" data-id="${id}" data-l="${campo}"><span class="col"><span class="nom" style="color:var(--acento)">+ Crear “${esc(t)}”</span><span class="sub">Persona nueva; después puede completar sus datos tocando su nombre</span></span></button>`));
+    };
+    $('#cm-busq-' + campo).addEventListener('input', ev => { BUSQ_CM[campo] = ev.target.value; pintarCm(); });
+    pintarCm();
+  });
 }
-async function cambiarMiembros(cid, fn){
+/* Cambia la lista de miembros o de invitados habituales; una persona queda solo en una de las dos */
+async function cambiarListaComite(cid, campo, fn){
   const c = comite(cid); if (!c) return;
-  await guardar('comites', {...c, miembros: fn([...(c.miembros || [])]), editada:ahora()});
-  BUSQ_CM = ''; render();
+  const otro = campo === 'miembros' ? 'invitados' : 'miembros';
+  const lista = fn([...(c[campo] || [])]);
+  await guardar('comites', {...c, [campo]: lista, [otro]: (c[otro] || []).filter(x => !lista.includes(x)), editada:ahora()});
+  BUSQ_CM = {miembros:'', invitados:''}; render();
 }
 /* Hoja para crear o editar un comité */
 function hojaComite(eid, cid){
@@ -3152,8 +3177,8 @@ async function guardarProgramacion(){
   const ya = new Set(reunionesOrgano(e.id, FPJ.comiteId).map(r => r.fecha));
   const fechas = [...new Set(FPJ.fechas.filter(f => f && !ya.has(f)))].sort();
   if (!fechas.length) { aviso('Agregue al menos una fecha nueva.'); return; }
-  const asis = asistentesPropuestos(e.id, FPJ.comiteId);
-  const nuevas = fechas.map(f => ({id:uid(), creada:ahora(), empresaId:e.id, comiteId:FPJ.comiteId, fecha:f, hora:FPJ.hora || '', tipo:FPJ.tipo, comite:'', asistentes:[...asis], invitados:[],
+  const asis = asistentesPropuestos(e.id, FPJ.comiteId), invs = invitadosPropuestos(FPJ.comiteId).filter(x => !asis.includes(x));
+  const nuevas = fechas.map(f => ({id:uid(), creada:ahora(), empresaId:e.id, comiteId:FPJ.comiteId, fecha:f, hora:FPJ.hora || '', tipo:FPJ.tipo, comite:'', asistentes:[...asis], invitados:[...invs],
     asisti:true, motivo:'', motivoDetalle:'', fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:[], decisiones:[], acta:'sin', actaFecha:'', actaDonde:''}));
   await lote({poner:{reuniones:nuevas}});
   const cid = FPJ.comiteId; FPJ = null;
@@ -3823,17 +3848,17 @@ const ACCIONES = {
   'pj-repetir': () => { FPJ.repetir = !FPJ.repetir; if (FPJ.repetir && !FPJ.primera && FPJ.una) FPJ.primera = FPJ.una; reProg(); },
   'pj-una': () => { if (!FPJ.una) return aviso('Escoja la fecha.'); FPJ.fechas = [FPJ.una]; guardarProgramacion(); },
   'pj-quitar': b => { FPJ.fechas.splice(+b.dataset.i, 1); reProg(); },
-  'fj-organo': b => { const nuevo = b.dataset.v; if (nuevo === FJ.comiteId) return; FJ.comiteId = nuevo; if (FJ._para === 'nueva') FJ.asistentes = asistentesPropuestos(FJ.empresaId, nuevo); reJunta(); },
+  'fj-organo': b => { const nuevo = b.dataset.v; if (nuevo === FJ.comiteId) return; FJ.comiteAnt = FJ.comiteId; FJ.comiteId = nuevo; if (FJ._para === 'nueva') { const viejo = new Set(invitadosPropuestos(FJ.comiteAnt)); FJ.asistentes = asistentesPropuestos(FJ.empresaId, nuevo); FJ.invitados = [...FJ.invitados.filter(x => !viejo.has(x.id)), ...invitadosPropuestos(nuevo).filter(p => !FJ.invitados.some(x => x.id === p)).map(x => ({id:x}))].filter(x => !FJ.asistentes.includes(x.id)); } FJ.comiteAnt = nuevo; reJunta(); },
   'hist-j': b => { HIST_J[b.dataset.e] = b.dataset.k; render(); },
   'cm-nuevo': b => hojaComite(b.dataset.e),
   'cm-editar': b => hojaComite(null, b.dataset.id),
-  'cm-add': b => cambiarMiembros(b.dataset.id, l => [...new Set([...l, b.dataset.p])]),
-  'cm-quitar': b => cambiarMiembros(b.dataset.id, l => l.filter(x => x !== b.dataset.p)),
+  'cm-add': b => cambiarListaComite(b.dataset.id, b.dataset.l || 'miembros', l => [...new Set([...l, b.dataset.p])]),
+  'cm-quitar': b => cambiarListaComite(b.dataset.id, b.dataset.l || 'miembros', l => l.filter(x => x !== b.dataset.p)),
   'cm-crear': async b => {
-    const n = BUSQ_CM.trim(); if (!n) return;
+    const campo = b.dataset.l || 'miembros', n = BUSQ_CM[campo].trim(); if (!n) return;
     const p = {id:uid(), creada:ahora(), nombre:n, trato:'', telefono:'', correo:'', comoLaConocio:'', perfil:'', foto:null};
     await guardar('personas', p);
-    await cambiarMiembros(b.dataset.id, l => [...l, p.id]);
+    await cambiarListaComite(b.dataset.id, campo, l => [...l, p.id]);
     aviso(`${n} quedó creada y agregada; toque su nombre para completar sus datos`);
   },
   'fj-asis': b => { const v = b.dataset.v; FJ.asistentes = FJ.asistentes.includes(v) ? FJ.asistentes.filter(x => x !== v) : [...FJ.asistentes, v]; reJunta(); },
