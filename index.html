@@ -455,7 +455,7 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.3 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.4 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3070,11 +3070,11 @@ function vistaProgramar(_, q){
     if (!empresa(q.e)) return noEncontrado();
     const cid = q.comite && comite(q.comite) ? q.comite : '';
     const ult = reunionesOrgano(q.e, cid)[0];
-    FPJ = {empresaId:q.e, comiteId:cid, tipo:'Ordinaria', hora: ult?.hora || '', primera:'', frec:1, cuantas:12, modo:'semana', fechas:[]};
+    FPJ = {empresaId:q.e, comiteId:cid, tipo:'Ordinaria', hora: ult?.hora || '', una:'', repetir:false, primera:'', frec:1, cuantas:12, modo:'semana', fechas:[]};
   }
   const e = empresa(FPJ.empresaId);
   const cms = comitesEntidad(e.id).filter(c => c.activo !== false || c.id === FPJ.comiteId);
-  const pal = FPJ.comiteId ? 'comités' : 'juntas';
+  const pal = FPJ.comiteId ? 'comité' : 'junta';
   const ya = new Set(reunionesOrgano(e.id, FPJ.comiteId).map(r => r.fecha));
   const chip = (accion, v, txt, sel) => `<button type="button" class="chip${sel ? ' sel' : ''}" data-action="${accion}" data-v="${esc(String(v))}" aria-pressed="${sel}">${esc(txt)}</button>`;
   const repes = new Set(FPJ.fechas.filter((f, i) => f && FPJ.fechas.indexOf(f) !== i));
@@ -3084,10 +3084,14 @@ function vistaProgramar(_, q){
     <p class="ayuda" style="margin:-8px 0 0">${esc(e.nombre)}</p>
     ${cms.length ? `<fieldset><legend>¿Junta o comité?</legend><div class="chips">${chip('pj-organo', '', 'Junta directiva', !FPJ.comiteId)}${cms.map(c => chip('pj-organo', c.id, nombreComite(c), FPJ.comiteId === c.id)).join('')}</div></fieldset>` : ''}
     <div class="dos">
-      <fieldset><legend>Tipo</legend><div class="chips">${TIPOS_JUNTA.map(t => chip('pj-tipo', t, t, FPJ.tipo === t)).join('')}</div></fieldset>
-      <div class="campo"><label for="pj-hora">Hora <span class="opc">(para todas)</span></label><input class="input" id="pj-hora" type="time" value="${esc(FPJ.hora)}"></div>
+      <div class="campo"><label for="pj-una">Fecha</label><input class="input" id="pj-una" type="date" value="${esc(FPJ.una)}"></div>
+      <div class="campo"><label for="pj-hora">Hora</label><input class="input" id="pj-hora" type="time" value="${esc(FPJ.hora)}"></div>
     </div>
-    <fieldset class="tarjeta" style="padding:16px"><legend style="float:left;width:100%;margin-bottom:6px">Repetir automáticamente</legend>
+    ${FPJ.una && ya.has(FPJ.una) ? `<p class="ayuda pend" style="margin:-12px 0 0">Ya hay ${FPJ.comiteId ? 'una reunión de este comité' : 'una junta'} programada ese día.</p>` : ''}
+    <fieldset><legend>Tipo</legend><div class="chips">${TIPOS_JUNTA.map(t => chip('pj-tipo', t, t, FPJ.tipo === t)).join('')}</div></fieldset>
+    ${FPJ.repetir ? '' : `<button type="button" class="btn-pri" data-action="pj-una"${FPJ.una && !ya.has(FPJ.una) ? '' : ' disabled'}>Programar ${FPJ.comiteId ? 'esta reunión' : 'esta junta'}</button>`}
+    <button type="button" class="btn-lin" data-action="pj-repetir" aria-expanded="${FPJ.repetir}">${FPJ.repetir ? '▾ Programar varias fechas (repetir)' : '▸ Programar varias fechas (repetir)'}</button>
+    ${FPJ.repetir ? `<fieldset class="tarjeta" style="padding:16px"><legend style="float:left;width:100%;margin-bottom:6px">Repetir automáticamente</legend>
       <div class="campo"><label for="pj-primera" style="font-size:13px;font-weight:400;color:var(--texto-2)">Primera fecha</label><input class="input" id="pj-primera" type="date" value="${esc(FPJ.primera)}"></div>
       <span class="grupo-tit sep">Cada cuánto</span><div class="chips">${[[1,'Mensual'],[2,'Bimestral'],[3,'Trimestral']].map(([v,t]) => chip('pj-frec', v, t, FPJ.frec === v)).join('')}</div>
       <span class="grupo-tit sep">Cuántas</span><div class="chips">${[3,6,12].map(v => chip('pj-cuantas', v, String(v), FPJ.cuantas === v)).join('')}<input class="input" id="pj-cuantas" inputmode="numeric" style="width:90px;height:40px" aria-label="Otro número" placeholder="Otro" value="${[3,6,12].includes(FPJ.cuantas) ? '' : FPJ.cuantas}"></div>
@@ -3101,11 +3105,12 @@ function vistaProgramar(_, q){
         <span class="sub" style="min-width:64px">${f ? (ya.has(f) ? '<span class="pend">ya programada</span>' : repes.has(f) ? '<span class="pend">repetida</span>' : DIAS_SEM[fechaD(f).getDay()]) : ''}</span><button type="button" class="quitar" data-action="pj-quitar" data-i="${i}" aria-label="Quitar fecha ${i + 1}">×</button></div>`).join('')}</div>` : '<p class="ayuda" style="margin:0">Calcule las fechas arriba o agréguelas una por una.</p>'}
       <button type="button" class="btn-lin" data-action="pj-otra">+ Otra fecha${FPJ.fechas.filter(Boolean).length ? ` (${FPJ.frec === 1 ? 'un mes' : FPJ.frec + ' meses'} después de la última)` : ''}</button>
     </fieldset>
-    <div class="guardar-final"><button type="submit" class="btn-pri"${validas.length ? '' : ' disabled'}>${validas.length ? `Programar ${plural(validas.length, FPJ.comiteId ? 'reunión' : 'junta', FPJ.comiteId ? 'reuniones' : 'juntas')}` : 'Agregue al menos una fecha'}</button></div>
+    <div class="guardar-final"><button type="submit" class="btn-pri"${validas.length ? '' : ' disabled'}>${validas.length ? `Programar ${plural(validas.length, FPJ.comiteId ? 'reunión' : 'junta', FPJ.comiteId ? 'reuniones' : 'juntas')}` : 'Agregue al menos una fecha'}</button></div>` : ''}
   </form>`);
   $('#pj-hora').addEventListener('input', ev => FPJ.hora = ev.target.value);
-  $('#pj-primera').addEventListener('change', ev => { FPJ.primera = ev.target.value; vistaProgramar(null, ruta().q); });
-  $('#pj-cuantas').addEventListener('change', ev => { const n = parseInt(ev.target.value, 10); if (n > 0 && n <= 36) { FPJ.cuantas = n; vistaProgramar(null, ruta().q); } });
+  $('#pj-una').addEventListener('change', ev => { FPJ.una = ev.target.value; vistaProgramar(null, ruta().q); });
+  $('#pj-primera')?.addEventListener('change', ev => { FPJ.primera = ev.target.value; vistaProgramar(null, ruta().q); });
+  $('#pj-cuantas')?.addEventListener('change', ev => { const n = parseInt(ev.target.value, 10); if (n > 0 && n <= 36) { FPJ.cuantas = n; vistaProgramar(null, ruta().q); } });
   $$('[data-pj-i]').forEach(inp => inp.addEventListener('change', ev => { FPJ.fechas[+ev.target.dataset.pjI] = ev.target.value; vistaProgramar(null, ruta().q); }));
   $('#f-prog').addEventListener('submit', ev => { ev.preventDefault(); guardarProgramacion(); });
 }
@@ -3791,6 +3796,8 @@ const ACCIONES = {
   'pj-modo': b => { FPJ.modo = b.dataset.v; reProg(); },
   'pj-calcular': () => { calcularFechas(); reProg(); },
   'pj-otra': () => { otraFecha(); reProg(); },
+  'pj-repetir': () => { FPJ.repetir = !FPJ.repetir; if (FPJ.repetir && !FPJ.primera && FPJ.una) FPJ.primera = FPJ.una; reProg(); },
+  'pj-una': () => { if (!FPJ.una) return aviso('Escoja la fecha.'); FPJ.fechas = [FPJ.una]; guardarProgramacion(); },
   'pj-quitar': b => { FPJ.fechas.splice(+b.dataset.i, 1); reProg(); },
   'fj-organo': b => { const nuevo = b.dataset.v; if (nuevo === FJ.comiteId) return; FJ.comiteId = nuevo; if (FJ._para === 'nueva') FJ.asistentes = asistentesPropuestos(FJ.empresaId, nuevo); reJunta(); },
   'hist-j': b => { HIST_J[b.dataset.e] = b.dataset.k; render(); },
