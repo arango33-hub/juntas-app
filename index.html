@@ -457,7 +457,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.5 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.6 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -570,11 +570,12 @@ function botonWA(p, clase, contenido, etiqueta){
   if (p.waUsuario) return `<button type="button" class="${clase}" data-action="wa-usuario" data-u="${esc(p.waUsuario)}"${etiqueta ? ` aria-label="${esc(etiqueta)} (@${esc(p.waUsuario)})"` : ''}>${contenido}</button>`;
   return `<span class="${clase}" aria-disabled="true"${etiqueta ? ` aria-label="${esc(etiqueta)}: sin dato"` : ''}>${contenido}</span>`;
 }
-async function abrirUsuarioWA(u){
-  let copiado = false;
-  try { await navigator.clipboard.writeText('@' + u); copiado = true; } catch (e) {}
-  aviso(copiado ? `Copiado @${u}. En WhatsApp toque “Nuevo chat” y péguelo en la búsqueda.` : `En WhatsApp toque “Nuevo chat” y busque @${u}.`);
-  setTimeout(() => { location.href = 'whatsapp://'; }, 900);
+/* Abre WhatsApp en el mismo instante del toque (si se espera, el celular bloquea abrir otra app) */
+const esAndroid = () => /Android/i.test(navigator.userAgent);
+function abrirUsuarioWA(u){
+  const copia = navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText('@' + u).then(() => true, () => false) : Promise.resolve(false);
+  location.href = esAndroid() ? 'intent://send/#Intent;scheme=whatsapp;package=com.whatsapp;end' : 'whatsapp://send';
+  copia.then(ok => aviso(ok ? `Copiado @${u}. En WhatsApp toque “Nuevo chat” y péguelo en la búsqueda.` : `En WhatsApp toque “Nuevo chat” y busque @${u}.`));
 }
 function numeroWhatsApp(tel){
   const t = String(tel || '').trim(), d = soloDigitos(t);
