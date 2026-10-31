@@ -153,7 +153,6 @@ svg{flex-shrink:0}
 .t2{color:var(--texto-2)}
 .vacio{margin:0;padding:16px;font-size:15px;line-height:1.5;color:var(--texto-2)}
 a.vacio-toque{display:block;text-decoration:none;color:var(--texto-2)}
-a.vacio-toque .t{display:block;margin-top:4px;color:var(--acento);font-weight:600}
 .fila.fila-agregar{color:var(--acento);font-weight:600;border-bottom:0}
 .parrafo{margin:0;padding:16px;font-size:15px;line-height:1.5;white-space:pre-line}
 
@@ -460,7 +459,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.8 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.9 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -2258,7 +2257,7 @@ function filaCompromiso(c, {conProyecto=false, excluir=null, resaltar=null}={}){
 }
 /* 3.8 · Agregar tocando el recuadro de la sección (en vez del enlace "+ Agregar" de arriba) */
 const filaAgregar = (href, texto) => `<a class="fila fila-agregar" href="${href}">+ ${esc(texto)}</a>`;
-const vacioAgregar = (href, texto, invita) => `<a class="tarjeta vacio vacio-toque" href="${href}">${esc(texto)}<span class="t">${esc(invita)}</span></a>`;
+const vacioAgregar = (href, texto) => `<a class="tarjeta vacio vacio-toque" href="${href}">${esc(texto)}</a>`;
 function vistaProyecto(id){
   const p = proyecto(id); if (!p) return noEncontrado();
   const c = cv(p.color), activo = proyectoActivo(p);
@@ -2299,12 +2298,12 @@ function vistaProyecto(id){
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades</h2><button type="button" class="enlace-btn" style="font-size:14px" data-action="proy-entidades" data-id="${id}">${ents.length ? 'Cambiar' : '+ Enlazar'}</button></div>
       ${ents.length ? `<div class="tarjeta col" style="gap:0">${ents.map(e => `<a class="fila" href="#/empresa/${e.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([e.participacion != null ? fmtPct(e.participacion) : 'Sin participación', tipo(e.vinculoId).nombre].join(' · '))}</span></span>${I.chev}</a>`).join('')}</div>` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Hitos${hs.length ? ` <span class="avance">· ${cumpl} de ${hs.length} cumplidos</span>` : ''}</h2></div>
-      ${hs.length ? `<div class="tarjeta col" style="gap:0">${hs.map(filaHito).join('')}${filaAgregar(`#/hito?proy=${id}`, 'Nuevo hito')}</div>` : vacioAgregar(`#/hito?proy=${id}`, 'Sin hitos. Son opcionales: sirven para ver en qué etapa va el proyecto.', 'Toque aquí para agregar el primero')}</div>
+      ${hs.length ? `<div class="tarjeta col" style="gap:0">${hs.map(filaHito).join('')}${filaAgregar(`#/hito?proy=${id}`, 'Nuevo hito')}</div>` : vacioAgregar(`#/hito?proy=${id}`, 'Sin hitos. Son opcionales: sirven para ver en qué etapa va el proyecto.')}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Personas</h2></div>
-      ${vig.length ? `<div class="tarjeta col" style="gap:0">${vig.map(filaPer).join('')}${filaAgregar(`#/papel?proy=${id}`, 'Nueva persona')}</div>` : vacioAgregar(`#/papel?proy=${id}`, 'Aún no hay personas. Agréguelas con su rol (banca de inversión, abogado del comprador…).', 'Toque aquí para agregar la primera')}
+      ${vig.length ? `<div class="tarjeta col" style="gap:0">${vig.map(filaPer).join('')}${filaAgregar(`#/papel?proy=${id}`, 'Nueva persona')}</div>` : vacioAgregar(`#/papel?proy=${id}`, 'Aún no hay personas. Agréguelas con su rol (banca de inversión, abogado del comprador…).')}
       ${ant.length ? `<h3 class="sec-titulo" style="font-size:12px;margin-top:4px">Ya no están en el proyecto</h3><div class="tarjeta col" style="gap:0">${ant.map(filaPer).join('')}</div>` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2></div>
-      ${ab.length || hechos.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}${filaAgregar(`#/compromiso?proy=${id}`, 'Nuevo compromiso')}</div>` : vacioAgregar(`#/compromiso?proy=${id}`, 'Sin compromisos. También puede dejarlos al dictar una nota.', 'Toque aquí para agregar el primero')}</div>
+      ${ab.length || hechos.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}${filaAgregar(`#/compromiso?proy=${id}`, 'Nuevo compromiso')}</div>` : vacioAgregar(`#/compromiso?proy=${id}`, 'Sin compromisos. También puede dejarlos al dictar una nota.')}</div>
     <div class="sec mas"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'proyecto', id}, notasPr, [
       {k:'propias', txt:'Solo del proyecto', f: n => n.refTipo==='proyecto' && n.refId===id},
       ...hs.map((h, i) => ({k:'hito:' + h.id, txt:`Hito ${i + 1}`, f: n => n.hitoId === h.id})),
