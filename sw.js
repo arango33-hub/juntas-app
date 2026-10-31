@@ -1,6 +1,6 @@
 /* Service worker: guarda la app en el dispositivo para que funcione sin internet.
    Al publicar una versión nueva, cambie VERSION para que los celulares la descarguen. */
-const VERSION = 'junta-app-v3.9';
+const VERSION = 'junta-app-v3.10';
 const FUENTES = 'junta-app-fuentes';
 const URL_FUENTES = 'https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];

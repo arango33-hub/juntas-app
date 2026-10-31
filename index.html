@@ -459,7 +459,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.9 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.10 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -2049,10 +2049,20 @@ async function guardarPersona(){
       if (c.inicio && c.fin && c.fin < c.inicio) { aviso('La fecha “Hasta”' + n + ' es anterior a “Desde”.'); return; }
       poner.cargos.push({...cargo(c.id), empresaId:c.empresaId, area:c.area.trim(), cargo:c.cargo.trim(), rolJunta:c.rolJunta.trim(), ...resolverReporta(c.reportaTxt, c.empresaId, pid), inicio:c.inicio, fin:c.fin, editada:ahora()});
     }
+    const nomP = poner.personas ? poner.personas[0].nombre : persona(pid).nombre, propios = cargosPersona(pid).map(x => x.id);
+    for (const [i, c] of poner.cargos.entries()) {
+      if (c.fin) continue;
+      const dentro = poner.cargos.slice(0, i).some(x => !x.fin && x.empresaId === c.empresaId && claveCargo(x) === claveCargo(c));
+      const otro = cargoRepetido(nomP, c, propios);
+      if (dentro || otro) { mensaje(textoCargoRepetido(nomP, c, otro), 'Esa persona ya existe'); return; }
+    }
   }
   if (nueva && FP.empresaId) {
     if (!FP.cargo.trim() && !FP.rolJunta.trim() && !FP.area.trim() && FP.existenteId) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
     poner.cargos = [{id:uid(), creada:ahora(), personaId:pid, empresaId:FP.empresaId, area:FP.area.trim(), cargo:FP.cargo.trim(), rolJunta:FP.rolJunta.trim(), ...resolverReporta(FP.reportaTxt, FP.empresaId, pid), inicio:FP.inicio || '', fin:''}];
+    const nomP = poner.personas ? poner.personas[0].nombre : persona(pid).nombre;
+    const otro = cargoRepetido(nomP, poner.cargos[0]);
+    if (otro) { mensaje(textoCargoRepetido(nomP, poner.cargos[0], otro), 'Esa persona ya existe'); return; }
   } else if (nueva && FP.existenteId) { aviso('Escoja la entidad del nuevo cargo.'); return; }
   await lote({poner});
   const emp = FP.empresaId; FP = null; aviso('Persona guardada');
@@ -2062,6 +2072,14 @@ async function guardarPersona(){
 }
 
 /* ---------- Cargo: crear / editar / cerrar ---------- */
+/* 3.10 · No se permite el mismo nombre con el mismo cargo vigente en la misma entidad.
+   "Mismo cargo" = mismo cargo y mismo rol en junta (si ambos están vacíos, misma área). */
+const claveCargo = c => norm(c.cargo || '') || norm(c.rolJunta || '') ? norm(c.cargo || '') + '|' + norm(c.rolJunta || '') : 'area|' + norm(c.area || '');
+function cargoRepetido(nombre, c, excluir){
+  const k = claveCargo(c), n = norm(nombre), fuera = new Set(excluir || []);
+  return S.cargos.find(x => !fuera.has(x.id) && !x.fin && x.empresaId === c.empresaId && claveCargo(x) === k && norm(persona(x.personaId)?.nombre || '') === n);
+}
+const textoCargoRepetido = (nombre, c, x) => `${x && persona(x.personaId) ? persona(x.personaId).nombre : nombre} ya existe con el mismo cargo (${[c.cargo, c.rolJunta].filter(Boolean).join(' · ') || c.area || 'sin cargo'}) en ${empresa(c.empresaId)?.nombre || 'esta entidad'}. No se guardó para no duplicarla.`;
 function vistaCargo(id, q){
   if (!FC || FC._para !== (id || 'nuevo')) {
     const c = id && cargo(id);
@@ -2095,6 +2113,8 @@ async function guardarCargo(fin){
   if (!FC.cargo.trim() && !FC.rolJunta.trim() && !FC.area.trim()) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
   if (FC.inicio && FC.fin && FC.fin < FC.inicio) { aviso('La fecha “Hasta” es anterior a “Desde”.'); return; }
   const base = FC._para === 'nuevo' ? {id:uid(), creada:ahora(), personaId:FC.personaId} : cargo(FC._para);
+  const prueba = {empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim()};
+  if (!FC.fin && cargoRepetido(persona(FC.personaId).nombre, prueba, [base.id])) { mensaje(textoCargoRepetido(persona(FC.personaId).nombre, prueba), 'Esa persona ya existe'); return; }
   await guardar('cargos', {...base, empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim(), ...resolverReporta(FC.reportaTxt, FC.empresaId, FC.personaId), inicio:FC.inicio, fin:FC.fin, editada:ahora()});
   const pid = FC.personaId; FC = null; aviso('Cargo guardado'); volver('#/persona/' + pid);
 }
