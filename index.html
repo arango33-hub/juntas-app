@@ -459,7 +459,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.10 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.11 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1249,7 +1249,7 @@ function pintarLista(){
   for (const p of [...S.personas].sort((a,b) => compararTexto(a.nombre, b.nombre))) {
     const cs = cargosPersona(p.id).filter(c => { const e = empresa(c.empresaId); return e && !e.archivada && pasa(e); });
     if (FILTRO !== 'todas' && !cs.length) continue;
-    const camposCargo = c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId).nombre];
+    const camposCargo = c => [c.cargo, c.area, c.rolJunta, c.representa, empresa(c.empresaId).nombre];
     if (!contieneTodas([p.nombre, p.correo, p.telefono, p.telefono2, p.waUsuario, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.perfil, p.comoLaConocio, p.asistente, p.otros, ...cs.flatMap(camposCargo)], ps)) continue;
     const porCargo = cs.find(c => ps.some(w => norm(camposCargo(c).join(' ')).includes(w)));
     pers.push(filaPersonaBusq(p, porCargo || cs.find(vigente) || cs[0]));
@@ -1299,7 +1299,7 @@ function vistaEmpresa(id){
   const lugar = [e.sector, e.ciudad].filter(Boolean).join(' · ');
 
   const filaJunta = x => { const p = persona(x.personaId); if (!p) return '';
-    return `<a class="fila" href="#/persona/${p.id}?e=${id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo].filter(Boolean).join(' · '))}</span></span></a>`; };
+    return `<a class="fila" href="#/persona/${p.id}?e=${id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta, x.cargo, txtRep(x)].filter(Boolean).join(' · '))}</span></span></a>`; };
   const yo = `<div class="fila"><div class="av av-yo" aria-hidden="true">Yo</div><span class="col"><span class="nom">Usted</span><span class="sub">${esc([t.nombre, e.detalle].filter(Boolean).join(' · '))}</span></span></div>`;
 
   const grupos = new Map();
@@ -1457,14 +1457,14 @@ function vistaPersona(id, q){
     return `<div class="fila fila-rol${vigente(x) ? '' : ' atenuado'}" style="--c:${cv(pr.color)}"><a href="#/proyecto/${pr.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(pr.nombre)}${proyectoActivo(pr) ? '' : ` <span class="sub">(${pr.archivado ? 'en el archivo' : 'proyecto cerrado'})</span>`}</span><span class="sub">${esc(x.papel || 'Rol sin definir')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span></a><button type="button" class="rol-btn" data-action="rol-hoja" data-id="${x.id}" aria-label="Rol en ${esc(pr.nombre)}">Rol</button></div>`; };
   const filaCargo = x => { const e = empresa(x.empresaId); if (!e) return '';
     const fechas = x.fin && !vigente(x) ? `${x.inicio ? mesAnio(x.inicio) + ' – ' : 'Hasta '}${mesAnio(x.fin)} · cerrado` : (x.inicio ? 'Desde ' + mesAnio(x.inicio) : '');
-    return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}${e.archivada ? ' <span class="sub">(en el archivo)</span>' : ''}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
+    return `<a class="fila" href="#/cargo/${x.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}${e.archivada ? ' <span class="sub">(en el archivo)</span>' : ''}</span><span class="sub">${esc([x.rolJunta, x.cargo, x.area, txtRep(x)].filter(Boolean).join(' · ') || 'Sin cargo')}</span>${fechas ? `<span class="sub">${esc(fechas)}</span>` : ''}</span>${I.chev}</a>`; };
 
   pintar(`<div style="--c:${c}">
   <div class="banda"><div class="cabecera" style="gap:16px">
     <div class="cab-fila">${pCtx ? linkVolver(pCtx.nombre, '#/proyecto/' + pCtx.id) : linkVolver(eCtx ? eCtx.nombre : 'Personas', eCtx ? '#/empresa/' + eCtx.id : '#/personas')}<a class="enlace-btn" href="#/persona-form/${id}">Editar</a></div>
     <div class="per-cab"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div>
       <div class="col"><h1 class="serif t26">${esc(p.nombre)}</h1>
-        ${ctx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([ctx.cargo || ctx.rolJunta, ctx.area].filter(Boolean).join(' · '))}</span>` : ''}
+        ${ctx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([ctx.cargo || ctx.rolJunta, ctx.area, txtRep(ctx)].filter(Boolean).join(' · '))}</span>` : ''}
         ${papCtx ? `<span style="font-size:14px;color:var(--texto-2)">${esc([papCtx.papel || 'Rol sin definir', pCtx.nombre].join(' · '))}</span>` : ''}
         ${reporta ? `<span class="sub">Reporta a: ${esc(reporta)}</span>` : ''}
         ${jefesDe(id).length ? `<span class="sub">Asistente de ${jefesDe(id).map(j => `<a href="#/persona/${j.id}">${esc(j.nombre)}</a>`).reduce((t, x, i, l) => t + (i === 0 ? '' : i === l.length - 1 ? ' y ' : ', ') + x, '')}</span>` : ''}</div></div>
@@ -1844,6 +1844,9 @@ function pedirTipoPropio(){
 }
 
 /* ---------- Persona: crear / editar ---------- */
+/* 3.11 · "Representa a" del cargo (ej. "la CCB", "los profesores"). Se muestra como "Representa a …". */
+const limpiarRep = s => String(s || '').trim().replace(/^representa\s+a\s+/i, '').trim();
+const txtRep = c => c && c.representa ? 'Representa a ' + c.representa : '';
 function camposCargo(st, pref){
   const emps = empresasActivas();
   const areas = [...new Set([...S.cargos.map(c => c.area).filter(Boolean), ...AREAS_BASE])];
@@ -1857,6 +1860,8 @@ function camposCargo(st, pref){
     <datalist id="${pref}-dl-areas">${areas.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
     <div class="campo"><label for="${pref}-rol">Rol en junta <span class="opc">(solo si es miembro de junta)</span></label><input class="input" id="${pref}-rol" list="${pref}-dl-roles" value="${esc(st.rolJunta)}" placeholder="Ej. Miembro independiente"></div>
     <datalist id="${pref}-dl-roles">${ROLES_JUNTA.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+    <div class="campo"><label for="${pref}-repr">Representa a <span class="opc">(opcional)</span></label><input class="input" id="${pref}-repr" list="${pref}-dl-repr" value="${esc(st.representa || '')}" placeholder="Ej. la CCB, los profesores"></div>
+    <datalist id="${pref}-dl-repr"></datalist>
     <div class="campo"><label for="${pref}-rep">Reporta a <span class="opc">(opcional)</span></label><input class="input" id="${pref}-rep" list="${pref}-dl-rep" value="${esc(st.reportaTxt)}" placeholder="Nombre de su jefe"></div>
     <datalist id="${pref}-dl-rep"></datalist>`;
 }
@@ -1864,9 +1869,13 @@ function enlazarCargo(st, pref, excluirId){
   const llenarRep = () => {
     const ids = [...new Set(cargosEmpresa(st.empresaId).filter(vigente).map(c => c.personaId))].filter(i => i !== excluirId);
     $(`#${pref}-dl-rep`).innerHTML = ids.map(persona).filter(Boolean).map(p => `<option value="${esc(p.nombre)}">`).join('');
+    /* Sugiere lo que ya se escribió en "Representa a" en esa entidad, para que quede igual en todos */
+    const reps = new Map();
+    (st.empresaId ? cargosEmpresa(st.empresaId) : S.cargos).forEach(c => { const v = limpiarRep(c.representa); if (v && !reps.has(norm(v))) reps.set(norm(v), v); });
+    $(`#${pref}-dl-repr`).innerHTML = [...reps.values()].sort((a, b) => compararTexto(a, b)).map(v => `<option value="${esc(v)}">`).join('');
   };
   $(`#${pref}-emp`).addEventListener('change', e => { st.empresaId = e.target.value; llenarRep(); });
-  [['area','area'],['cargo','cargo'],['rol','rolJunta'],['rep','reportaTxt']].forEach(([s,k]) => $(`#${pref}-${s}`).addEventListener('input', e => st[k] = e.target.value));
+  [['area','area'],['cargo','cargo'],['rol','rolJunta'],['repr','representa'],['rep','reportaTxt']].forEach(([s,k]) => $(`#${pref}-${s}`).addEventListener('input', e => st[k] = e.target.value));
   llenarRep();
 }
 const hayContactos = () => 'contacts' in navigator && navigator.contacts && 'select' in navigator.contacts;
@@ -1924,8 +1933,8 @@ function vistaPersonaForm(id, q){
     if (id && !p) return noEncontrado();
     FP = p ? {_para:id, nombre:p.nombre, trato:p.trato||'', telefono:p.telefono||'', telefono2:p.telefono2||'', ext2:p.ext2||'', waUsuario:p.waUsuario||'', correo:p.correo||'', comoLaConocio:p.comoLaConocio||'', perfil:p.perfil||'', cumpleanos:p.cumpleanos||'', linkedin:p.linkedin||'', otros:otrosConAsistente(p),
              asis: asistentesDe(p).map(a => ({id:a.id})), asBusq:'',
-             cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
-           : {_para:'nueva', asis:[], asBusq:'', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', waUsuario:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta: q.rj ? 'Miembro principal' : '', reportaTxt:'', inicio:''};
+             cargos: cargosPersona(id).map(c => ({id:c.id, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', representa:c.representa||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}))}
+           : {_para:'nueva', asis:[], asBusq:'', nombre:q.nombre || '', trato:'', telefono:'', telefono2:'', ext2:'', waUsuario:'', correo:'', comoLaConocio:'', perfil:'', cumpleanos:'', linkedin:'', otros:'', existenteId:null, empresaId:q.e||'', area:'', cargo:'', rolJunta: q.rj ? 'Miembro principal' : '', representa:'', reportaTxt:'', inicio:''};
   }
   const nueva = FP._para === 'nueva';
   const ex = nueva && FP.existenteId && persona(FP.existenteId);
@@ -2047,7 +2056,7 @@ async function guardarPersona(){
       const n = FP.cargos.length > 1 ? ` del cargo ${i+1}` : ' del cargo';
       if (!c.empresaId) { aviso('Escoja la entidad' + n + '.'); $(`#fpc${i}-emp`).focus(); return; }
       if (c.inicio && c.fin && c.fin < c.inicio) { aviso('La fecha “Hasta”' + n + ' es anterior a “Desde”.'); return; }
-      poner.cargos.push({...cargo(c.id), empresaId:c.empresaId, area:c.area.trim(), cargo:c.cargo.trim(), rolJunta:c.rolJunta.trim(), ...resolverReporta(c.reportaTxt, c.empresaId, pid), inicio:c.inicio, fin:c.fin, editada:ahora()});
+      poner.cargos.push({...cargo(c.id), empresaId:c.empresaId, area:c.area.trim(), cargo:c.cargo.trim(), rolJunta:c.rolJunta.trim(), representa:limpiarRep(c.representa), ...resolverReporta(c.reportaTxt, c.empresaId, pid), inicio:c.inicio, fin:c.fin, editada:ahora()});
     }
     const nomP = poner.personas ? poner.personas[0].nombre : persona(pid).nombre, propios = cargosPersona(pid).map(x => x.id);
     for (const [i, c] of poner.cargos.entries()) {
@@ -2059,7 +2068,7 @@ async function guardarPersona(){
   }
   if (nueva && FP.empresaId) {
     if (!FP.cargo.trim() && !FP.rolJunta.trim() && !FP.area.trim() && FP.existenteId) { aviso('Escriba el cargo, el área o el rol en junta.'); return; }
-    poner.cargos = [{id:uid(), creada:ahora(), personaId:pid, empresaId:FP.empresaId, area:FP.area.trim(), cargo:FP.cargo.trim(), rolJunta:FP.rolJunta.trim(), ...resolverReporta(FP.reportaTxt, FP.empresaId, pid), inicio:FP.inicio || '', fin:''}];
+    poner.cargos = [{id:uid(), creada:ahora(), personaId:pid, empresaId:FP.empresaId, area:FP.area.trim(), cargo:FP.cargo.trim(), rolJunta:FP.rolJunta.trim(), representa:limpiarRep(FP.representa), ...resolverReporta(FP.reportaTxt, FP.empresaId, pid), inicio:FP.inicio || '', fin:''}];
     const nomP = poner.personas ? poner.personas[0].nombre : persona(pid).nombre;
     const otro = cargoRepetido(nomP, poner.cargos[0]);
     if (otro) { mensaje(textoCargoRepetido(nomP, poner.cargos[0], otro), 'Esa persona ya existe'); return; }
@@ -2084,8 +2093,8 @@ function vistaCargo(id, q){
   if (!FC || FC._para !== (id || 'nuevo')) {
     const c = id && cargo(id);
     if (id && !c) return noEncontrado();
-    FC = c ? {_para:id, personaId:c.personaId, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}
-           : {_para:'nuevo', personaId:q.p, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', reportaTxt:'', inicio:'', fin:''};
+    FC = c ? {_para:id, personaId:c.personaId, empresaId:c.empresaId, area:c.area||'', cargo:c.cargo||'', rolJunta:c.rolJunta||'', representa:c.representa||'', reportaTxt:nombreReporta(c), inicio:c.inicio||'', fin:c.fin||''}
+           : {_para:'nuevo', personaId:q.p, empresaId:q.e||'', area:'', cargo:'', rolJunta:'', representa:'', reportaTxt:'', inicio:'', fin:''};
   }
   const p = persona(FC.personaId); if (!p) return noEncontrado();
   const nuevo = FC._para === 'nuevo';
@@ -2115,7 +2124,7 @@ async function guardarCargo(fin){
   const base = FC._para === 'nuevo' ? {id:uid(), creada:ahora(), personaId:FC.personaId} : cargo(FC._para);
   const prueba = {empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim()};
   if (!FC.fin && cargoRepetido(persona(FC.personaId).nombre, prueba, [base.id])) { mensaje(textoCargoRepetido(persona(FC.personaId).nombre, prueba), 'Esa persona ya existe'); return; }
-  await guardar('cargos', {...base, empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim(), ...resolverReporta(FC.reportaTxt, FC.empresaId, FC.personaId), inicio:FC.inicio, fin:FC.fin, editada:ahora()});
+  await guardar('cargos', {...base, empresaId:FC.empresaId, area:FC.area.trim(), cargo:FC.cargo.trim(), rolJunta:FC.rolJunta.trim(), representa:limpiarRep(FC.representa), ...resolverReporta(FC.reportaTxt, FC.empresaId, FC.personaId), inicio:FC.inicio, fin:FC.fin, editada:ahora()});
   const pid = FC.personaId; FC = null; aviso('Cargo guardado'); volver('#/persona/' + pid);
 }
 
@@ -2132,7 +2141,7 @@ function vistaPersonas(){
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
   /* Busca en los datos de la persona, sus cargos, su perfil y el texto de sus notas */
   const notasDe = p => S.notas.filter(n => tocaA(n, 'persona', p.id)).sort(ordenNotas);
-  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, p.waUsuario, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, empresa(c.empresaId)?.nombre]),
+  const camposP = p => [p.nombre, p.correo, p.telefono, p.telefono2, p.waUsuario, ...jefesDe(p.id).map(j => 'asistente ' + j.nombre), p.asistente, p.perfil, p.comoLaConocio, p.otros, ...cargosPersona(p.id).flatMap(c => [c.cargo, c.area, c.rolJunta, c.representa, empresa(c.empresaId)?.nombre]),
     ...papelesPersona(p.id).flatMap(x => [x.papel, proyecto(x.proyectoId)?.nombre])];
   const coincide = (p, q) => {
     if (!q) return true;
@@ -2156,7 +2165,7 @@ function vistaPersonas(){
     if (!agrupar) {
       ponerHTML(cont, `<h2 class="sec-titulo">${plural(lista.length,'persona')}</h2><div class="tarjeta col" style="gap:0">${lista.map(p => {
         const cs = cargosPersona(p.id);
-        const c = (q && cs.find(c => palabrasDe(q).some(w => norm([c.cargo,c.area,c.rolJunta,empresa(c.empresaId)?.nombre].join(' ')).includes(w)))) || cs.find(vigente) || cs[0];
+        const c = (q && cs.find(c => palabrasDe(q).some(w => norm([c.cargo,c.area,c.rolJunta,c.representa,empresa(c.empresaId)?.nombre].join(' ')).includes(w)))) || cs.find(vigente) || cs[0];
         return conExtra(filaPersonaBusq(p, c), p);
       }).join('')}</div>`);
       return;
@@ -2837,7 +2846,7 @@ function vistaJunta(id){
       ${comps.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}</div>` : `<p class="tarjeta vacio">Sin compromisos. También puede dejarlos al dictar la nota de la junta.</p>`}</div>
     <div class="sec mas"><h2 class="sec-titulo">Mis notas</h2>${lineaTiempo(notas, {tipo:'empresa', id:e.id}, `Aún no hay notas de ${r.comiteId ? 'este comité' : 'esta junta'}. Use el botón de abajo.`)}</div>
     ${asistentesJunta(r).length || invitadosJunta(r).length ? `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">${futura ? 'Convocados' : 'Asistentes e invitados'}</h2><a class="enlace-btn" style="font-size:14px" href="#/junta-form/${id}">Cambiar</a></div><div class="tarjeta col" style="gap:0">${[
-      ...asistentesJunta(r).map(p => ({p, sub: [cargosPersona(p.id).find(x => x.empresaId === e.id && vigente(x))?.rolJunta || 'Asistente'].join('')})),
+      ...asistentesJunta(r).map(p => { const cg = cargosPersona(p.id).find(x => x.empresaId === e.id && vigente(x)); return {p, sub: [cg?.rolJunta || 'Asistente', txtRep(cg)].filter(Boolean).join(' · ')}; }),
       ...invitadosJunta(r).map(p => ({p, sub: ['Invitado', (() => { const cg = cargosPersona(p.id).find(vigente), en = cg && empresa(cg.empresaId); return cg ? [cg.cargo || cg.rolJunta, en?.nombre].filter(Boolean).join(' · ') : ''; })()].filter(Boolean).join(' · ')}))
     ].map(({p, sub}) => `<a class="fila" href="#/persona/${p.id}?e=${e.id}"><div class="av av-emp" aria-hidden="true">${esc(iniciales(p.nombre))}</div><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc(sub)}</span></span>${I.chev}</a>`).join('')}</div></div>` : ''}
     ${futura ? '<div style="height:32px"></div>' : `<div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Acta</h2><div class="tarjeta datos">
@@ -3258,7 +3267,7 @@ function hojaConvertir(eid){
   $('[data-r="1"]', v).addEventListener('click', async () => {
     const pr = {id:uid(), creada:ahora(), nombre:e.nombre, personal, tipo: personal ? 'personal' : 'empresarial', detalle:[e.detalle, e.sector, e.ciudad].filter(Boolean).join(' · '), color:e.color,
       inicio:String(e.creada || '').slice(0, 10), cierreEstimado:'', cierre:'', estado:'activo', convertidaDe:e.id};
-    const papeles = cs.map(c => ({id:uid(), creada:c.creada || ahora(), personaId:c.personaId, proyectoId:pr.id, papel:[c.rolJunta, c.cargo, c.area].filter(Boolean).join(' · '), inicio:c.inicio || '', fin:c.fin || ''}));
+    const papeles = cs.map(c => ({id:uid(), creada:c.creada || ahora(), personaId:c.personaId, proyectoId:pr.id, papel:[c.rolJunta, c.cargo, c.area, txtRep(c)].filter(Boolean).join(' · '), inicio:c.inicio || '', fin:c.fin || ''}));
     const notas = S.notas.filter(n => tocaA(n, 'empresa', eid)).map(n => {
       const m = {...n, relacionadas:(n.relacionadas || []).map(r => r.tipo === 'empresa' && r.id === eid ? {tipo:'proyecto', id:pr.id} : r)};
       if (n.refTipo === 'empresa' && n.refId === eid) { m.refTipo = 'proyecto'; m.refId = pr.id; }
@@ -3300,7 +3309,7 @@ function vistaAjustes(id, q = {}){
     </div></div>
 
     <div class="sec"><h2 class="sec-titulo">Importar desde Excel</h2><div class="tarjeta"><div class="ajuste">
-      <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo). Para miembros de junta escriba “Junta directiva” en área. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
+      <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo y, si quiere, a quién representa y el usuario de WhatsApp). Para miembros de junta escriba “Junta directiva” en área y el rol en cargo. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div>
     </div></div></div>
 
@@ -3391,14 +3400,14 @@ async function importarRespaldo(file){
 /* =====================================================================
    IMPORTACIÓN DESDE EXCEL / CSV
    ===================================================================== */
-const COLUMNAS = ['empresa','participacion','vinculo','nombre','cargo','area','reporta_a','telefono','correo'];
+const COLUMNAS = ['empresa','participacion','vinculo','nombre','cargo','area','reporta_a','telefono','correo','representa_a','whatsapp'];
 function plantillaCSV(){
   const filas = [
-    ['empresa','participacion','vinculo','nombre','cargo','area','reporta_a','telefono','correo'],
-    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Ana Ejemplo','Gerente general','Gerencia','','+57 300 000 0001','ana@ejemplo.com'],
-    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Beto Prueba','Director financiero','Finanzas','Ana Ejemplo','+57 300 000 0002','beto@ejemplo.com'],
-    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Carla Muestra','Miembro independiente','Junta directiva','','',''],
-    ['Servicios Demo Ltda.','Sin participación','Relación comercial','Diego Ficticio','Gerente comercial','Comercial','','+57 300 000 0004','diego@ejemplo.com']
+    COLUMNAS,
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Ana Ejemplo','Gerente general','Gerencia','','+57 300 000 0001','ana@ejemplo.com','',''],
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Beto Prueba','Director financiero','Finanzas','Ana Ejemplo','+57 300 000 0002','beto@ejemplo.com','',''],
+    ['Comercializadora Ejemplo S.A.S.','25 %','Miembro principal','Carla Muestra','Miembro independiente','Junta directiva','','','','los accionistas minoritarios','@carlamuestra'],
+    ['Servicios Demo Ltda.','Sin participación','Relación comercial','Diego Ficticio','Gerente comercial','Comercial','','+57 300 000 0004','diego@ejemplo.com','','']
   ];
   return '﻿' + filas.map(f => f.map(v => /[;"\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v).join(';')).join('\r\n') + '\r\n';
 }
@@ -3431,10 +3440,12 @@ function columnaDe(h){
   if (/^(empresa|compania|compañia|entidad)/.test(n)) return 'empresa';
   if (n.includes('particip')) return 'participacion';
   if (n.includes('vincul')) return 'vinculo';
+  if (n.includes('represent')) return 'representa_a';
   if (n.includes('report')) return 'reporta_a';
   if (/^nombre|^persona/.test(n)) return 'nombre';
   if (n.includes('cargo')) return 'cargo';
   if (n.includes('area')) return 'area';
+  if (n.includes('whatsapp')) return 'whatsapp';
   if (/telefono|celular|movil/.test(n)) return 'telefono';
   if (/correo|email|e mail/.test(n)) return 'correo';
   return null;
@@ -3475,13 +3486,14 @@ function analizarCSV(texto){
       let ex = S.personas.find(p => norm(p.nombre) === pk), motivo = 'mismo nombre';
       if (!ex && correo) { ex = S.personas.find(p => norm(p.correo) === correo); motivo = 'mismo correo'; }
       if (!ex && tel.length >= 7) { ex = S.personas.find(p => soloDigitos(p.telefono).slice(-10) === tel); motivo = 'mismo teléfono'; }
-      R.personas.set(pk, {nombre:r.nombre, telefono:r.telefono || '', correo:r.correo || '', existenteId: ex ? ex.id : null});
+      const waU = limpiarUsuarioWA(r.whatsapp);
+      R.personas.set(pk, {nombre:r.nombre, telefono:r.telefono || '', correo:r.correo || '', waUsuario: usuarioWAValido(waU) ? waU : '', existenteId: ex ? ex.id : null});
       if (ex) R.duplicados.push({pk, nombre:r.nombre, existenteId:ex.id, motivo, decision:'unir'});
     }
     let cargoTxt = r.cargo || '', rol = '';
     const enJunta = norm(r.area).includes('junta') || norm(cargoTxt).includes('junta');
     if (enJunta) { rol = cargoTxt || 'Miembro de junta'; cargoTxt = ''; }
-    R.cargos.push({ek, pk, cargo:cargoTxt, area: enJunta ? '' : (r.area || ''), rolJunta:rol, reporta:r.reporta_a || '', fila:nFila});
+    R.cargos.push({ek, pk, cargo:cargoTxt, area: enJunta ? '' : (r.area || ''), rolJunta:rol, representa:limpiarRep(r.representa_a), reporta:r.reporta_a || '', fila:nFila});
   });
   return R;
 }
@@ -3538,7 +3550,7 @@ async function confirmarImport(){
     const d = decision.get(pk);
     if (d === 'descartar') continue;
     if (p.existenteId && d === 'unir') { idPer.set(pk, p.existenteId); continue; }
-    const obj = {id:uid(), creada:ahora(), nombre:p.nombre, trato:'', telefono:p.telefono, correo:p.correo, comoLaConocio:'', perfil:'', foto:null};
+    const obj = {id:uid(), creada:ahora(), nombre:p.nombre, trato:'', telefono:p.telefono, waUsuario:p.waUsuario || '', correo:p.correo, comoLaConocio:'', perfil:'', foto:null};
     poner.personas.push(obj); idPer.set(pk, obj.id);
   }
   for (const c of R.cargos) {
@@ -3546,7 +3558,7 @@ async function confirmarImport(){
     if (!pid || !eid) continue;
     const ya = S.cargos.some(x => x.personaId===pid && x.empresaId===eid && vigente(x) && norm(x.cargo)===norm(c.cargo) && norm(x.rolJunta)===norm(c.rolJunta));
     if (ya) continue;
-    poner.cargos.push({id:uid(), creada:ahora(), personaId:pid, empresaId:eid, area:c.area, cargo:c.cargo, rolJunta:c.rolJunta, reportaA:null, reportaATexto:c.reporta, inicio:'', fin:'', _pk:c.pk, _ek:c.ek});
+    poner.cargos.push({id:uid(), creada:ahora(), personaId:pid, empresaId:eid, area:c.area, cargo:c.cargo, rolJunta:c.rolJunta, representa:c.representa || '', reportaA:null, reportaATexto:c.reporta, inicio:'', fin:'', _pk:c.pk, _ek:c.ek});
   }
   /* Resolver "reporta a" entre las personas de la misma empresa */
   const nombrePorId = id => (poner.personas.find(p => p.id===id) || persona(id))?.nombre;
