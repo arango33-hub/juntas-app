@@ -478,6 +478,9 @@ button.btn-mini{width:40px}
 .grab-parar:disabled{opacity:.5}
 .grab-estado{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--texto-2);text-align:center}
 .grab.enviando .grab-ondas,.grab.enviando .grab-parar{display:none}
+.btn-ia-pend{background:var(--pend-fondo);border-color:transparent;color:var(--pend-fuerte)}
+.btn-ia-pend:hover{background:var(--pend-fondo)}
+.enlace-btn.peligro{color:var(--peligro);align-self:center}
 .opc-btn.opc-2l .s{font-size:12px;font-weight:400;color:var(--texto-2)}
 </style>
 </head>
@@ -494,7 +497,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.13 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.14 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3398,7 +3401,7 @@ async function exportar(){
   aviso('Preparando respaldo…');
   const datos = {};
   TABLAS.forEach(n => datos[n] = S[n]);
-  datos.ajustes = Object.entries(S.cfg).filter(([k]) => !['pin','ultimoRespaldo','iaClaves'].includes(k)).map(([clave, valor]) => ({clave, valor}));
+  datos.ajustes = Object.entries(S.cfg).filter(([k]) => !['pin','ultimoRespaldo','iaClaves','dictadosPendientes'].includes(k)).map(([clave, valor]) => ({clave, valor}));
   const sal = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
   const k = await claveAES(clave, sal, RESPALDO_ITER);
   const cif = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, enc.encode(JSON.stringify(datos))));
@@ -3426,10 +3429,10 @@ async function importarRespaldo(file){
   if (!ok) return;
   const poner = {};
   TABLAS.forEach(n => poner[n] = Array.isArray(datos[n]) ? datos[n] : []);
-  poner.ajustes = (datos.ajustes || []).filter(a => !['pin','iaClaves'].includes(a.clave));
-  const pin = S.cfg.pin, ultimo = S.cfg.ultimoRespaldo, clavesIA = S.cfg.iaClaves;
+  poner.ajustes = (datos.ajustes || []).filter(a => !['pin','iaClaves','dictadosPendientes'].includes(a.clave));
+  const pin = S.cfg.pin, ultimo = S.cfg.ultimoRespaldo, clavesIA = S.cfg.iaClaves, grabaciones = S.cfg.dictadosPendientes;
   await lote({vaciar:[...TABLAS, 'ajustes'], poner});
-  await lote({poner:{ajustes:[{clave:'pin', valor:pin}, ...(ultimo ? [{clave:'ultimoRespaldo', valor:ultimo}] : []), ...(clavesIA ? [{clave:'iaClaves', valor:clavesIA}] : [])]}});
+  await lote({poner:{ajustes:[{clave:'pin', valor:pin}, ...(ultimo ? [{clave:'ultimoRespaldo', valor:ultimo}] : []), ...(clavesIA ? [{clave:'iaClaves', valor:clavesIA}] : []), ...(grabaciones ? [{clave:'dictadosPendientes', valor:grabaciones}] : [])]}});
   await asegurarTiposBase();
   await migrarComites();
   aviso('Respaldo importado'); reemplazar('#/inicio'); render();
@@ -3755,8 +3758,8 @@ function barraIA(campo, modo = 'nota', valor = '', siempre = false){
   if (!mej && !dic) return '';
   const d = IA_DESHACER[campo];
   if (d && d.despues !== valor) delete IA_DESHACER[campo];
-  const u = IA_DESHACER[campo];
-  return `<div class="ia-barra" data-ia-barra="${campo}" data-modo="${modo}" data-siempre="${siempre ? '1' : ''}">${dic ? `<button type="button" class="btn-ia" data-action="ia-dictar" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}Dictar con IA</button>` : ''}${mej ? `<button type="button" class="btn-ia" data-action="ia-mejorar" data-campo="${campo}" data-modo="${modo}">${ICONO_IA}Mejorar redacción</button>` : ''}${u ? `<button type="button" class="btn-ia-des" data-action="ia-deshacer" data-campo="${campo}">${esc(u.etiqueta || 'Volver a lo que dicté')}</button>` : ''}</div>`;
+  const u = IA_DESHACER[campo], pend = dic ? pendientesDictado() : [];
+  return `<div class="ia-barra" data-ia-barra="${campo}" data-modo="${modo}" data-siempre="${siempre ? '1' : ''}">${pend.length ? `<button type="button" class="btn-ia btn-ia-pend" data-action="ia-pendiente" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}${pend.length === 1 ? 'Transcribir grabación · ' + duracion(pend[0].seg) : 'Grabaciones guardadas · ' + pend.length}</button>` : ''}${dic ? `<button type="button" class="btn-ia" data-action="ia-dictar" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}Dictar con IA</button>` : ''}${mej ? `<button type="button" class="btn-ia" data-action="ia-mejorar" data-campo="${campo}" data-modo="${modo}">${ICONO_IA}Mejorar redacción</button>` : ''}${u ? `<button type="button" class="btn-ia-des" data-action="ia-deshacer" data-campo="${campo}">${esc(u.etiqueta || 'Volver a lo que dicté')}</button>` : ''}</div>`;
 }
 function refrescarBarraIA(campo){
   const el = document.querySelector(`[data-ia-barra="${campo}"]`), ta = document.getElementById(campo);
@@ -3864,6 +3867,7 @@ function mensajeErrorIA(err, p = iaProveedor()){
     ? `No se pudo conectar con ${P.n}. Revise que haya internet; la nota se puede guardar igual y mejorarla después.`
     : `No se pudo conectar con ${P.n}. Puede ser falta de internet o que ${P.emp} no permita conectarse directamente desde una app web como Mentor. Si hay internet y sigue pasando, use otro proveedor en Ajustes.`;
   if (err.tipo === 'vacio') return `${P.n} no devolvió texto. Intente de nuevo.`;
+  if (err.tipo === 'sin-voz') return 'Gemini no encontró voz en la grabación. Puede reintentar o, si de verdad no se grabó nada, descartarla.';
   if (err.tipo === 'bloqueado') return `${P.n} se negó a revisar este texto por sus filtros de contenido. Pruebe con otro proveedor.`;
   if (err.tipo === 'sin-modelos') return `La clave funciona, pero ${P.n} no mostró modelos de texto disponibles para esta cuenta.`;
   if (err.tipo === 'sin-modelo') return `Falta escoger el modelo de ${P.n} en Ajustes → Mejorar redacción con IA.`;
@@ -3883,8 +3887,32 @@ function limpiarIA(t){
   if (/^["“«][\s\S]*["”»]$/.test(t) && !/["“«”»]/.test(t.slice(1, -1))) t = t.slice(1, -1).trim();
   return t;
 }
-async function mejorarTexto(texto, modo, signal){
-  const p = iaProveedor(), modelo = iaModelo(p);
+const dormir = (ms, signal) => new Promise((res, rej) => {
+  const t = setTimeout(res, ms);
+  if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Cancelado', 'AbortError')); }, {once:true});
+});
+/* Vale la pena reintentar si el servicio está ocupado o falló la conexión (en ChatGPT y Grok
+   una falla de conexión suele ser un bloqueo del navegador, que no se arregla reintentando). */
+const reintentable = (e, p) => !!e && (e.estado === 429 || e.estado >= 500 || (e.tipo === 'red' && (p === 'claude' || p === 'gemini')));
+/* Modelos para cada intento: el escogido dos veces y, en Gemini, otro Flash de la lista en el tercero */
+function modelosIntento(p){
+  const m = iaModelo(p) || (p === 'gemini' ? 'gemini-flash-latest' : ''), l = iaListas()[p] || [];
+  const alt = p === 'gemini' ? ((l.find(x => x.id !== m && /flash/.test(x.id) && !/lite|preview/.test(x.id)) || l.find(x => x.id !== m && /flash/.test(x.id)) || {}).id) : '';
+  return [m, m, alt || m];
+}
+async function conReintentos(p, intentar, {signal, alReintentar} = {}){
+  const esperas = [0, 2500, 6000], modelos = modelosIntento(p);
+  let ultimo;
+  for (let i = 0; i < esperas.length; i++) {
+    if (esperas[i]) { if (alReintentar) alReintentar(i + 1, esperas.length, modelos[i] !== modelos[0]); await dormir(esperas[i], signal); }
+    try { return await intentar(modelos[i]); }
+    catch (e) { if (e.name === 'AbortError' || !reintentable(e, p)) throw e; ultimo = e; }
+  }
+  throw ultimo;
+}
+const detalleErrorIA = e => e && e.estado ? `Detalle técnico: error ${e.estado}${e.detalle ? ' · ' + String(e.detalle).slice(0, 160) : ''}` : '';
+async function mejorarTexto(texto, modo, signal, modeloIntento){
+  const p = iaProveedor(), modelo = modeloIntento || iaModelo(p);
   if (!modelo) throw new ErrorIA(0, 'sin-modelo');
   const d = await iaFetch(p, iaClave(p), 'mejorar', {system:iaInstrucciones(modo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal);
   const r = textoRespuesta(p, d);
@@ -3953,15 +3981,17 @@ async function accionMejorar(b){
   const P = IA_PROV[iaProveedor()], ctrl = new AbortController();
   let listo = false;
   const v = abrirHoja(`<h2 class="hoja-titulo">Mejorar redacción</h2>
-    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span>${esc(P.n)} está revisando el texto…</div>
+    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="mj-estado">${esc(P.n)} está revisando el texto…</span></div>
     <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { if (!listo) ctrl.abort(); });
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
   let r;
-  try { r = await mejorarTexto(texto, modo, ctrl.signal); }
+  try { r = await conReintentos(iaProveedor(), m => mejorarTexto(texto, modo, ctrl.signal, m), {signal:ctrl.signal,
+    alReintentar:(i, n, otro) => { const e = $('#mj-estado', v); if (e) e.textContent = `${P.n} está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }}); }
   catch (err) {
     if (err.name === 'AbortError') return;
     listo = true; cerrarHoja();
-    return mensaje(mensajeErrorIA(err), 'No se pudo mejorar');
+    const det = detalleErrorIA(err);
+    return mensaje(mensajeErrorIA(err) + (det ? '\n\n' + det : '') + '\n\nSu texto no cambió.', 'No se pudo mejorar');
   }
   if (ctrl.signal.aborted) return;
   listo = true;
@@ -4103,8 +4133,8 @@ function instruccionesDictado(modo){
   if (modo === 'corto') t += '\n- Es un pendiente corto: escríbalo en una sola línea.';
   return t;
 }
-async function transcribirAudio(wav, modo, signal){
-  const modelo = iaModelo('gemini') || 'gemini-flash-latest';
+async function transcribirAudio(wav, modo, signal, modeloIntento){
+  const modelo = modeloIntento || iaModelo('gemini') || 'gemini-flash-latest';
   const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal);
   const r = textoRespuesta('gemini', d);
   if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
@@ -4161,29 +4191,12 @@ async function accionDictar(b){
   pintar();
   const detener = async () => {
     if (fase !== 'grabando') return;
-    fase = 'enviando'; clearInterval(reloj);
+    fase = 'listo'; clearInterval(reloj);
     const seg = grab.segundos(), wav = grab.detener();
     if (seg < 1) { cerrarHoja(); return aviso('No alcanzó a grabar nada.'); }
-    v.querySelector('.grab').classList.add('enviando');
-    estado.innerHTML = '<span class="ia-giro" aria-hidden="true"></span>Gemini está transcribiendo…';
-    ctrl = new AbortController();
-    let r;
-    try { r = await transcribirAudio(wav, modo, ctrl.signal); }
-    catch (err) {
-      if (err.name === 'AbortError' || fase === 'cerrada') return;
-      fase = 'listo'; cerrarHoja();
-      return mensaje(mensajeErrorIA(err, 'gemini'), 'No se pudo transcribir');
-    }
-    if (fase === 'cerrada') return;
-    fase = 'listo'; cerrarHoja();
-    if (!r.texto) return mensaje('Gemini no encontró voz en la grabación. Intente de nuevo hablando más cerca del celular.', 'Sin texto');
-    if (!ta.isConnected) return;
-    const antes = ta.value, sep = !antes.trim() ? '' : modo === 'lista' ? '\n' : modo === 'corto' ? ' ' : '\n\n';
-    const nuevo = antes.trim() ? antes.replace(/\s+$/, '') + sep + r.texto : r.texto;
-    IA_DESHACER[campo] = {antes, despues:nuevo, etiqueta:'Quitar lo dictado'};
-    ponerTextoCampo(ta, nuevo);
-    refrescarBarraIA(campo);
-    aviso(r.cortado ? 'Texto dictado, pero quedó incompleto: revíselo' : 'Texto dictado. Revíselo antes de guardar.');
+    const pend = {id:uid(), fecha:ahora(), seg, wav};
+    try { await guardarPendientes([...pendientesDictado(), pend]); } catch (e) { console.error(e); }
+    transcribirPendiente(pend, campo, modo);
   };
   parar.addEventListener('click', detener);
   reloj = setInterval(() => {
@@ -4192,6 +4205,68 @@ async function accionDictar(b){
     if (s >= GRAB_MAX - 30 && s < GRAB_MAX) estado.textContent = `Quedan ${GRAB_MAX - s} segundos · toque para detener`;
     if (s >= GRAB_MAX) detener();
   }, 250);
+}
+
+/* Grabaciones guardadas en el celular hasta que su texto queda en un campo (3.14).
+   Así un error de la IA o una falla de internet nunca hace perder lo que se dictó. */
+const pendientesDictado = () => Array.isArray(S.cfg.dictadosPendientes) ? S.cfg.dictadosPendientes : [];
+const guardarPendientes = l => l.length ? setAjuste('dictadosPendientes', l) : lote({quitar:{ajustes:['dictadosPendientes']}});
+const duracion = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const horaCorta = f => { try { return new Date(f).toLocaleTimeString('es-CO', {hour:'numeric', minute:'2-digit'}); } catch { return ''; } };
+async function transcribirPendiente(pend, campo, modo){
+  const ctrl = new AbortController();
+  let listo = false;
+  const v = abrirHoja(`<h2 class="hoja-titulo">Dictar con IA</h2>
+    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="tr-estado">Gemini está transcribiendo ${duracion(pend.seg)} de audio…</span></div>
+    <p class="ayuda" style="margin:0">La grabación ya quedó guardada en este celular: si algo falla, no se pierde.</p>
+    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { if (!listo) ctrl.abort(); });
+  $('[data-r]', v).addEventListener('click', () => cerrarHoja());
+  let r;
+  try {
+    r = await conReintentos('gemini', m => transcribirAudio(pend.wav, modo, ctrl.signal, m), {signal:ctrl.signal,
+      alReintentar:(i, n, otro) => { const e = $('#tr-estado', v); if (e) e.textContent = `Gemini está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
+    if (!r.texto) throw new ErrorIA(0, 'sin-voz');
+  } catch (err) {
+    if (err.name === 'AbortError') { refrescarBarraIA(campo); aviso('La grabación quedó guardada para transcribirla después'); return; }
+    listo = true;
+    return hojaFallaDictado(pend, campo, modo, err);
+  }
+  listo = true; cerrarHoja();
+  const ta = document.getElementById(campo);
+  if (!ta || !ta.isConnected) { aviso('La grabación sigue guardada: transcríbala desde la nota'); return; }
+  const antes = ta.value, sep = !antes.trim() ? '' : modo === 'lista' ? '\n' : modo === 'corto' ? ' ' : '\n\n';
+  const nuevo = antes.trim() ? antes.replace(/\s+$/, '') + sep + r.texto : r.texto;
+  IA_DESHACER[campo] = {antes, despues:nuevo, etiqueta:'Quitar lo dictado'};
+  ponerTextoCampo(ta, nuevo);
+  try { await guardarPendientes(pendientesDictado().filter(x => x.id !== pend.id)); } catch (e) { console.error(e); }
+  refrescarBarraIA(campo);
+  aviso(r.cortado ? 'Texto dictado, pero quedó incompleto: revíselo' : 'Texto dictado. Revíselo antes de guardar.');
+}
+function hojaFallaDictado(pend, campo, modo, err){
+  const det = detalleErrorIA(err);
+  const v = abrirHoja(`<h2 class="hoja-titulo">No se pudo transcribir todavía</h2>
+    <p class="hoja-texto">${esc(mensajeErrorIA(err, 'gemini'))}\n\nLa grabación de ${duracion(pend.seg)} quedó guardada en este celular; no se perdió.</p>
+    ${det ? `<p class="ayuda" style="margin:0">${esc(det)}</p>` : ''}
+    <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Más tarde</button><button type="button" class="btn-pri" data-r="1">Reintentar</button></div>
+    <button type="button" class="enlace-btn peligro" data-r="2">Descartar la grabación</button>`, () => refrescarBarraIA(campo));
+  $('[data-r="0"]', v).addEventListener('click', () => { cerrarHoja(); aviso('Grabación guardada. Puede transcribirla desde cualquier nota.'); });
+  $('[data-r="1"]', v).addEventListener('click', () => transcribirPendiente(pend, campo, modo));
+  $('[data-r="2"]', v).addEventListener('click', async () => {
+    if (!(await confirmar(`Se borra la grabación de ${duracion(pend.seg)} sin transcribir. No se puede recuperar.`, {titulo:'Descartar grabación', si:'Descartar', peligro:true}))) { refrescarBarraIA(campo); return; }
+    await guardarPendientes(pendientesDictado().filter(x => x.id !== pend.id));
+    refrescarBarraIA(campo); aviso('Grabación descartada');
+  });
+}
+function accionPendiente(b){
+  const campo = b.dataset.campo, modo = b.dataset.modo || 'nota', l = pendientesDictado();
+  if (!l.length) return refrescarBarraIA(campo);
+  if (l.length === 1) return transcribirPendiente(l[0], campo, modo);
+  const v = abrirHoja(`<h2 class="hoja-titulo">Grabaciones guardadas</h2>
+    <p class="hoja-texto">Escoja cuál transcribir en este campo. Las demás siguen guardadas.</p>
+    <div class="tarjeta col" style="gap:0">${l.map(x => `<div class="fila"><span class="col"><span class="nom">${esc(fechaMedia(x.fecha))} · ${esc(horaCorta(x.fecha))}</span><span class="sub">${duracion(x.seg)} de audio</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-t="${x.id}">Transcribir</button></div>`).join('')}</div>
+    <button type="button" class="btn-sec" data-r="0">Cerrar</button>`);
+  $('[data-r]', v).addEventListener('click', () => cerrarHoja());
+  $$('[data-t]', v).forEach(x => x.addEventListener('click', () => { const pd = l.find(y => y.id === x.dataset.t); if (pd) transcribirPendiente(pd, campo, modo); }));
 }
 
 /* =====================================================================
@@ -4220,6 +4295,7 @@ const ACCIONES = {
   'ia-deshacer': b => accionDeshacerIA(b),
   'ia-clave': async b => { if (await hojaClaveIA(b.dataset.p, b.dataset.mantener === '1')) vistaAjustes(); },
   'ia-dictar': b => accionDictar(b),
+  'ia-pendiente': b => accionPendiente(b),
   'ia-proveedor': async b => { await setAjuste('iaProveedor', b.dataset.v); vistaAjustes(); },
   'ia-lista': async b => { await actualizarListaIA(b.dataset.p); vistaAjustes(); },
   'ia-quitar': async b => { const P = IA_PROV[b.dataset.p]; if (!(await confirmar(`Se borra la clave de ${P.n} de este dispositivo. La clave sigue existiendo en ${P.consolaN}: si ya no la va a usar, revóquela allá.`, {titulo:'Quitar clave', si:'Quitar clave', peligro:true}))) return; const c = {...iaClaves()}; delete c[b.dataset.p]; await setAjuste('iaClaves', c); aviso('Clave quitada'); vistaAjustes(); },
