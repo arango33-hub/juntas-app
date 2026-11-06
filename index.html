@@ -497,7 +497,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.15 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.16 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3798,7 +3798,7 @@ Reglas:
 class ErrorIA extends Error {
   constructor(estado, tipo, detalle){ super(detalle || tipo || 'Error ' + estado); this.estado = estado; this.tipo = tipo || ''; this.detalle = detalle || ''; }
 }
-function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', audio = '', maxTokens = 8192} = {}){
+function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', audio = '', maxTokens = 8192, pensar = 'low'} = {}){
   if (p === 'claude') {
     const h = {'x-api-key':clave, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'};
     if (accion === 'modelos') return {url:'https://api.anthropic.com/v1/models?limit=100', init:{headers:h}};
@@ -3809,9 +3809,9 @@ function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', aud
     const h = {'x-goog-api-key':clave};
     if (accion === 'modelos') return {url:'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', init:{headers:h}};
     if (accion === 'audio') return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, init:{method:'POST', headers:{...h, 'content-type':'application/json'},
-      body:JSON.stringify({contents:[{role:'user', parts:[{inlineData:{mimeType:'audio/wav', data:audio}}, {text:texto}]}], generationConfig:{maxOutputTokens:maxTokens}})}};
+      body:JSON.stringify({contents:[{role:'user', parts:[{inlineData:{mimeType:'audio/wav', data:audio}}, {text:texto}]}], generationConfig:genGemini(modelo, maxTokens, pensar)})}};
     return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, init:{method:'POST', headers:{...h, 'content-type':'application/json'},
-      body:JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text:texto}]}], generationConfig:{maxOutputTokens:maxTokens}})}};
+      body:JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text:texto}]}], generationConfig:genGemini(modelo, maxTokens, pensar)})}};
   }
   /* ChatGPT y Grok usan el mismo formato */
   const base = p === 'openai' ? 'https://api.openai.com/v1' : 'https://api.x.ai/v1';
@@ -3820,17 +3820,30 @@ function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', aud
   return {url:base + '/chat/completions', init:{method:'POST', headers:{...h, 'content-type':'application/json'},
     body:JSON.stringify({model:modelo, messages:[{role:'system', content:system}, {role:'user', content:texto}], ...(p === 'openai' ? {max_completion_tokens:maxTokens} : {max_tokens:maxTokens})})}};
 }
-async function iaFetch(p, clave, accion, opc, signal){
+async function iaFetch(p, clave, accion, opc = {}, signal, ms = 0){
   const {url, init} = iaPeticion(p, clave, accion, opc);
-  let r;
-  try { r = await fetch(url, {...init, signal}); }
-  catch (err) { if (err.name === 'AbortError') throw err; throw new ErrorIA(0, 'red'); }
-  let d = null; try { d = await r.json(); } catch {}
+  const ctl = new AbortController(), alAbortar = () => ctl.abort();
+  if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', alAbortar, {once:true}); }
+  let vencido = false;
+  const t = ms ? setTimeout(() => { vencido = true; ctl.abort(); }, ms) : 0;
+  let r, d = null;
+  try {
+    try { r = await fetch(url, {...init, signal:ctl.signal}); }
+    catch (err) { if (vencido) throw new ErrorIA(0, 'tiempo', Math.round(ms / 1000) + ' s'); if (err.name === 'AbortError') throw err; throw new ErrorIA(0, 'red'); }
+    try { d = await r.json(); } catch (err) { if (vencido) throw new ErrorIA(0, 'tiempo', Math.round(ms / 1000) + ' s'); if (err.name === 'AbortError') throw err; }
+  } finally { clearTimeout(t); if (signal) signal.removeEventListener('abort', alAbortar); }
   if (!r.ok) {
     const e = d && (Array.isArray(d) ? d[0]?.error : d.error);
-    throw new ErrorIA(r.status, e?.type || e?.status || e?.code || '', e?.message || (typeof d?.error === 'string' ? d.error : ''));
+    const x = new ErrorIA(r.status, e?.type || e?.status || e?.code || '', e?.message || (typeof d?.error === 'string' ? d.error : ''));
+    if (p === 'gemini' && r.status === 400 && opc.pensar !== '' && /think/i.test(x.detalle)) return iaFetch(p, clave, accion, {...opc, pensar:''}, signal, ms);
+    throw x;
   }
   return d;
+}
+function genGemini(modelo, maxTokens, pensar){
+  const g = {maxOutputTokens:maxTokens};
+  if (pensar && versionGemini(modelo) >= 3) g.thinkingConfig = {thinkingLevel:pensar};
+  return g;
 }
 /* Versión de un modelo de Gemini por su nombre (gemini-3.8-flash → 3.8); los alias como gemini-flash-latest dan 0 */
 const versionGemini = id => { const m = /^gemini-(\d+(?:\.\d+)?)-/.exec(id); return m ? parseFloat(m[1]) : 0; };
@@ -3863,7 +3876,7 @@ async function iaListarModelos(p, clave){
 }
 function textoRespuesta(p, d){
   if (p === 'claude') return {t:(d?.content || []).filter(c => c.type === 'text').map(c => c.text).join(''), cortado:d?.stop_reason === 'max_tokens'};
-  if (p === 'gemini') { const c = d?.candidates?.[0]; return {t:(c?.content?.parts || []).filter(x => x.text && !x.thought).map(x => x.text).join(''), cortado:c?.finishReason === 'MAX_TOKENS', bloqueado:!c || /SAFETY|BLOCK|PROHIBITED/.test(c.finishReason || '') || !!d?.promptFeedback?.blockReason}; }
+  if (p === 'gemini') { const c = d?.candidates?.[0]; return {t:(c?.content?.parts || []).filter(x => x.text && !x.thought).map(x => x.text).join(''), motivo:c?.finishReason || '', cortado:c?.finishReason === 'MAX_TOKENS', bloqueado:!c || /SAFETY|BLOCK|PROHIBITED/.test(c.finishReason || '') || !!d?.promptFeedback?.blockReason}; }
   const c = d?.choices?.[0]; return {t:c?.message?.content || '', cortado:c?.finish_reason === 'length'};
 }
 function mensajeErrorIA(err, p = iaProveedor()){
@@ -3872,6 +3885,7 @@ function mensajeErrorIA(err, p = iaProveedor()){
     ? `No se pudo conectar con ${P.n}. Revise que haya internet; la nota se puede guardar igual y mejorarla después.`
     : `No se pudo conectar con ${P.n}. Puede ser falta de internet o que ${P.emp} no permita conectarse directamente desde una app web como Mentor. Si hay internet y sigue pasando, use otro proveedor en Ajustes.`;
   if (err.tipo === 'vacio') return `${P.n} no devolvió texto. Intente de nuevo.`;
+  if (err.tipo === 'tiempo') return `${P.n} tardó demasiado en responder. Intente de nuevo en un momento.`;
   if (err.tipo === 'sin-voz') return 'Gemini no encontró voz en la grabación. Puede reintentar o, si de verdad no se grabó nada, descartarla.';
   if (err.tipo === 'bloqueado') return `${P.n} se negó a revisar este texto por sus filtros de contenido. Pruebe con otro proveedor.`;
   if (err.tipo === 'sin-modelos') return `La clave funciona, pero ${P.n} no mostró modelos de texto disponibles para esta cuenta.`;
@@ -3898,7 +3912,7 @@ const dormir = (ms, signal) => new Promise((res, rej) => {
 });
 /* Vale la pena reintentar si el servicio está ocupado o falló la conexión (en ChatGPT y Grok
    una falla de conexión suele ser un bloqueo del navegador, que no se arregla reintentando). */
-const reintentable = (e, p) => !!e && (e.estado === 429 || e.estado >= 500 || (e.tipo === 'red' && (p === 'claude' || p === 'gemini')));
+const reintentable = (e, p) => !!e && (e.estado === 429 || e.estado >= 500 || e.tipo === 'tiempo' || e.tipo === 'vacio' || (e.tipo === 'red' && (p === 'claude' || p === 'gemini')));
 /* Modelos para cada intento: el escogido y, en Gemini, el Flash estable más nuevo y después el
    alias gemini-flash-latest (o el segundo más nuevo). Nunca uno viejo: Google sigue mostrando
    en la lista modelos que ya no deja usar a cuentas nuevas. */
@@ -3924,6 +3938,7 @@ async function conReintentos(p, intentar, {signal, alReintentar} = {}){
       return r;
     } catch (e) {
       if (e.name === 'AbortError') throw e;
+      if (e instanceof ErrorIA && !e.modelo) e.modelo = modelos[i];
       const alterno = modelos[i] !== modelos[0];
       if (!alterno && !reintentable(e, p) && e.estado !== 404) throw e;
       if (!primero) primero = e;
@@ -3931,15 +3946,26 @@ async function conReintentos(p, intentar, {signal, alReintentar} = {}){
   }
   throw primero;
 }
-const detalleErrorIA = e => e && e.estado ? `Detalle técnico: error ${e.estado}${e.detalle ? ' · ' + String(e.detalle).slice(0, 160) : ''}` : '';
+/* Línea de "Detalle técnico": modelo, código y mensaje del proveedor (o el tipo de falla) */
+function detalleErrorIA(e){
+  if (!e || !(e instanceof ErrorIA)) return '';
+  const partes = [];
+  if (e.modelo) partes.push(e.modelo);
+  if (e.estado) { partes.push('error ' + e.estado); if (e.detalle) partes.push(String(e.detalle).slice(0, 160)); }
+  else if (e.tipo === 'tiempo') partes.push('sin respuesta en ' + e.detalle);
+  else if (e.tipo === 'red') partes.push('no se pudo conectar con el servidor');
+  else if (e.tipo === 'vacio') partes.push('respuesta vacía' + (e.detalle ? ' (' + e.detalle + ')' : ''));
+  else if (e.tipo) partes.push(e.tipo + (e.detalle ? ' (' + e.detalle + ')' : ''));
+  return partes.length ? 'Detalle técnico: ' + partes.join(' · ') : '';
+}
 async function mejorarTexto(texto, modo, signal, modeloIntento){
   const p = iaProveedor(), modelo = modeloIntento || iaModelo(p);
   if (!modelo) throw new ErrorIA(0, 'sin-modelo');
-  const d = await iaFetch(p, iaClave(p), 'mejorar', {system:iaInstrucciones(modo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal);
+  const d = await iaFetch(p, iaClave(p), 'mejorar', {system:iaInstrucciones(modo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal, 45000);
   const r = textoRespuesta(p, d);
   if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
   const out = limpiarIA(r.t);
-  if (!out) throw new ErrorIA(0, 'vacio');
+  if (!out) throw new ErrorIA(0, 'vacio', r.motivo || '');
   return {texto: modo === 'corto' ? out.replace(/\s*\n+\s*/g, ' ') : out, cortado: r.cortado, p, modelo};
 }
 
@@ -4003,10 +4029,12 @@ async function accionMejorar(b){
   let listo = false;
   const v = abrirHoja(`<h2 class="hoja-titulo">Mejorar redacción</h2>
     <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="mj-estado">${esc(P.n)} está revisando el texto…</span></div>
-    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { if (!listo) ctrl.abort(); });
+    <p class="ayuda ia-espera" style="margin:0" id="mj-info">Modelo: ${esc(iaModelo() || '—')} · <span id="mj-seg">0 s</span></p>
+    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { clearInterval(cron); if (!listo) ctrl.abort(); });
+  const t0 = Date.now(), cron = setInterval(() => { const e = $('#mj-seg', v); if (e) e.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
   let r;
-  try { r = await conReintentos(iaProveedor(), m => mejorarTexto(texto, modo, ctrl.signal, m), {signal:ctrl.signal,
+  try { r = await conReintentos(iaProveedor(), m => { const e = $('#mj-info', v); if (e && e.firstChild) e.firstChild.textContent = `Modelo: ${m} · `; return mejorarTexto(texto, modo, ctrl.signal, m); }, {signal:ctrl.signal,
     alReintentar:(i, n, otro, falta) => { const e = $('#mj-estado', v); if (e) e.textContent = falta ? `Probando con otro modelo de ${P.n}…` : `${P.n} está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }}); }
   catch (err) {
     if (err.name === 'AbortError') return;
@@ -4156,7 +4184,7 @@ function instruccionesDictado(modo){
 }
 async function transcribirAudio(wav, modo, signal, modeloIntento){
   const modelo = modeloIntento || iaModelo('gemini') || 'gemini-flash-latest';
-  const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal);
+  const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal, 120000);
   const r = textoRespuesta('gemini', d);
   if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
   let t = limpiarIA(r.t);
@@ -4247,11 +4275,13 @@ async function transcribirPendiente(pend, campo, modo){
   const v = abrirHoja(`<h2 class="hoja-titulo">Dictar con IA</h2>
     <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="tr-estado">Gemini está transcribiendo ${duracion(pend.seg)} de audio…</span></div>
     <p class="ayuda" style="margin:0">La grabación ya quedó guardada en este celular: si algo falla, no se pierde.</p>
-    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { if (!listo) ctrl.abort(); });
+    <p class="ayuda ia-espera" style="margin:0" id="tr-info">Modelo: ${esc(iaModelo('gemini') || '—')} · <span id="tr-seg">0 s</span></p>
+    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { clearInterval(cron); if (!listo) ctrl.abort(); });
+  const t0 = Date.now(), cron = setInterval(() => { const e = $('#tr-seg', v); if (e) e.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
   let r;
   try {
-    r = await conReintentos('gemini', m => transcribirAudio(pend.wav, modo, ctrl.signal, m), {signal:ctrl.signal,
+    r = await conReintentos('gemini', m => { const e = $('#tr-info', v); if (e && e.firstChild) e.firstChild.textContent = `Modelo: ${m} · `; return transcribirAudio(pend.wav, modo, ctrl.signal, m); }, {signal:ctrl.signal,
       alReintentar:(i, n, otro, falta) => { const e = $('#tr-estado', v); if (e) e.textContent = falta ? 'Probando con otro modelo de Gemini…' : `Gemini está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
     if (!r.texto) throw new ErrorIA(0, 'sin-voz');
   } catch (err) {
