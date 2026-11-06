@@ -469,6 +469,15 @@ button.btn-mini{width:40px}
 .ia-nota{margin:0;padding:10px 12px;border-radius:12px;background:var(--pend-fondo);color:var(--pend-fuerte);font-size:13px;line-height:1.45}
 .ajuste p.ia-nota{color:var(--pend-fuerte)}
 .ia-origen{margin:-8px 0 0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--acento)}
+.grab{display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px 0 4px}
+.grab-ondas{display:flex;align-items:center;gap:4px;height:36px}
+.grab-ondas span{width:4px;height:8px;border-radius:2px;background:var(--pin-acento);transition:height .09s linear}
+.grab-ondas span.alto{background:var(--acento)}
+.grab-tiempo{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--texto)}
+.grab-parar{width:80px;height:80px;border-radius:50%;border:0;background:var(--pend-texto);color:#FFFFFF;display:flex;align-items:center;justify-content:center}
+.grab-parar:disabled{opacity:.5}
+.grab-estado{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--texto-2);text-align:center}
+.grab.enviando .grab-ondas,.grab.enviando .grab-parar{display:none}
 .opc-btn.opc-2l .s{font-size:12px;font-weight:400;color:var(--texto-2)}
 </style>
 </head>
@@ -485,7 +494,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.12 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.13 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3742,15 +3751,17 @@ const IA_DESHACER = {};   // id del campo → {antes, despues}
 /* ---------- Botón debajo de cada campo ---------- */
 /* "valor" es el texto actual del campo, para mostrar "Volver a lo que dicté" solo si sigue siendo el que puso la IA. */
 function barraIA(campo, modo = 'nota', valor = '', siempre = false){
-  if (!iaClave() && !siempre) return '';
+  const mej = siempre || !!iaClave(), dic = (siempre || !!iaClave('gemini')) && puedeGrabar();
+  if (!mej && !dic) return '';
   const d = IA_DESHACER[campo];
   if (d && d.despues !== valor) delete IA_DESHACER[campo];
-  return `<div class="ia-barra" data-ia-barra="${campo}"><button type="button" class="btn-ia" data-action="ia-mejorar" data-campo="${campo}" data-modo="${modo}">${ICONO_IA}Mejorar redacción</button>${IA_DESHACER[campo] ? `<button type="button" class="btn-ia-des" data-action="ia-deshacer" data-campo="${campo}">Volver a lo que dicté</button>` : ''}</div>`;
+  const u = IA_DESHACER[campo];
+  return `<div class="ia-barra" data-ia-barra="${campo}" data-modo="${modo}" data-siempre="${siempre ? '1' : ''}">${dic ? `<button type="button" class="btn-ia" data-action="ia-dictar" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}Dictar con IA</button>` : ''}${mej ? `<button type="button" class="btn-ia" data-action="ia-mejorar" data-campo="${campo}" data-modo="${modo}">${ICONO_IA}Mejorar redacción</button>` : ''}${u ? `<button type="button" class="btn-ia-des" data-action="ia-deshacer" data-campo="${campo}">${esc(u.etiqueta || 'Volver a lo que dicté')}</button>` : ''}</div>`;
 }
 function refrescarBarraIA(campo){
   const el = document.querySelector(`[data-ia-barra="${campo}"]`), ta = document.getElementById(campo);
   if (!el || !ta) return;
-  el.outerHTML = barraIA(campo, el.querySelector('.btn-ia')?.dataset.modo, ta.value, true);
+  el.outerHTML = barraIA(campo, el.dataset.modo, ta.value, el.dataset.siempre === '1');
 }
 /* Pone el texto en el campo y avisa al formulario, para que lo guarde en su estado y en el borrador */
 function ponerTextoCampo(ta, texto){
@@ -3784,7 +3795,7 @@ Reglas:
 class ErrorIA extends Error {
   constructor(estado, tipo, detalle){ super(detalle || tipo || 'Error ' + estado); this.estado = estado; this.tipo = tipo || ''; this.detalle = detalle || ''; }
 }
-function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', maxTokens = 8192} = {}){
+function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', audio = '', maxTokens = 8192} = {}){
   if (p === 'claude') {
     const h = {'x-api-key':clave, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true'};
     if (accion === 'modelos') return {url:'https://api.anthropic.com/v1/models?limit=100', init:{headers:h}};
@@ -3794,6 +3805,8 @@ function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', max
   if (p === 'gemini') {
     const h = {'x-goog-api-key':clave};
     if (accion === 'modelos') return {url:'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', init:{headers:h}};
+    if (accion === 'audio') return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, init:{method:'POST', headers:{...h, 'content-type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user', parts:[{inlineData:{mimeType:'audio/wav', data:audio}}, {text:texto}]}], generationConfig:{maxOutputTokens:maxTokens}})}};
     return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, init:{method:'POST', headers:{...h, 'content-type':'application/json'},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text:texto}]}], generationConfig:{maxOutputTokens:maxTokens}})}};
   }
@@ -3883,12 +3896,12 @@ async function mejorarTexto(texto, modo, signal){
 
 /* ---------- Clave: pegarla, probarla y guardarla ---------- */
 /* Prueba la clave pidiendo la lista de modelos (no gasta) y guarda la clave, la lista y el modelo sugerido. */
-function hojaClaveIA(p = iaProveedor()){
+function hojaClaveIA(p = iaProveedor(), mantener = false){
   const P = IA_PROV[p];
   return new Promise(res => {
     const hay = !!iaClave(p);
     const v = abrirHoja(`<h2 class="hoja-titulo">${hay ? 'Cambiar clave de ' + P.n : 'Clave de ' + P.n}</h2>
-      <p class="hoja-texto">Para mejorar la redacción con ${P.n}, Mentor usa la API de ${P.emp} con una clave suya. ${P.pasos}\n\nQueda guardada solo en este dispositivo y no va en los respaldos.${p === 'gemini' ? '' : ' La API se paga aparte de la suscripción, por uso.'}</p>
+      <p class="hoja-texto">Para ${p === 'gemini' ? 'dictar y mejorar la redacción' : 'mejorar la redacción'} con ${P.n}, Mentor usa la API de ${P.emp} con una clave suya. ${P.pasos}\n\nQueda guardada solo en este dispositivo y no va en los respaldos.${p === 'gemini' ? '' : ' La API se paga aparte de la suscripción, por uso.'}</p>
       ${p === 'gemini' ? '<p class="ia-nota">Sin facturación, la API de Gemini es gratis, pero Google puede usar los textos para mejorar sus productos. Con un proyecto con facturación (por ejemplo, con el crédito mensual de Google AI Pro) no los usa.</p>' : ''}
       <a class="enlace-btn" href="${P.consola}" target="_blank" rel="noopener">Abrir ${esc(P.consolaN)}</a>
       <form class="hoja-form" novalidate>
@@ -3912,9 +3925,9 @@ function hojaClaveIA(p = iaProveedor()){
         {clave:'iaClaves', valor:{...iaClaves(), [p]:clave}},
         {clave:'iaListas', valor:{...iaListas(), [p]:r.lista}},
         {clave:'iaModelos', valor:modelos},
-        {clave:'iaProveedor', valor:p}]}});
+        ...(mantener && iaClave() ? [] : [{clave:'iaProveedor', valor:p}])]}});
       cerrarHoja(clave);
-      aviso(`Clave de ${P.n} guardada. Ya puede mejorar la redacción.`);
+      aviso(`Clave de ${P.n} guardada.`);
     });
   });
 }
@@ -3994,7 +4007,7 @@ function accionDeshacerIA(b){
   delete IA_DESHACER[campo];
   ponerTextoCampo(ta, d.antes);
   refrescarBarraIA(campo);
-  aviso('Volvió al texto que dictó');
+  aviso(d.etiqueta ? 'Se quitó lo dictado' : 'Volvió al texto que dictó');
 }
 
 /* ---------- Sección de Ajustes ---------- */
@@ -4015,7 +4028,170 @@ function ajustesIA(){
       <select class="input" id="ia-modelo">${opcs.map(m => `<option value="${esc(m.id)}"${m.id === mod ? ' selected' : ''}>${esc(m.n && m.n !== m.id ? `${m.n} · ${m.id}` : m.id)}</option>`).join('')}</select>
       <button type="button" class="enlace-btn" data-action="ia-lista" data-p="${p}">Actualizar lista</button>
     </div>` : ''}
+    <div class="ajuste"><span class="leyenda">Dictar con IA</span>
+      <p>El botón “Dictar con IA” graba hasta 5 minutos y, al detener, envía el audio a Gemini, que lo transcribe con puntuación y sin muletillas. El audio no se guarda en Mentor. Usa la clave de Gemini aunque la redacción se mejore con otro proveedor.</p>
+      ${iaClave('gemini') ? `<p class="ia-estado">${ICONO_MIC}Listo · usa la clave de Gemini${iaModelo('gemini') ? ' (' + esc(iaModelo('gemini')) + ')' : ''}</p>` : '<button type="button" class="btn-sec" data-action="ia-clave" data-p="gemini" data-mantener="1">Poner clave de Gemini</button>'}
+    </div>
   </div></div>`;
+}
+
+/* =====================================================================
+   DICTAR CON IA (3.13)
+   Graba con el micrófono del celular, convierte el audio a WAV de 16 kHz
+   (formato que Gemini acepta en cualquier celular) y, al detener, lo envía a
+   Gemini para que lo transcriba. El audio no se guarda en Mentor: vive en la
+   memoria mientras se graba y se descarta después.
+   ===================================================================== */
+const GRAB_MAX = 300;      // segundos (5 minutos)
+const GRAB_HZ = 16000;
+const ICONO_MIC = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const puedeGrabar = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && (window.AudioContext || window.webkitAudioContext));
+
+async function iniciarGrabacion(alNivel){
+  const stream = await navigator.mediaDevices.getUserMedia({audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+  const AC = window.AudioContext || window.webkitAudioContext;
+  const ctx = new AC();
+  try { await ctx.resume(); } catch {}
+  const src = ctx.createMediaStreamSource(stream);
+  const razon = ctx.sampleRate / GRAB_HZ;
+  const trozos = []; let n = 0, acum = 0, cuenta = 0, pos = 0, siguiente = razon;
+  /* Baja a 16 kHz promediando, y guarda en enteros de 16 bits */
+  const recibir = f => {
+    const out = new Int16Array(Math.ceil(f.length / razon) + 1); let k = 0, pico = 0;
+    for (let i = 0; i < f.length; i++) {
+      const s = f[i]; acum += s; cuenta++; pos++;
+      const a = s < 0 ? -s : s; if (a > pico) pico = a;
+      if (pos >= siguiente) { const v = Math.max(-1, Math.min(1, acum / cuenta)); out[k++] = v < 0 ? v * 0x8000 : v * 0x7FFF; acum = 0; cuenta = 0; siguiente += razon; }
+    }
+    if (k) { trozos.push(out.subarray(0, k)); n += k; }
+    if (alNivel) alNivel(pico);
+  };
+  let nodo = null;
+  if (ctx.audioWorklet && window.AudioWorkletNode) {
+    const url = URL.createObjectURL(new Blob([`class G extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor('grabador-mentor',G)`], {type:'application/javascript'}));
+    try { await ctx.audioWorklet.addModule(url); nodo = new AudioWorkletNode(ctx, 'grabador-mentor'); nodo.port.onmessage = e => recibir(e.data); } catch { nodo = null; }
+    URL.revokeObjectURL(url);
+  }
+  if (!nodo) { nodo = ctx.createScriptProcessor(4096, 1, 1); nodo.onaudioprocess = e => recibir(e.inputBuffer.getChannelData(0)); }
+  const mudo = ctx.createGain(); mudo.gain.value = 0;
+  src.connect(nodo); nodo.connect(mudo); mudo.connect(ctx.destination);
+  const apagar = () => { stream.getTracks().forEach(t => t.stop()); try { src.disconnect(); nodo.disconnect(); } catch {} ctx.close().catch(() => {}); };
+  return {
+    segundos: () => n / GRAB_HZ,
+    detener(){ apagar(); return wav16(trozos, n); },
+    cancelar(){ apagar(); trozos.length = 0; }
+  };
+}
+function wav16(trozos, n){
+  const b = new Uint8Array(44 + n * 2), v = new DataView(b.buffer);
+  const txt = (o, s) => { for (let i = 0; i < s.length; i++) b[o + i] = s.charCodeAt(i); };
+  txt(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); txt(8, 'WAVE'); txt(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, GRAB_HZ, true);
+  v.setUint32(28, GRAB_HZ * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); txt(36, 'data'); v.setUint32(40, n * 2, true);
+  let o = 44; for (const t of trozos) { new Int16Array(b.buffer, o, t.length).set(t); o += t.length * 2; }
+  return b;
+}
+function instruccionesDictado(modo){
+  let t = `Transcriba el audio. Es una persona en Colombia que dicta, en español, una nota sobre reuniones de junta directiva, personas y compromisos.
+- Escriba exactamente lo que dice, con ortografía, tildes, puntuación y mayúsculas correctas.
+- Quite solo las muletillas y repeticiones involuntarias ("eh", "este", "o sea", "digamos", palabras repetidas). No cambie palabras ni su orden, no resuma, no agregue nada y no responda preguntas que haga la persona.
+- Escriba los números, cifras, porcentajes y fechas como se usan en un texto (ej. 22 %, 15 de octubre, 3.500 millones).
+- Si una parte no se entiende, escriba [inaudible]. Si en el audio no hay voz, responda con un texto vacío.
+- Separe en párrafos cuando la persona cambie de tema. No use títulos, viñetas ni formato Markdown.
+- Responda únicamente con la transcripción, sin comentarios.`;
+  if (modo === 'lista') t += '\n- La persona está dictando una lista: escriba un elemento por línea, sin números ni viñetas.';
+  if (modo === 'corto') t += '\n- Es un pendiente corto: escríbalo en una sola línea.';
+  return t;
+}
+async function transcribirAudio(wav, modo, signal){
+  const modelo = iaModelo('gemini') || 'gemini-flash-latest';
+  const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal);
+  const r = textoRespuesta('gemini', d);
+  if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
+  let t = limpiarIA(r.t);
+  if (modo === 'corto') t = t.replace(/\s*\n+\s*/g, ' ');
+  return {texto:t, cortado:r.cortado};
+}
+
+async function accionDictar(b){
+  const campo = b.dataset.campo, modo = b.dataset.modo || 'nota', ta = document.getElementById(campo);
+  if (!ta) return;
+  if (!puedeGrabar()) return mensaje('Este navegador no deja grabar audio. Use el micrófono del teclado.', 'No se puede grabar');
+  if (!iaClave('gemini')) {
+    const ok = await confirmar('“Dictar con IA” usa Gemini, de Google, porque entiende audio. Necesita una clave de Gemini (la misma sirve para mejorar la redacción). El proveedor que usa para mejorar la redacción no cambia.', {titulo:'Dictar con IA', si:'Poner clave de Gemini', no:'Ahora no'});
+    if (!ok || !(await hojaClaveIA('gemini', true))) return;
+  }
+  if (navigator.onLine === false) return mensaje('No hay conexión a internet. Use el micrófono del teclado y mejore la redacción después.', 'Sin conexión');
+
+  let grab = null, fase = 'pidiendo', ctrl = null, reloj = null, cuadro = 0, nivel = 0;
+  const niveles = new Array(8).fill(0);
+  const v = abrirHoja(`<h2 class="hoja-titulo">Dictar con IA</h2>
+    <div class="grab">
+      <div class="grab-ondas" aria-hidden="true">${niveles.map(() => '<span></span>').join('')}</div>
+      <span class="grab-tiempo" id="grab-t">0:00</span>
+      <button type="button" class="grab-parar" id="grab-parar" aria-label="Detener y transcribir" disabled><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+      <span class="grab-estado" id="grab-estado" role="status">Abriendo el micrófono…</span>
+    </div>
+    <p class="ayuda" style="margin:0;text-align:center">Hasta 5 minutos. Al detener, el audio se envía a Gemini para transcribirlo y no se guarda en Mentor.</p>
+    <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => {
+      clearInterval(reloj); clearTimeout(cuadro);
+      if (grab && fase === 'grabando') grab.cancelar();
+      if (ctrl && fase === 'enviando') ctrl.abort();
+      fase = 'cerrada';
+    });
+  $('[data-r]', v).addEventListener('click', () => cerrarHoja());
+  const estado = $('#grab-estado', v), parar = $('#grab-parar', v), barras = $$('.grab-ondas span', v);
+
+  try { grab = await iniciarGrabacion(p => { nivel = Math.max(nivel, p); }); }
+  catch (err) {
+    if (fase === 'cerrada') return;
+    cerrarHoja();
+    return mensaje(err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')
+      ? 'Mentor no tiene permiso para usar el micrófono. Actívelo en los permisos del sitio (en Chrome: el candado junto a la dirección → Micrófono) o en los ajustes del celular, y vuelva a intentar.'
+      : 'No se pudo abrir el micrófono. Revise que ninguna otra app lo esté usando y vuelva a intentar.', 'Micrófono');
+  }
+  if (fase === 'cerrada') { grab.cancelar(); return; }
+  fase = 'grabando'; parar.disabled = false;
+  estado.textContent = 'Escuchando… toque para detener';
+  const pintar = () => {
+    niveles.shift(); niveles.push(Math.min(1, nivel * 3)); nivel = 0;
+    barras.forEach((s, i) => { s.style.height = (8 + Math.round(niveles[i] * 26)) + 'px'; s.classList.toggle('alto', niveles[i] > .25); });
+    if (fase === 'grabando') cuadro = setTimeout(() => requestAnimationFrame(pintar), 90);
+  };
+  pintar();
+  const detener = async () => {
+    if (fase !== 'grabando') return;
+    fase = 'enviando'; clearInterval(reloj);
+    const seg = grab.segundos(), wav = grab.detener();
+    if (seg < 1) { cerrarHoja(); return aviso('No alcanzó a grabar nada.'); }
+    v.querySelector('.grab').classList.add('enviando');
+    estado.innerHTML = '<span class="ia-giro" aria-hidden="true"></span>Gemini está transcribiendo…';
+    ctrl = new AbortController();
+    let r;
+    try { r = await transcribirAudio(wav, modo, ctrl.signal); }
+    catch (err) {
+      if (err.name === 'AbortError' || fase === 'cerrada') return;
+      fase = 'listo'; cerrarHoja();
+      return mensaje(mensajeErrorIA(err, 'gemini'), 'No se pudo transcribir');
+    }
+    if (fase === 'cerrada') return;
+    fase = 'listo'; cerrarHoja();
+    if (!r.texto) return mensaje('Gemini no encontró voz en la grabación. Intente de nuevo hablando más cerca del celular.', 'Sin texto');
+    if (!ta.isConnected) return;
+    const antes = ta.value, sep = !antes.trim() ? '' : modo === 'lista' ? '\n' : modo === 'corto' ? ' ' : '\n\n';
+    const nuevo = antes.trim() ? antes.replace(/\s+$/, '') + sep + r.texto : r.texto;
+    IA_DESHACER[campo] = {antes, despues:nuevo, etiqueta:'Quitar lo dictado'};
+    ponerTextoCampo(ta, nuevo);
+    refrescarBarraIA(campo);
+    aviso(r.cortado ? 'Texto dictado, pero quedó incompleto: revíselo' : 'Texto dictado. Revíselo antes de guardar.');
+  };
+  parar.addEventListener('click', detener);
+  reloj = setInterval(() => {
+    const s = Math.floor(grab.segundos());
+    $('#grab-t', v).textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    if (s >= GRAB_MAX - 30 && s < GRAB_MAX) estado.textContent = `Quedan ${GRAB_MAX - s} segundos · toque para detener`;
+    if (s >= GRAB_MAX) detener();
+  }, 250);
 }
 
 /* =====================================================================
@@ -4042,7 +4218,8 @@ const ACCIONES = {
   'cerrar-hoja': () => cerrarHoja(),
   'ia-mejorar': b => accionMejorar(b),
   'ia-deshacer': b => accionDeshacerIA(b),
-  'ia-clave': async b => { if (await hojaClaveIA(b.dataset.p)) vistaAjustes(); },
+  'ia-clave': async b => { if (await hojaClaveIA(b.dataset.p, b.dataset.mantener === '1')) vistaAjustes(); },
+  'ia-dictar': b => accionDictar(b),
   'ia-proveedor': async b => { await setAjuste('iaProveedor', b.dataset.v); vistaAjustes(); },
   'ia-lista': async b => { await actualizarListaIA(b.dataset.p); vistaAjustes(); },
   'ia-quitar': async b => { const P = IA_PROV[b.dataset.p]; if (!(await confirmar(`Se borra la clave de ${P.n} de este dispositivo. La clave sigue existiendo en ${P.consolaN}: si ya no la va a usar, revóquela allá.`, {titulo:'Quitar clave', si:'Quitar clave', peligro:true}))) return; const c = {...iaClaves()}; delete c[b.dataset.p]; await setAjuste('iaClaves', c); aviso('Clave quitada'); vistaAjustes(); },
