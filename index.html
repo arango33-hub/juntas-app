@@ -497,7 +497,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.14 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.15 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3832,6 +3832,10 @@ async function iaFetch(p, clave, accion, opc, signal){
   }
   return d;
 }
+/* Versión de un modelo de Gemini por su nombre (gemini-3.8-flash → 3.8); los alias como gemini-flash-latest dan 0 */
+const versionGemini = id => { const m = /^gemini-(\d+(?:\.\d+)?)-/.exec(id); return m ? parseFloat(m[1]) : 0; };
+/* Flash estables (sin lite, preview ni fecha), del más nuevo al más viejo */
+const flashEstables = l => l.filter(x => /^gemini-\d+(\.\d+)?-flash(-\d{3})?$/.test(x.id)).sort((a, b) => versionGemini(b.id) - versionGemini(a.id));
 /* Lista de modelos de texto de cada proveedor, del más nuevo al más viejo, y el sugerido */
 async function iaListarModelos(p, clave){
   const d = await iaFetch(p, clave, 'modelos');
@@ -3839,7 +3843,8 @@ async function iaListarModelos(p, clave){
   if (p === 'gemini') {
     l = (d.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
       .map(m => ({id:String(m.name).replace(/^models\//, ''), n:m.displayName || ''}))
-      .filter(m => /^gemini/.test(m.id) && !/image|tts|audio|live|embedding|vision|robotics|computer|exp/i.test(m.id));
+      .filter(m => /^gemini/.test(m.id) && !/image|tts|audio|live|embedding|vision|robotics|computer|exp/i.test(m.id))
+      .sort((a, b) => versionGemini(b.id) - versionGemini(a.id));
   } else {
     l = (d.data || []).map(m => ({id:m.id, n:m.display_name || '', t:m.created_at ? Date.parse(m.created_at) / 1000 : (m.created || 0)}));
     if (p === 'openai') l = l.filter(m => /^(gpt-|o\d|chatgpt)/.test(m.id) && !/audio|realtime|image|transcribe|tts|search|embedding|instruct|codex|moderation|dall|whisper|vision/i.test(m.id));
@@ -3849,7 +3854,7 @@ async function iaListarModelos(p, clave){
   if (!l.length) throw new ErrorIA(0, 'sin-modelos');
   const preferir = {
     claude: [m => /sonnet/.test(m.id)],
-    gemini: [m => m.id === 'gemini-flash-latest', m => /flash/.test(m.id) && !/lite/.test(m.id) && !/preview/.test(m.id), m => /flash/.test(m.id)],
+    gemini: [m => /^gemini-\d+(\.\d+)?-flash(-\d{3})?$/.test(m.id), m => m.id === 'gemini-flash-latest', m => /flash/.test(m.id) && !/lite|preview/.test(m.id), m => /flash/.test(m.id)],
     openai: [m => /^gpt-\d+(\.\d+)?-mini$/.test(m.id), m => /^gpt-\d+(\.\d+)?$/.test(m.id), m => /^gpt-/.test(m.id)],
     xai: [m => /fast/.test(m.id) && !/code/.test(m.id), m => !/code/.test(m.id)]
   }[p];
@@ -3894,21 +3899,37 @@ const dormir = (ms, signal) => new Promise((res, rej) => {
 /* Vale la pena reintentar si el servicio está ocupado o falló la conexión (en ChatGPT y Grok
    una falla de conexión suele ser un bloqueo del navegador, que no se arregla reintentando). */
 const reintentable = (e, p) => !!e && (e.estado === 429 || e.estado >= 500 || (e.tipo === 'red' && (p === 'claude' || p === 'gemini')));
-/* Modelos para cada intento: el escogido dos veces y, en Gemini, otro Flash de la lista en el tercero */
+/* Modelos para cada intento: el escogido y, en Gemini, el Flash estable más nuevo y después el
+   alias gemini-flash-latest (o el segundo más nuevo). Nunca uno viejo: Google sigue mostrando
+   en la lista modelos que ya no deja usar a cuentas nuevas. */
 function modelosIntento(p){
-  const m = iaModelo(p) || (p === 'gemini' ? 'gemini-flash-latest' : ''), l = iaListas()[p] || [];
-  const alt = p === 'gemini' ? ((l.find(x => x.id !== m && /flash/.test(x.id) && !/lite|preview/.test(x.id)) || l.find(x => x.id !== m && /flash/.test(x.id)) || {}).id) : '';
-  return [m, m, alt || m];
+  const m = iaModelo(p) || (p === 'gemini' ? 'gemini-flash-latest' : '');
+  if (p !== 'gemini') return [m, m, m];
+  const l = iaListas().gemini || [], est = flashEstables(l).map(x => x.id).filter(id => id !== m);
+  const alias = l.some(x => x.id === 'gemini-flash-latest') && m !== 'gemini-flash-latest' ? 'gemini-flash-latest' : '';
+  const a1 = est[0] || alias || m, a2 = [alias, est[1], est[0]].find(x => x && x !== a1) || a1;
+  return [m, a1, a2];
 }
+/* Reintenta si el servicio está ocupado. Si el modelo escogido ya no existe (404), pasa a otro y,
+   si ese funciona, lo deja como el modelo escogido. Si todo falla, muestra el error del modelo escogido. */
 async function conReintentos(p, intentar, {signal, alReintentar} = {}){
   const esperas = [0, 2500, 6000], modelos = modelosIntento(p);
-  let ultimo;
+  let primero = null;
   for (let i = 0; i < esperas.length; i++) {
-    if (esperas[i]) { if (alReintentar) alReintentar(i + 1, esperas.length, modelos[i] !== modelos[0]); await dormir(esperas[i], signal); }
-    try { return await intentar(modelos[i]); }
-    catch (e) { if (e.name === 'AbortError' || !reintentable(e, p)) throw e; ultimo = e; }
+    if (i && modelos[i] === modelos[i - 1] && primero && primero.estado === 404) continue;
+    if (esperas[i]) { if (alReintentar) alReintentar(i + 1, esperas.length, modelos[i] !== modelos[0], !!primero && primero.estado === 404); await dormir(primero && primero.estado === 404 ? 300 : esperas[i], signal); }
+    try {
+      const r = await intentar(modelos[i]);
+      if (i && modelos[i] !== modelos[0] && primero && primero.estado === 404) setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [p]: modelos[i]}).catch(() => {});
+      return r;
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      const alterno = modelos[i] !== modelos[0];
+      if (!alterno && !reintentable(e, p) && e.estado !== 404) throw e;
+      if (!primero) primero = e;
+    }
   }
-  throw ultimo;
+  throw primero;
 }
 const detalleErrorIA = e => e && e.estado ? `Detalle técnico: error ${e.estado}${e.detalle ? ' · ' + String(e.detalle).slice(0, 160) : ''}` : '';
 async function mejorarTexto(texto, modo, signal, modeloIntento){
@@ -3986,7 +4007,7 @@ async function accionMejorar(b){
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
   let r;
   try { r = await conReintentos(iaProveedor(), m => mejorarTexto(texto, modo, ctrl.signal, m), {signal:ctrl.signal,
-    alReintentar:(i, n, otro) => { const e = $('#mj-estado', v); if (e) e.textContent = `${P.n} está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }}); }
+    alReintentar:(i, n, otro, falta) => { const e = $('#mj-estado', v); if (e) e.textContent = falta ? `Probando con otro modelo de ${P.n}…` : `${P.n} está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }}); }
   catch (err) {
     if (err.name === 'AbortError') return;
     listo = true; cerrarHoja();
@@ -4207,6 +4228,13 @@ async function accionDictar(b){
   }, 250);
 }
 
+/* 3.15: la 3.12 a la 3.14 sugerían el alias gemini-flash-latest; se cambia por el Flash estable más nuevo de la lista */
+async function migrarModeloGemini(){
+  try {
+    const mod = S.cfg.iaModelos || {}, nuevo = flashEstables(iaListas().gemini || [])[0];
+    if (mod.gemini === 'gemini-flash-latest' && nuevo) await setAjuste('iaModelos', {...mod, gemini: nuevo.id});
+  } catch (e) { console.error(e); }
+}
 /* Grabaciones guardadas en el celular hasta que su texto queda en un campo (3.14).
    Así un error de la IA o una falla de internet nunca hace perder lo que se dictó. */
 const pendientesDictado = () => Array.isArray(S.cfg.dictadosPendientes) ? S.cfg.dictadosPendientes : [];
@@ -4224,7 +4252,7 @@ async function transcribirPendiente(pend, campo, modo){
   let r;
   try {
     r = await conReintentos('gemini', m => transcribirAudio(pend.wav, modo, ctrl.signal, m), {signal:ctrl.signal,
-      alReintentar:(i, n, otro) => { const e = $('#tr-estado', v); if (e) e.textContent = `Gemini está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
+      alReintentar:(i, n, otro, falta) => { const e = $('#tr-estado', v); if (e) e.textContent = falta ? 'Probando con otro modelo de Gemini…' : `Gemini está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
     if (!r.texto) throw new ErrorIA(0, 'sin-voz');
   } catch (err) {
     if (err.name === 'AbortError') { refrescarBarraIA(campo); aviso('La grabación quedó guardada para transcribirla después'); return; }
@@ -4575,6 +4603,7 @@ async function iniciar(){
     await cargarTodo();
     await asegurarTiposBase();
     await migrarComites();
+    await migrarModeloGemini();
     await purgarPapelera();
     aplicarTema();
   } catch (err) {
