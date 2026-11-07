@@ -497,7 +497,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.16 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.17 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3375,6 +3375,7 @@ function vistaAjustes(id, q = {}){
     <div class="sec"><p class="ayuda" style="text-align:center;margin:8px 0 0">${esc(APP.nombre)} · versión ${esc(APP.version)}<br>${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}</p></div>
   </div>`);
   $('#aj-dias').addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
+  ['mejorar', 'transcribir'].forEach(k => $('#ia-esp-' + k)?.addEventListener('change', async e => { await setAjuste('iaEspera', {...(S.cfg.iaEspera || {}), [k]: +e.target.value}); aviso('Tiempo de espera actualizado'); }));
   $('#ia-modelo')?.addEventListener('change', async e => { await setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [iaProveedor()]: e.target.value}); aviso('Modelo actualizado'); });
 }
 
@@ -3845,6 +3846,9 @@ function genGemini(modelo, maxTokens, pensar){
   if (pensar && versionGemini(modelo) >= 3) g.thinkingConfig = {thinkingLevel:pensar};
   return g;
 }
+/* Tiempo máximo de espera por intento, en segundos (Ajustes; 10 y 10 por defecto, 3.17) */
+const ESPERAS_IA = {mejorar:[10, 15, 20, 30, 45, 60], transcribir:[10, 15, 20, 30, 60, 120]};
+const esperaIA = k => { const v = +((S.cfg.iaEspera || {})[k]); return ESPERAS_IA[k].includes(v) ? v : 10; };
 /* Versión de un modelo de Gemini por su nombre (gemini-3.8-flash → 3.8); los alias como gemini-flash-latest dan 0 */
 const versionGemini = id => { const m = /^gemini-(\d+(?:\.\d+)?)-/.exec(id); return m ? parseFloat(m[1]) : 0; };
 /* Flash estables (sin lite, preview ni fecha), del más nuevo al más viejo */
@@ -3961,7 +3965,7 @@ function detalleErrorIA(e){
 async function mejorarTexto(texto, modo, signal, modeloIntento){
   const p = iaProveedor(), modelo = modeloIntento || iaModelo(p);
   if (!modelo) throw new ErrorIA(0, 'sin-modelo');
-  const d = await iaFetch(p, iaClave(p), 'mejorar', {system:iaInstrucciones(modo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal, 45000);
+  const d = await iaFetch(p, iaClave(p), 'mejorar', {system:iaInstrucciones(modo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal, esperaIA('mejorar') * 1000);
   const r = textoRespuesta(p, d);
   if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
   const out = limpiarIA(r.t);
@@ -4107,8 +4111,15 @@ function ajustesIA(){
       <select class="input" id="ia-modelo">${opcs.map(m => `<option value="${esc(m.id)}"${m.id === mod ? ' selected' : ''}>${esc(m.n && m.n !== m.id ? `${m.n} · ${m.id}` : m.id)}</option>`).join('')}</select>
       <button type="button" class="enlace-btn" data-action="ia-lista" data-p="${p}">Actualizar lista</button>
     </div>` : ''}
+    <div class="ajuste"><span class="leyenda">Tiempo máximo de espera</span>
+      <p>Cuánto esperar la respuesta en cada intento (la app intenta hasta tres veces). Si ve seguido el error “sin respuesta”, súbalo. Una grabación que no alcanza a transcribirse queda guardada.</p>
+      <div class="dos">
+        <div class="campo"><label for="ia-esp-mejorar">Mejorar redacción</label><select class="input" id="ia-esp-mejorar">${ESPERAS_IA.mejorar.map(n => `<option value="${n}"${n === esperaIA('mejorar') ? ' selected' : ''}>${n} s</option>`).join('')}</select></div>
+        <div class="campo"><label for="ia-esp-transcribir">Dictar con IA</label><select class="input" id="ia-esp-transcribir">${ESPERAS_IA.transcribir.map(n => `<option value="${n}"${n === esperaIA('transcribir') ? ' selected' : ''}>${n < 60 ? n + ' s' : n / 60 + ' min'}</option>`).join('')}</select></div>
+      </div>
+    </div>
     <div class="ajuste"><span class="leyenda">Dictar con IA</span>
-      <p>El botón “Dictar con IA” graba hasta 5 minutos y, al detener, envía el audio a Gemini, que lo transcribe con puntuación y sin muletillas. El audio no se guarda en Mentor. Usa la clave de Gemini aunque la redacción se mejore con otro proveedor.</p>
+      <p>El botón “Dictar con IA” graba hasta 5 minutos y, al detener, envía el audio a Gemini, que lo transcribe con puntuación y sin muletillas. El audio queda en el celular solo hasta que se transcribe. Usa la clave de Gemini aunque la redacción se mejore con otro proveedor.</p>
       ${iaClave('gemini') ? `<p class="ia-estado">${ICONO_MIC}Listo · usa la clave de Gemini${iaModelo('gemini') ? ' (' + esc(iaModelo('gemini')) + ')' : ''}</p>` : '<button type="button" class="btn-sec" data-action="ia-clave" data-p="gemini" data-mantener="1">Poner clave de Gemini</button>'}
     </div>
   </div></div>`;
@@ -4184,7 +4195,7 @@ function instruccionesDictado(modo){
 }
 async function transcribirAudio(wav, modo, signal, modeloIntento){
   const modelo = modeloIntento || iaModelo('gemini') || 'gemini-flash-latest';
-  const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal, 120000);
+  const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal, esperaIA('transcribir') * 1000);
   const r = textoRespuesta('gemini', d);
   if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado');
   let t = limpiarIA(r.t);
