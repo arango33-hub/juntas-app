@@ -497,7 +497,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.17 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.18 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3375,6 +3375,7 @@ function vistaAjustes(id, q = {}){
     <div class="sec"><p class="ayuda" style="text-align:center;margin:8px 0 0">${esc(APP.nombre)} · versión ${esc(APP.version)}<br>${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}</p></div>
   </div>`);
   $('#aj-dias').addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
+  $('#dic-modelo')?.addEventListener('change', async e => { await guardarModeloDictado('openai', e.target.value); aviso('Modelo de transcripción actualizado'); });
   ['mejorar', 'transcribir'].forEach(k => $('#ia-esp-' + k)?.addEventListener('change', async e => { await setAjuste('iaEspera', {...(S.cfg.iaEspera || {}), [k]: +e.target.value}); aviso('Tiempo de espera actualizado'); }));
   $('#ia-modelo')?.addEventListener('change', async e => { await setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [iaProveedor()]: e.target.value}); aviso('Modelo actualizado'); });
 }
@@ -3755,7 +3756,7 @@ const IA_DESHACER = {};   // id del campo → {antes, despues}
 /* ---------- Botón debajo de cada campo ---------- */
 /* "valor" es el texto actual del campo, para mostrar "Volver a lo que dicté" solo si sigue siendo el que puso la IA. */
 function barraIA(campo, modo = 'nota', valor = '', siempre = false){
-  const mej = siempre || !!iaClave(), dic = (siempre || !!iaClave('gemini')) && puedeGrabar();
+  const mej = siempre || !!iaClave(), dic = (siempre || !!iaClave(dictadoProveedor())) && puedeGrabar();
   if (!mej && !dic) return '';
   const d = IA_DESHACER[campo];
   if (d && d.despues !== valor) delete IA_DESHACER[campo];
@@ -3813,6 +3814,13 @@ function iaPeticion(p, clave, accion, {system = '', texto = '', modelo = '', aud
       body:JSON.stringify({contents:[{role:'user', parts:[{inlineData:{mimeType:'audio/wav', data:audio}}, {text:texto}]}], generationConfig:genGemini(modelo, maxTokens, pensar)})}};
     return {url:`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelo)}:generateContent`, init:{method:'POST', headers:{...h, 'content-type':'application/json'},
       body:JSON.stringify({systemInstruction:{parts:[{text:system}]}, contents:[{role:'user', parts:[{text:texto}]}], generationConfig:genGemini(modelo, maxTokens, pensar)})}};
+  }
+  if (accion === 'transcribir') {
+    const f = new FormData();
+    f.append('file', new Blob([audio], {type:'audio/wav'}), 'nota.wav');
+    f.append('model', modelo); f.append('language', 'es'); f.append('response_format', 'json');
+    if (texto) f.append('prompt', texto);
+    return {url:'https://api.openai.com/v1/audio/transcriptions', init:{method:'POST', headers:{'authorization':'Bearer ' + clave}, body:f}};
   }
   /* ChatGPT y Grok usan el mismo formato */
   const base = p === 'openai' ? 'https://api.openai.com/v1' : 'https://api.x.ai/v1';
@@ -3890,7 +3898,7 @@ function mensajeErrorIA(err, p = iaProveedor()){
     : `No se pudo conectar con ${P.n}. Puede ser falta de internet o que ${P.emp} no permita conectarse directamente desde una app web como Mentor. Si hay internet y sigue pasando, use otro proveedor en Ajustes.`;
   if (err.tipo === 'vacio') return `${P.n} no devolvió texto. Intente de nuevo.`;
   if (err.tipo === 'tiempo') return `${P.n} tardó demasiado en responder. Intente de nuevo en un momento.`;
-  if (err.tipo === 'sin-voz') return 'Gemini no encontró voz en la grabación. Puede reintentar o, si de verdad no se grabó nada, descartarla.';
+  if (err.tipo === 'sin-voz') return `${P.n} no encontró voz en la grabación. Puede reintentar o, si de verdad no se grabó nada, descartarla.`;
   if (err.tipo === 'bloqueado') return `${P.n} se negó a revisar este texto por sus filtros de contenido. Pruebe con otro proveedor.`;
   if (err.tipo === 'sin-modelos') return `La clave funciona, pero ${P.n} no mostró modelos de texto disponibles para esta cuenta.`;
   if (err.tipo === 'sin-modelo') return `Falta escoger el modelo de ${P.n} en Ajustes → Mejorar redacción con IA.`;
@@ -3930,15 +3938,15 @@ function modelosIntento(p){
 }
 /* Reintenta si el servicio está ocupado. Si el modelo escogido ya no existe (404), pasa a otro y,
    si ese funciona, lo deja como el modelo escogido. Si todo falla, muestra el error del modelo escogido. */
-async function conReintentos(p, intentar, {signal, alReintentar} = {}){
-  const esperas = [0, 2500, 6000], modelos = modelosIntento(p);
+async function conReintentos(p, intentar, {signal, alReintentar, modelos: lista, alCambiar} = {}){
+  const esperas = [0, 2500, 6000], modelos = lista || modelosIntento(p);
   let primero = null;
   for (let i = 0; i < esperas.length; i++) {
     if (i && modelos[i] === modelos[i - 1] && primero && primero.estado === 404) continue;
     if (esperas[i]) { if (alReintentar) alReintentar(i + 1, esperas.length, modelos[i] !== modelos[0], !!primero && primero.estado === 404); await dormir(primero && primero.estado === 404 ? 300 : esperas[i], signal); }
     try {
       const r = await intentar(modelos[i]);
-      if (i && modelos[i] !== modelos[0] && primero && primero.estado === 404) setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [p]: modelos[i]}).catch(() => {});
+      if (i && modelos[i] !== modelos[0] && primero && primero.estado === 404) Promise.resolve(alCambiar ? alCambiar(modelos[i]) : setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [p]: modelos[i]})).catch(() => {});
       return r;
     } catch (e) {
       if (e.name === 'AbortError') throw e;
@@ -4119,8 +4127,12 @@ function ajustesIA(){
       </div>
     </div>
     <div class="ajuste"><span class="leyenda">Dictar con IA</span>
-      <p>El botón “Dictar con IA” graba hasta 5 minutos y, al detener, envía el audio a Gemini, que lo transcribe con puntuación y sin muletillas. El audio queda en el celular solo hasta que se transcribe. Usa la clave de Gemini aunque la redacción se mejore con otro proveedor.</p>
-      ${iaClave('gemini') ? `<p class="ia-estado">${ICONO_MIC}Listo · usa la clave de Gemini${iaModelo('gemini') ? ' (' + esc(iaModelo('gemini')) + ')' : ''}</p>` : '<button type="button" class="btn-sec" data-action="ia-clave" data-p="gemini" data-mantener="1">Poner clave de Gemini</button>'}
+      <p>El botón “Dictar con IA” graba hasta 5 minutos y, al detener, envía el audio a la IA escogida aquí, que lo transcribe. Puede ser distinta de la que mejora la redacción. El audio queda en el celular solo hasta que se transcribe.</p>
+      <div class="opc2" role="group" aria-label="Dictar con">${DIC_PROV.map(k => `<button type="button" class="opc-btn opc-2l${k === dictadoProveedor() ? ' sel' : ''}" data-action="dic-proveedor" data-v="${k}" aria-pressed="${k === dictadoProveedor()}"><span>${esc(IA_PROV[k].n)}</span><span class="s">${iaClave(k) ? 'Clave guardada' : 'Sin clave'}</span></button>`).join('')}</div>
+      ${dictadoProveedor() === 'openai' ? '<p class="ia-nota">No está confirmado que OpenAI deje conectarse directamente a una app web como Mentor. Toque “Probar conexión”: si falla, siga dictando con Gemini.</p>' : ''}
+      ${iaClave(dictadoProveedor()) ? `<p class="ia-estado">${ICONO_MIC}Usa la clave de ${esc(IA_PROV[dictadoProveedor()].n)} · ${esc(modeloDictado())}</p>
+      ${dictadoProveedor() === 'openai' ? `<div class="campo"><label for="dic-modelo">Modelo de transcripción</label><select class="input" id="dic-modelo">${DIC_OPENAI.map(m => `<option value="${m.id}"${m.id === modeloDictado('openai') ? ' selected' : ''}>${esc(m.n)} · ${m.id}</option>`).join('')}</select></div>` : ''}
+      <button type="button" class="btn-sec" data-action="dic-probar">Probar conexión</button>` : `<button type="button" class="btn-sec" data-action="ia-clave" data-p="${dictadoProveedor()}" data-mantener="1">Poner clave de ${esc(IA_PROV[dictadoProveedor()].n)}</button>`}
     </div>
   </div></div>`;
 }
@@ -4193,7 +4205,26 @@ function instruccionesDictado(modo){
   if (modo === 'corto') t += '\n- Es un pendiente corto: escríbalo en una sola línea.';
   return t;
 }
-async function transcribirAudio(wav, modo, signal, modeloIntento){
+/* Dictado con Gemini o con OpenAI (3.18); puede ser distinto del proveedor de la redacción */
+const DIC_PROV = ['gemini', 'openai'];
+const DIC_OPENAI = [{id:'gpt-4o-transcribe', n:'Más preciso'}, {id:'gpt-4o-mini-transcribe', n:'Más económico'}];
+const dictadoProveedor = () => DIC_PROV.includes(S.cfg.dictadoProveedor) ? S.cfg.dictadoProveedor : 'gemini';
+const modeloDictado = (p = dictadoProveedor()) => p === 'openai' ? ((S.cfg.dictadoModelos || {}).openai || DIC_OPENAI[0].id) : (iaModelo('gemini') || 'gemini-flash-latest');
+function modelosDictado(p = dictadoProveedor()){
+  if (p !== 'openai') return modelosIntento('gemini');
+  const m = modeloDictado('openai'), alt = DIC_OPENAI.find(x => x.id !== m).id;
+  return [m, m, alt];
+}
+const guardarModeloDictado = (p, m) => p === 'openai' ? setAjuste('dictadoModelos', {...(S.cfg.dictadoModelos || {}), openai: m}) : setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), gemini: m});
+/* Pista para la transcripción de OpenAI: contexto y estilo (no son instrucciones que siga al pie de la letra) */
+const pistaDictado = modo => 'Nota dictada en español de Colombia por un miembro de juntas directivas, sobre reuniones, personas y compromisos. Texto con puntuación, tildes y mayúsculas correctas, sin muletillas.' + (modo === 'lista' ? ' Es una lista, un elemento por línea.' : '');
+async function transcribirAudio(wav, modo, signal, modeloIntento, p = dictadoProveedor()){
+  if (p === 'openai') {
+    const d = await iaFetch('openai', iaClave('openai'), 'transcribir', {texto:pistaDictado(modo), audio:wav, modelo:modeloIntento || modeloDictado('openai')}, signal, esperaIA('transcribir') * 1000);
+    let t = String(d?.text || '').trim();
+    if (modo === 'corto') t = t.replace(/\s*\n+\s*/g, ' ');
+    return {texto:t, cortado:false};
+  }
   const modelo = modeloIntento || iaModelo('gemini') || 'gemini-flash-latest';
   const d = await iaFetch('gemini', iaClave('gemini'), 'audio', {texto:instruccionesDictado(modo), audio:b64(wav), modelo}, signal, esperaIA('transcribir') * 1000);
   const r = textoRespuesta('gemini', d);
@@ -4207,9 +4238,10 @@ async function accionDictar(b){
   const campo = b.dataset.campo, modo = b.dataset.modo || 'nota', ta = document.getElementById(campo);
   if (!ta) return;
   if (!puedeGrabar()) return mensaje('Este navegador no deja grabar audio. Use el micrófono del teclado.', 'No se puede grabar');
-  if (!iaClave('gemini')) {
-    const ok = await confirmar('“Dictar con IA” usa Gemini, de Google, porque entiende audio. Necesita una clave de Gemini (la misma sirve para mejorar la redacción). El proveedor que usa para mejorar la redacción no cambia.', {titulo:'Dictar con IA', si:'Poner clave de Gemini', no:'Ahora no'});
-    if (!ok || !(await hojaClaveIA('gemini', true))) return;
+  const dp = dictadoProveedor(), DP = IA_PROV[dp];
+  if (!iaClave(dp)) {
+    const ok = await confirmar(`“Dictar con IA” usa ${DP.n} (${DP.emp}) para transcribir el audio. Necesita una clave de ${DP.n}; la misma sirve para mejorar la redacción. El proveedor que usa para mejorar la redacción no cambia. En Ajustes puede escoger si dicta con Gemini o con ChatGPT.`, {titulo:'Dictar con IA', si:`Poner clave de ${DP.n}`, no:'Ahora no'});
+    if (!ok || !(await hojaClaveIA(dp, true))) return;
   }
   if (navigator.onLine === false) return mensaje('No hay conexión a internet. Use el micrófono del teclado y mejore la redacción después.', 'Sin conexión');
 
@@ -4222,7 +4254,7 @@ async function accionDictar(b){
       <button type="button" class="grab-parar" id="grab-parar" aria-label="Detener y transcribir" disabled><svg aria-hidden="true" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
       <span class="grab-estado" id="grab-estado" role="status">Abriendo el micrófono…</span>
     </div>
-    <p class="ayuda" style="margin:0;text-align:center">Hasta 5 minutos. Al detener, el audio se envía a Gemini para transcribirlo y no se guarda en Mentor.</p>
+    <p class="ayuda" style="margin:0;text-align:center">Hasta 5 minutos. Al detener, el audio se envía a ${esc(DP.n)} para transcribirlo.</p>
     <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => {
       clearInterval(reloj); clearTimeout(cuadro);
       if (grab && fase === 'grabando') grab.cancelar();
@@ -4274,6 +4306,20 @@ async function migrarModeloGemini(){
     if (mod.gemini === 'gemini-flash-latest' && nuevo) await setAjuste('iaModelos', {...mod, gemini: nuevo.id});
   } catch (e) { console.error(e); }
 }
+async function probarDictado(){
+  const dp = dictadoProveedor(), P = IA_PROV[dp];
+  const v = abrirHoja(`<h2 class="hoja-titulo">Probar conexión</h2>
+    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span>Enviando un segundo de silencio a ${esc(P.n)}…</div>`);
+  try {
+    await conReintentos(dp, m => transcribirAudio(wav16([new Int16Array(GRAB_HZ)], GRAB_HZ), 'nota', undefined, m, dp), {modelos:modelosDictado(dp), alCambiar:m => guardarModeloDictado(dp, m)});
+    cerrarHoja();
+    mensaje(`${P.n} respondió bien con el modelo ${modeloDictado(dp)}. Ya puede dictar con ${P.n}.`, 'Conexión correcta');
+  } catch (err) {
+    cerrarHoja();
+    const det = detalleErrorIA(err);
+    mensaje(mensajeErrorIA(err, dp) + (det ? '\n\n' + det : '') + (dp === 'openai' && err.tipo === 'red' ? '\n\nSi hay internet, lo más probable es que OpenAI no deje conectarse a una app web como Mentor. Siga dictando con Gemini.' : ''), 'No funcionó');
+  }
+}
 /* Grabaciones guardadas en el celular hasta que su texto queda en un campo (3.14).
    Así un error de la IA o una falla de internet nunca hace perder lo que se dictó. */
 const pendientesDictado = () => Array.isArray(S.cfg.dictadosPendientes) ? S.cfg.dictadosPendientes : [];
@@ -4281,19 +4327,20 @@ const guardarPendientes = l => l.length ? setAjuste('dictadosPendientes', l) : l
 const duracion = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const horaCorta = f => { try { return new Date(f).toLocaleTimeString('es-CO', {hour:'numeric', minute:'2-digit'}); } catch { return ''; } };
 async function transcribirPendiente(pend, campo, modo){
+  const dp = dictadoProveedor(), N = IA_PROV[dp].n;
   const ctrl = new AbortController();
   let listo = false;
   const v = abrirHoja(`<h2 class="hoja-titulo">Dictar con IA</h2>
-    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="tr-estado">Gemini está transcribiendo ${duracion(pend.seg)} de audio…</span></div>
+    <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="tr-estado">${esc(N)} está transcribiendo ${duracion(pend.seg)} de audio…</span></div>
     <p class="ayuda" style="margin:0">La grabación ya quedó guardada en este celular: si algo falla, no se pierde.</p>
-    <p class="ayuda ia-espera" style="margin:0" id="tr-info">Modelo: ${esc(iaModelo('gemini') || '—')} · <span id="tr-seg">0 s</span></p>
+    <p class="ayuda ia-espera" style="margin:0" id="tr-info">Modelo: ${esc(modeloDictado(dp))} · <span id="tr-seg">0 s</span></p>
     <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { clearInterval(cron); if (!listo) ctrl.abort(); });
   const t0 = Date.now(), cron = setInterval(() => { const e = $('#tr-seg', v); if (e) e.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
   let r;
   try {
-    r = await conReintentos('gemini', m => { const e = $('#tr-info', v); if (e && e.firstChild) e.firstChild.textContent = `Modelo: ${m} · `; return transcribirAudio(pend.wav, modo, ctrl.signal, m); }, {signal:ctrl.signal,
-      alReintentar:(i, n, otro, falta) => { const e = $('#tr-estado', v); if (e) e.textContent = falta ? 'Probando con otro modelo de Gemini…' : `Gemini está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
+    r = await conReintentos(dp, m => { const e = $('#tr-info', v); if (e && e.firstChild) e.firstChild.textContent = `Modelo: ${m} · `; return transcribirAudio(pend.wav, modo, ctrl.signal, m, dp); }, {signal:ctrl.signal, modelos:modelosDictado(dp), alCambiar:m => guardarModeloDictado(dp, m),
+      alReintentar:(i, n, otro, falta) => { const e = $('#tr-estado', v); if (e) e.textContent = falta ? `Probando con otro modelo de ${N}…` : `${N} está ocupado. Reintentando${otro ? ' con otro modelo' : ''} (${i} de ${n})…`; }});
     if (!r.texto) throw new ErrorIA(0, 'sin-voz');
   } catch (err) {
     if (err.name === 'AbortError') { refrescarBarraIA(campo); aviso('La grabación quedó guardada para transcribirla después'); return; }
@@ -4314,7 +4361,7 @@ async function transcribirPendiente(pend, campo, modo){
 function hojaFallaDictado(pend, campo, modo, err){
   const det = detalleErrorIA(err);
   const v = abrirHoja(`<h2 class="hoja-titulo">No se pudo transcribir todavía</h2>
-    <p class="hoja-texto">${esc(mensajeErrorIA(err, 'gemini'))}\n\nLa grabación de ${duracion(pend.seg)} quedó guardada en este celular; no se perdió.</p>
+    <p class="hoja-texto">${esc(mensajeErrorIA(err, dictadoProveedor()))}\n\nLa grabación de ${duracion(pend.seg)} quedó guardada en este celular; no se perdió.</p>
     ${det ? `<p class="ayuda" style="margin:0">${esc(det)}</p>` : ''}
     <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Más tarde</button><button type="button" class="btn-pri" data-r="1">Reintentar</button></div>
     <button type="button" class="enlace-btn peligro" data-r="2">Descartar la grabación</button>`, () => refrescarBarraIA(campo));
@@ -4364,6 +4411,8 @@ const ACCIONES = {
   'ia-deshacer': b => accionDeshacerIA(b),
   'ia-clave': async b => { if (await hojaClaveIA(b.dataset.p, b.dataset.mantener === '1')) vistaAjustes(); },
   'ia-dictar': b => accionDictar(b),
+  'dic-proveedor': async b => { await setAjuste('dictadoProveedor', b.dataset.v); vistaAjustes(); },
+  'dic-probar': () => probarDictado(),
   'ia-pendiente': b => accionPendiente(b),
   'ia-proveedor': async b => { await setAjuste('iaProveedor', b.dataset.v); vistaAjustes(); },
   'ia-lista': async b => { await actualizarListaIA(b.dataset.p); vistaAjustes(); },
