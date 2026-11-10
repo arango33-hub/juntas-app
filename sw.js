@@ -1,6 +1,6 @@
 /* Service worker: guarda la app en el dispositivo para que funcione sin internet.
    Al publicar una versión nueva, cambie VERSION para que los celulares la descarguen. */
-const VERSION = 'junta-app-v3.18';
+const VERSION = 'junta-app-v3.19';
 const FUENTES = 'junta-app-fuentes';
 const URL_FUENTES = 'https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
@@ -8,7 +8,7 @@ const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon.svg', 
 self.addEventListener('install', e => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
-    await c.addAll(ARCHIVOS);
+    await c.addAll(ARCHIVOS.map(u => new Request(u, {cache: 'reload'}))); // siempre la copia nueva del servidor, no la del navegador
     try { // Fuentes de Google para uso sin internet (si no hay conexión, se intentará después)
       const f = await caches.open(FUENTES);
       const r = await fetch(URL_FUENTES);
