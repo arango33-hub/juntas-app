@@ -392,6 +392,20 @@ select.input{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .tl-cuerpo.espacio{padding-bottom:20px}
 .tl-fecha{font-size:13px;font-weight:600;color:var(--texto-2)}
 .tl-texto{font-size:15px;line-height:1.45;white-space:pre-line;overflow-wrap:anywhere}
+.tl-reu-cab{display:flex;align-items:center;gap:10px;width:100%;padding:0;background:none;border:0;color:var(--texto);font:inherit;text-align:left;cursor:pointer;min-height:44px}
+.tl-reu-cab .col{flex:1;min-width:0;gap:2px}
+.tl-reu-res{font-size:15px;font-weight:600}
+.tl-reu .pleg-flecha{width:30px;height:30px}
+.tl-reu:hover{background:none}
+.tl-reu.abierta .pleg-flecha{transform:rotate(180deg)}
+.tl-reu-cuerpo{display:none;flex-direction:column;gap:8px;padding-top:6px}
+.tl-reu.abierta .tl-reu-cuerpo{display:flex}
+.tl-sub{margin:4px 0 0;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--texto-2)}
+.tl-lista{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:15px;line-height:1.45;overflow-wrap:anywhere}
+.tl-mes{margin:4px 0 12px;font-size:14px;font-weight:700;color:var(--texto-2)}
+.tl-grupo + .tl-grupo{margin-top:8px}
+.tl-anio{margin-top:10px}
+.tl-anio .pleg-cuerpo{padding:14px 14px 4px}
 .tl-item.primera .tl-punto{background:var(--c,var(--acento))}
 .tl-item.primera .tl-fecha{color:var(--c,var(--acento))}
 :root[data-tema="oscuro"] .tl-item.primera .tl-fecha{color:var(--acento)}
@@ -592,7 +606,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.30 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.31 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1716,6 +1730,7 @@ function vistaEmpresa(id){
     <div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'empresa', id}, conReuniones, [
       {k:'propias', txt:'Solo sobre ella', f: n => n.refTipo==='empresa' && n.refId===id},
       {k:'juntas', txt:'Reuniones', f: n => !!n.reunionId && reunion(n.reunionId)?.empresaId === id},
+      ...filtroDecisiones(juntasEntidad(id)),
       ...(notasGente.length ? [{k:'gente', txt:'Sus personas', lista: notasGente}] : []),
       ...filtrosPorRef(propiasYEnlazadas, {tipo:'empresa', id}, ['proyecto'])
     ])}</div>
@@ -1740,26 +1755,57 @@ function itemsReunion(lista){
   return lista.filter(r => r.fecha && r.fecha <= hoyISO() && ((r.temas || []).some(Boolean) || (r.decisiones || []).some(Boolean)))
     .map(r => ({_r:r, id:'reu-' + r.id, fecha:r.fecha, creada:r.creada, reunionId:r.id, refTipo:'', refId:'', relacionadas:[], texto:''}));
 }
+/* 3.31 · Reuniones, notas y decisiones de la Historia: abiertas o cerradas y agrupadas por mes y año */
+const HIST_AB = new Set();
+function listaTL(titulo, xs){ return xs.length ? `<h3 class="tl-sub">${titulo}</h3><ul class="tl-lista">${xs.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''; }
 function itemReunionTL(r, i, ult){
-  const temas = (r.temas || []).filter(Boolean), dec = (r.decisiones || []).filter(Boolean);
-  const corto = t => t.length > 220 ? t.slice(0, 220).trim() + '…' : t;
-  const lineas = [...temas.slice(0, 3).map(t => '• ' + corto(t)), ...(temas.length > 3 ? [`• y ${plural(temas.length - 3, 'tema')} más`] : [])];
+  const temas = (r.temas || []).filter(Boolean), dec = (r.decisiones || []).filter(Boolean), k = 'reu-' + r.id, ab = HIST_AB.has(k);
+  const res = [temas.length ? plural(temas.length, 'tema') : '', dec.length ? plural(dec.length, 'decisión', 'decisiones') : ''].filter(Boolean).join(' · ');
+  return `<div class="tl-item tl-reu${i===0 ? ' primera' : ''}${ab ? ' abierta' : ''}" data-ab="${k}">
+      <div class="tl-eje"><div class="tl-punto" style="background:var(--acento)"></div>${ult ? '' : '<div class="tl-linea"></div>'}</div>
+      <div class="tl-cuerpo${ult ? '' : ' espacio'}" style="flex:1">
+        <button type="button" class="tl-reu-cab" data-action="hist-ab" aria-expanded="${ab}"><span class="col"><span class="tl-fecha">${esc([fechaMedia(r.fecha), ocasionJunta(r)].join(' · '))}</span><span class="tl-reu-res">${esc(res)}</span></span><span class="pleg-flecha">${I.plegar}</span></button>
+        <div class="tl-reu-cuerpo">${listaTL('Temas tratados', temas)}${listaTL(dec.length === 1 ? 'Decisión tomada' : 'Decisiones tomadas', dec)}
+          <a class="enlace-btn" style="font-size:14px;align-self:flex-start" href="#/junta/${r.id}">Abrir ficha ›</a></div></div></div>`;
+}
+/* Filtro "Decisiones": una entrada por reunión, solo con sus decisiones */
+function filtroDecisiones(lista){
+  const xs = itemsDecision(lista), n = xs.reduce((t, x) => t + x._d.decisiones.filter(Boolean).length, 0);
+  return xs.length ? [{k:'dec', txt:'Decisiones', lista:xs, n}] : [];
+}
+function itemsDecision(lista){
+  return itemsReunion(lista).filter(x => (x._r.decisiones || []).some(Boolean)).map(x => ({...x, _r:null, _d:x._r, id:'dec-' + x._r.id}));
+}
+function itemDecisionTL(r, i, ult){
+  const dec = (r.decisiones || []).filter(Boolean);
   return `<a class="tl-item${i===0 ? ' primera' : ''}" href="#/junta/${r.id}" aria-label="Abrir ${esc(ocasionJunta(r))} del ${esc(fechaMedia(r.fecha))}">
       <div class="tl-eje"><div class="tl-punto" style="background:var(--acento)"></div>${ult ? '' : '<div class="tl-linea"></div>'}</div>
-      <div class="tl-cuerpo${ult ? '' : ' espacio'}"><span class="tl-fecha">${esc([fechaMedia(r.fecha), ocasionJunta(r)].join(' · '))}</span><span class="origen" style="align-self:flex-start">Ficha de la reunión</span>
-      ${lineas.length ? `<span class="tl-texto">${esc(lineas.join('\n'))}</span>` : ''}${dec.length ? `<span class="tl-texto"><b>${dec.length === 1 ? 'Decisión' : 'Decisiones'}:</b> ${esc(dec.slice(0, 2).map(corto).join(' · '))}${dec.length > 2 ? ' …' : ''}</span>` : ''}</div></a>`;
+      <div class="tl-cuerpo${ult ? '' : ' espacio'}"><span class="tl-fecha">${esc([fechaMedia(r.fecha), ocasionJunta(r)].join(' · '))}</span><ul class="tl-lista">${dec.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></a>`;
 }
-function lineaTiempo(notas, sujeto, vacio){
-  if (!notas.length) return `<p class="tarjeta vacio">${vacio || 'Aún no hay notas. Use el botón de abajo para agregar la primera.'}</p>`;
-  const items = [...notas].sort(ordenNotas);
-  return `<div class="tl">${items.map((n, i) => {
-    const ult = i === items.length - 1;
-    if (n._r) return itemReunionTL(n._r, i, ult);
-    const titulo = [fechaMedia(n.fecha), n.ocasion].filter(Boolean).join(' · ');
-    return `<a class="tl-item${i===0 ? ' primera' : ''}" href="#/nota/${n.id}" aria-label="Editar nota del ${esc(fechaMedia(n.fecha))}">
+function itemTL(n, i, ult, sujeto){
+  if (n._r) return itemReunionTL(n._r, i, ult);
+  if (n._d) return itemDecisionTL(n._d, i, ult);
+  const titulo = [fechaMedia(n.fecha), n.ocasion].filter(Boolean).join(' · ');
+  return `<a class="tl-item${i===0 ? ' primera' : ''}" href="#/nota/${n.id}" aria-label="Editar nota del ${esc(fechaMedia(n.fecha))}">
       <div class="tl-eje"><div class="tl-punto"></div>${ult ? '' : '<div class="tl-linea"></div>'}</div>
       <div class="tl-cuerpo${ult ? '' : ' espacio'}"><span class="tl-fecha">${esc(titulo)}</span>${origenesNota(n, sujeto)}<span class="tl-texto">${esc(n.texto)}</span></div></a>`;
-  }).join('')}</div>`;
+}
+function lineaTiempo(notas, sujeto, vacio, clave){
+  if (!notas.length) return `<p class="tarjeta vacio">${vacio || 'Aún no hay notas. Use el botón de abajo para agregar la primera.'}</p>`;
+  const items = [...notas].sort(ordenNotas);
+  /* Agrupa por año y mes; el año más reciente queda abierto y los anteriores se pliegan */
+  const anios = new Map();
+  items.forEach(n => { const y = (n.fecha || '').slice(0, 4) || 'sin', m = (n.fecha || '').slice(0, 7) || 'sin';
+    if (!anios.has(y)) anios.set(y, new Map()); const ms = anios.get(y); if (!ms.has(m)) ms.set(m, []); ms.get(m).push(n); });
+  let i = 0;
+  const meses = ms => [...ms].map(([m, xs]) => `<div class="tl-grupo"><h3 class="tl-mes">${m === 'sin' ? 'Sin fecha' : capitalizar(MESES_L[+m.slice(5, 7) - 1]) + ' ' + m.slice(0, 4)}</h3><div class="tl">${xs.map((n, j) => itemTL(n, i++, j === xs.length - 1, sujeto)).join('')}</div></div>`).join('');
+  return [...anios].map(([y, ms], a) => {
+    if (a === 0) return meses(ms);
+    const k = 'anio:' + (clave || '') + ':' + y, ab = HIST_AB.has(k), n = [...ms.values()].reduce((t, xs) => t + xs.length, 0);
+    return `<div class="tarjeta col plegable tl-anio${ab ? ' abierta' : ''}" data-ab="${esc(k)}" style="gap:0"><button type="button" class="pleg-cab" data-action="hist-ab" aria-expanded="${ab}">
+      <span class="pleg-res"><span class="nom">${y === 'sin' ? 'Sin fecha' : y}</span><span class="sub">${esc(plural(n, 'registro'))}</span></span><span class="pleg-flecha">${I.plegar}</span></button>
+      <div class="pleg-cuerpo">${meses(ms)}</div></div>`;
+  }).join('');
 }
 /* Historia unificada con filtros. Cada filtro es {k, txt, f} (sobre la lista base) o {k, txt, lista} (otra lista) */
 const HIST = {};
@@ -1767,9 +1813,10 @@ function historia(sujeto, base, filtros){
   const clave = sujeto.tipo + ':' + sujeto.id;
   const todos = [{k:'todo', txt:'Todo', lista:base}, ...filtros.map(f => ({...f, lista: f.lista || base.filter(f.f)}))].filter(f => f.k==='todo' || f.lista.length);
   const act = todos.find(f => f.k === HIST[clave]) || todos[0];
-  const chips = todos.length > 1 ? `<div class="filtros desliza" role="group" aria-label="Filtrar historia">${todos.map(f => `<button type="button" class="filtro${f===act ? ' act' : ''}" data-action="hist" data-clave="${esc(clave)}" data-k="${esc(f.k)}" aria-pressed="${f===act}">${esc(f.txt)} · ${f.lista.length}</button>`).join('')}</div>` : '';
+  const chips = todos.length > 1 ? `<div class="filtros desliza" role="group" aria-label="Filtrar historia">${todos.map(f => `<button type="button" class="filtro${f===act ? ' act' : ''}" data-action="hist" data-clave="${esc(clave)}" data-k="${esc(f.k)}" aria-pressed="${f===act}">${esc(f.txt)} · ${f.n ?? f.lista.length}</button>`).join('')}</div>` : '';
   const ayuda = act.k === 'gente' ? '<p class="ayuda" style="margin:0">Notas de las personas de esta entidad, como referencia.</p>' : '';
-  return chips + ayuda + lineaTiempo(act.lista, sujeto, act.k === 'todo' ? '' : 'No hay nada en este filtro.');
+  const ayudaDec = act.k === 'dec' ? '<p class="ayuda" style="margin:0">Las decisiones de cada reunión, de la más reciente a la más antigua.</p>' : '';
+  return chips + ayuda + ayudaDec + lineaTiempo(act.lista, sujeto, act.k === 'todo' ? '' : 'No hay nada en este filtro.', clave);
 }
 /* Un filtro por cada entidad o proyecto que aparece en las notas */
 function filtrosPorRef(notas, sujeto, tipos){
@@ -2724,6 +2771,7 @@ function vistaProyecto(id){
     <div class="sec mas"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'proyecto', id}, [...notasPr, ...itemsReunion(reunionesProyecto(id))], [
       {k:'propias', txt:'Solo del proyecto', f: n => n.refTipo==='proyecto' && n.refId===id},
       {k:'reus', txt:'Reuniones', f: n => !!n.reunionId},
+      ...filtroDecisiones(reunionesProyecto(id)),
       ...hs.map((h, i) => ({k:'hito:' + h.id, txt:`Hito ${i + 1}`, f: n => n.hitoId === h.id})),
       ...filtrosPorRef(notasPr, {tipo:'proyecto', id}, ['empresa'])
     ])}</div>
@@ -5202,6 +5250,8 @@ const ACCIONES = {
   },
   /* Historia unificada */
   hist: b => { HIST[b.dataset.clave] = b.dataset.k; render(); },
+  'hist-ab': b => { const caja = b.closest('[data-ab]'), k = caja.dataset.ab, ab = !HIST_AB.has(k); if (ab) HIST_AB.add(k); else HIST_AB.delete(k);
+    caja.classList.toggle('abierta', ab); b.setAttribute('aria-expanded', ab); },
   /* Proyectos */
   'proy-estado': b => { FILTRO_PROY.estado = b.dataset.f; vistaProyectos(); },
   'proy-ambito': b => { FILTRO_PROY.ambito = b.dataset.f; vistaProyectos(); },
