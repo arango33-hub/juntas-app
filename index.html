@@ -509,7 +509,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.22 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.23 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -750,6 +750,7 @@ async function lote({poner={}, quitar={}, vaciar=[]}){
     if (n==='ajustes') ids.forEach(k => delete S.cfg[k]);
     else { const s = new Set(ids); S[n] = S[n].filter(x => !s.has(x.id)); }
   }
+  try { contarActividad(poner); } catch (_) {}
 }
 const guardar = (n, o) => lote({poner:{[n]:[o]}}).then(() => o);
 const setAjuste = (clave, valor) => lote({poner:{ajustes:[{clave, valor}]}});
@@ -773,9 +774,69 @@ const cargosPersona = id => S.cargos.filter(c => c.personaId===id).sort(porCread
 const empresasActivas = () => S.empresas.filter(e => !e.archivada).sort(porCreada);
 /* Orden alfabético (ignora mayúsculas y tildes); la elección se recuerda en Ajustes */
 const compararTexto = (a, b, asc=true) => (asc ? 1 : -1) * String(a||'').localeCompare(String(b||''), 'es', {sensitivity:'base'});
-const ordenEmpAsc = () => S.cfg.ordenEmpresas !== 'desc';
-const ordenPerAsc = () => S.cfg.ordenPersonas !== 'desc';
-const empresasOrdenadas = () => empresasActivas().sort((a,b) => compararTexto(a.nombre, b.nombre, ordenEmpAsc()));
+/* 3.23 · Orden por frecuencia de uso: abrir una ficha suma 1; registrar algo (nota, reunión, compromiso) suma 3 (1,5 si solo es relacionado).
+   El puntaje se desvanece a la mitad cada 30 días, así pesa más lo reciente. Se guarda en ajustes ("usos") y va en el respaldo. */
+const MEDIA_VIDA_USO = 30 * 864e5;
+const ORDENES = [{k:'uso', n:'Más frecuentes'}, {k:'pocouso', n:'Menos frecuentes'}, {k:'asc', n:'A–Z'}, {k:'desc', n:'Z–A'}];
+const CLAVE_ORDEN = {empresa:'ordenE', persona:'ordenP', proyecto:'ordenPr'};
+const modoOrden = tipo => ORDENES.some(o => o.k === S.cfg[CLAVE_ORDEN[tipo]]) ? S.cfg[CLAVE_ORDEN[tipo]] : 'uso';
+let USOS_PEND = null, ULT_VISITA = {};
+const decaer = (u, ahoraMs) => u.p * Math.pow(0.5, Math.max(0, ahoraMs - u.t) / MEDIA_VIDA_USO);
+/* Última actividad de cada entidad, persona y proyecto (para arrancar el orden antes de que haya usos contados) */
+function ultimasActividades(){
+  const m = new Map(), poner = (k, f) => { if (f && (!m.has(k) || m.get(k) < f)) m.set(k, f); };
+  S.notas.forEach(n => refsNota(n).forEach(r => poner(r.tipo + ':' + r.id, n.fecha)));
+  S.reuniones.forEach(r => { if (r.fecha && r.fecha <= hoyISO()) { poner('empresa:' + r.empresaId, r.fecha); if (r.proyectoId) poner('proyecto:' + r.proyectoId, r.fecha); [...(r.asistentes || []), ...(r.invitados || [])].forEach(p => poner('persona:' + p, r.fecha)); } });
+  S.compromisos.forEach(c => { const f = String(c.creada || '').slice(0, 10); if (c.refTipo) poner(c.refTipo + ':' + c.refId, f); if (c.proyectoId) poner('proyecto:' + c.proyectoId, f); });
+  return m;
+}
+function puntajes(){
+  const U = USOS_PEND || S.cfg.usos || {}, ahoraMs = Date.now(), ult = ultimasActividades();
+  return (tipo, id) => { const k = tipo + ':' + id;
+    if (U[k]) return decaer(U[k], ahoraMs);
+    const f = ult.get(k); if (!f) return 0;
+    return 3 * Math.pow(0.5, Math.max(0, ahoraMs - fechaD(f).getTime()) / MEDIA_VIDA_USO); };
+}
+function ordenarPorModo(lista, tipo, nombre = x => x.nombre){
+  const modo = modoOrden(tipo);
+  if (modo === 'asc' || modo === 'desc') return lista.sort((a,b) => compararTexto(nombre(a), nombre(b), modo === 'asc'));
+  const pt = puntajes(), sc = new Map(lista.map(x => [x.id, pt(tipo, x.id)]));
+  return lista.sort((a,b) => (modo === 'uso' ? sc.get(b.id) - sc.get(a.id) : sc.get(a.id) - sc.get(b.id)) || compararTexto(nombre(a), nombre(b)));
+}
+function usar(tipo, id, peso){
+  if (!tipo || !id || !['empresa','persona','proyecto'].includes(tipo)) return;
+  const U = USOS_PEND || {...(S.cfg.usos || {})}, k = tipo + ':' + id, ahoraMs = Date.now();
+  U[k] = {p: (U[k] ? decaer(U[k], ahoraMs) : 0) + peso, t: ahoraMs};
+  if (!USOS_PEND) { USOS_PEND = U; setTimeout(() => { const u = USOS_PEND; USOS_PEND = null; setAjuste('usos', u).catch(() => {}); }, 800); }
+}
+/* Abrir la ficha cuenta una vez cada 10 minutos por entidad, persona o proyecto */
+function contarVisita(){
+  const {partes} = ruta(), tipo = {empresa:'empresa', persona:'persona', proyecto:'proyecto'}[partes[0]], id = partes[1];
+  if (!tipo || !id) return;
+  const k = tipo + ':' + id, ahoraMs = Date.now();
+  if (ULT_VISITA[k] && ahoraMs - ULT_VISITA[k] < 6e5) return;
+  ULT_VISITA[k] = ahoraMs; usar(tipo, id, 1);
+}
+/* Lo que se registra (notas, reuniones, compromisos) suma más; las cargas grandes (importar, migrar) no cuentan */
+function contarActividad(poner){
+  if (!ARRANCADA) return;
+  const pocos = l => l && l.length <= 5;
+  if (pocos(poner.notas)) poner.notas.forEach(n => { usar(n.refTipo, n.refId, 3); (n.relacionadas || []).forEach(r => usar(r.tipo, r.id, 1.5)); });
+  if (pocos(poner.reuniones)) poner.reuniones.forEach(r => { usar('empresa', r.empresaId, 3); if (r.proyectoId) usar('proyecto', r.proyectoId, 3); [...(r.asistentes || []), ...(r.invitados || [])].forEach(p => usar('persona', p, 1)); });
+  if (pocos(poner.compromisos)) poner.compromisos.forEach(c => { usar(c.refTipo, c.refId, 3); if (c.proyectoId) usar('proyecto', c.proyectoId, 3); });
+}
+let ARRANCADA = false;
+const empresasOrdenadas = () => ordenarPorModo(empresasActivas(), 'empresa');
+/* Hoja para escoger el orden de una lista */
+function hojaOrden(tipo, alCambiar){
+  const act = modoOrden(tipo);
+  const v = abrirHoja(`<h2 class="hoja-titulo">Ordenar ${tipo === 'empresa' ? 'entidades' : tipo === 'persona' ? 'personas' : 'proyectos'}</h2>
+    <p class="hoja-texto">“Más frecuentes” pone primero lo que más abre y registra, dándole más peso a lo reciente.</p>
+    <div class="opc2">${ORDENES.map(o => `<button type="button" class="opc-btn${o.k === act ? ' sel' : ''}" data-o="${o.k}" aria-pressed="${o.k === act}">${o.n}</button>`).join('')}</div>`);
+  $$('[data-o]', v).forEach(b => b.addEventListener('click', async () => { await setAjuste(CLAVE_ORDEN[tipo], b.dataset.o); cerrarHoja(); alCambiar(); }));
+}
+const botonOrden = (tipo, estilo = '') => { const o = ORDENES.find(x => x.k === modoOrden(tipo));
+  return `<button type="button" class="filtro btn-orden"${estilo ? ` style="${estilo}"` : ''} data-action="orden-${tipo}" aria-label="Orden: ${o.n}. Toque para cambiar">${o.k === 'desc' || o.k === 'pocouso' ? I.ordenDesc : I.orden}${o.n}</button>`; };
 const tiposDeGrupo = g => S.tiposVinculo.filter(t => t.grupo===g).sort((a,b) => (a.propio-b.propio) || ((a.orden??99)-(b.orden??99)) || a.nombre.localeCompare(b.nombre));
 function nombreReporta(c){
   if (c.reportaA) { const p = persona(c.reportaA); if (p) return p.nombre; }
@@ -827,7 +888,7 @@ const archivadoDe = (tipo, o) => tipo === 'empresa' ? !!o.archivada : !!o.archiv
 const motivoArchivo = o => o.motivoArchivo || (o.convertidaEn ? 'Convertida en proyecto' : '');
 const lineaArchivo = o => [motivoArchivo(o), (o.archivadaEl || o.archivadoEl) ? mesAnio(o.archivadaEl || o.archivadoEl) : ''].filter(Boolean).join(' · ');
 const proyectosVisibles = () => proyectosOrdenados().filter(p => !p.archivado);
-const proyectosOrdenados = () => [...S.proyectos].sort((a,b) => compararTexto(a.nombre, b.nombre));
+const proyectosOrdenados = () => ordenarPorModo([...S.proyectos], 'proyecto');
 const entidadesProyecto = pid => S.proyectoEntidades.filter(x => x.proyectoId===pid).map(x => empresa(x.empresaId)).filter(Boolean).sort((a,b) => compararTexto(a.nombre, b.nombre));
 const proyectosEntidad = eid => [...new Set(S.proyectoEntidades.filter(x => x.empresaId===eid).map(x => x.proyectoId))].map(proyecto).filter(Boolean);
 const papelesProyecto = pid => S.papeles.filter(x => x.proyectoId===pid).sort(porCreada);
@@ -1272,7 +1333,7 @@ function vistaInicio(){
       ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaConvertir()}${franjaCumples()}${franjaIOS()}
     </div>
     <div class="sec" style="padding-top:24px">
-      <div class="sec-fila"><h2 class="sec-titulo">Mis entidades</h2><button type="button" class="filtro btn-orden" data-action="orden-emp" aria-label="Orden: ${ordenEmpAsc() ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${ordenEmpAsc() ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button></div>
+      <div class="sec-fila"><h2 class="sec-titulo">Mis entidades</h2>${botonOrden('empresa')}</div>
       <div class="filtros" role="group" aria-label="Filtrar entidades">${f('todas','Todas',act.length)}${f('junta','Con junta',nJ)}${f('sinjunta','Sin junta',act.length - nJ)}</div>
       <div id="lista" class="col" style="gap:12px"></div>
     </div>
@@ -2214,12 +2275,12 @@ async function guardarCargo(fin){
 
 /* ---------- Personas ---------- */
 function vistaPersonas(){
-  const asc = ordenPerAsc(), agrupar = S.cfg.agruparPersonas === true;
+  const agrupar = S.cfg.agruparPersonas === true;
   pintar(`<div class="pagina con-nav"><div class="ini-top">
       ${cabTab('Personas')}
       <div class="campo-busq"><label for="buscar-p">Buscar por nombre, cargo, área, entidad, compromiso o palabra clave</label><input class="input" id="buscar-p" type="search" value="${esc(BUSQ_PERSONAS)}" placeholder="Ej. Sofía" autocomplete="off" enterkeyhint="search"></div>
       <div class="filtros" role="group" aria-label="Ordenar y agrupar">
-        <button type="button" class="filtro btn-orden" style="margin-left:0" data-action="orden-per" aria-label="Orden: ${asc ? 'de la A a la Z' : 'de la Z a la A'}. Toque para invertir">${asc ? I.orden + 'A–Z' : I.ordenDesc + 'Z–A'}</button>
+        ${botonOrden('persona', 'margin-left:0')}
         <button type="button" class="filtro btn-orden${agrupar ? ' on' : ''}" style="margin-left:0" data-action="agrupar-per" aria-pressed="${agrupar}">${I.edificio}Agrupar por entidad</button>
       </div>
     </div><div class="sec" id="lista-p"></div></div>${fab('#/persona-form','Agregar persona')}${nav('personas')}`);
@@ -2243,7 +2304,7 @@ function vistaPersonas(){
   const conExtra = (html, p) => { const x = extraNota(p); return x ? html.replace('</span></span>', '</span>' + x + '</span>') : html; };
   const pintarP = () => {
     const q = norm(BUSQ_PERSONAS);
-    const lista = S.personas.filter(p => coincide(p, q)).sort((a,b) => compararTexto(a.nombre, b.nombre, asc));
+    const lista = ordenarPorModo(S.personas.filter(p => coincide(p, q)), 'persona');
     const cont = $('#lista-p');
     if (!lista.length) { ponerHTML(cont, `<h2 class="sec-titulo">Personas</h2><p class="tarjeta vacio">${S.personas.length ? 'Sin resultados.' : 'Aún no hay personas. Agréguelas desde una entidad o con el botón +.'}</p>`); return; }
     if (!agrupar) {
@@ -2256,7 +2317,7 @@ function vistaPersonas(){
     }
     /* Agrupado: una persona aparece en cada entidad donde tiene un cargo vigente */
     let html = '', sinEmpresa = [];
-    const grupos = empresasActivas().sort((a,b) => compararTexto(a.nombre, b.nombre, asc)).map(e => ({e, ps: []}));
+    const grupos = empresasOrdenadas().map(e => ({e, ps: []}));
     const porId = new Map(grupos.map(g => [g.e.id, g]));
     lista.forEach(p => {
       const vig = cargosPersona(p.id).filter(c => vigente(c) && porId.has(c.empresaId));
@@ -2316,7 +2377,7 @@ function vistaProyectos(){
       ${S.proyectos.length ? `<div class="campo-busq"><label for="buscar-pr">Buscar en nombre, entidades, hitos, personas, compromisos o notas</label><input class="input" id="buscar-pr" type="search" placeholder="Ej. data room" value="${esc(BUSQ_PROY)}" autocomplete="off" enterkeyhint="search"></div>` : ''}
       ${franjaConvertir()}</div>
     <div class="sec" style="padding-top:24px">
-      <h2 class="sec-titulo">Mis proyectos</h2>
+      <div class="sec-fila"><h2 class="sec-titulo">Mis proyectos</h2>${S.proyectos.length ? botonOrden('proyecto') : ''}</div>
       <div id="filtros-pr">${S.proyectos.length ? `<div class="filtros" role="group" aria-label="Activos o cerrados" style="margin-bottom:12px">${fe('activos','Activos',nAct)}${fe('cerrados','Cerrados',nCer)}</div>
       ${hayPersonales ? `<div class="filtros" role="group" aria-label="Trabajo o personales">${fa('todos','Todos')}${fa('trabajo','Trabajo')}${fa('personal','Personales')}</div>` : ''}` : ''}</div>
       <div id="lista-pr" class="col" style="gap:12px">${cuerpo}</div>
@@ -4619,8 +4680,9 @@ const ACCIONES = {
   'cambiar-pin': () => bloquear({modo:'actual', cambiando:true}),
   filtro: b => { FILTRO = b.dataset.f; vistaInicio(); },
   tema: async b => { await setAjuste('tema', b.dataset.v); aplicarTema(); vistaAjustes(); },
-  'orden-emp': async () => { await setAjuste('ordenEmpresas', ordenEmpAsc() ? 'desc' : 'asc'); vistaInicio(); },
-  'orden-per': async () => { await setAjuste('ordenPersonas', ordenPerAsc() ? 'desc' : 'asc'); vistaPersonas(); },
+  'orden-empresa': () => hojaOrden('empresa', () => vistaInicio()),
+  'orden-persona': () => hojaOrden('persona', () => vistaPersonas()),
+  'orden-proyecto': () => hojaOrden('proyecto', () => vistaProyectos()),
   'agrupar-per': async () => { await setAjuste('agruparPersonas', S.cfg.agruparPersonas !== true); vistaPersonas(); },
   color: b => {
     const e = empresa(b.dataset.id);
@@ -4905,7 +4967,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && HOJA) { cerrarHoja(); return; }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-go]')) { e.preventDefault(); ir(e.target.dataset.go); }
 });
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', () => { render(); try { contarVisita(); } catch (_) {} });
 $('#archivo-respaldo').addEventListener('change', e => { const f = e.target.files[0]; if (f) importarRespaldo(f); });
 $('#archivo-csv').addEventListener('change', e => { const f = e.target.files[0]; if (f) cargarCSV(f); });
 let ocultaDesde = 0;
@@ -4933,7 +4995,7 @@ async function iniciar(){
     bloqueo.innerHTML = `<div class="pin"><div class="pin-cabeza"><h1 class="pin-nombre">${esc(APP.nombre)}</h1><p class="pin-instr">No se pudo abrir la base de datos (${esc(err.message || err)}). Si está en modo incógnito, ábrala en una ventana normal.</p></div></div>`;
     return;
   }
-  bloquear();
+  bloquear(); ARRANCADA = true;
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     /* 3.19 · Cuando se instala una versión nueva, aparece el aviso "Hay una versión nueva · Actualizar" */
     const yaHabia = !!navigator.serviceWorker.controller;
