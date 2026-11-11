@@ -397,6 +397,8 @@ select.input{appearance:none;-webkit-appearance:none;background-image:linear-gra
 .tl-reu-res{font-size:15px;font-weight:600}
 .tl-reu .pleg-flecha{width:30px;height:30px}
 .tl-reu:hover{background:none}
+.tl-reu-acc a{text-decoration:none}
+.tl-reu-acc{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-top:4px}
 .tl-reu.abierta .pleg-flecha{transform:rotate(180deg)}
 .tl-reu-cuerpo{display:none;flex-direction:column;gap:8px;padding-top:6px}
 .tl-reu.abierta .tl-reu-cuerpo{display:flex}
@@ -606,7 +608,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.31 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.32 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1766,7 +1768,8 @@ function itemReunionTL(r, i, ult){
       <div class="tl-cuerpo${ult ? '' : ' espacio'}" style="flex:1">
         <button type="button" class="tl-reu-cab" data-action="hist-ab" aria-expanded="${ab}"><span class="col"><span class="tl-fecha">${esc([fechaMedia(r.fecha), ocasionJunta(r)].join(' · '))}</span><span class="tl-reu-res">${esc(res)}</span></span><span class="pleg-flecha">${I.plegar}</span></button>
         <div class="tl-reu-cuerpo">${listaTL('Temas tratados', temas)}${listaTL(dec.length === 1 ? 'Decisión tomada' : 'Decisiones tomadas', dec)}
-          <a class="enlace-btn" style="font-size:14px;align-self:flex-start" href="#/junta/${r.id}">Abrir ficha ›</a></div></div></div>`;
+          <div class="tl-reu-acc">${temas.length ? (r.mapa ? `<a class="btn-ia" href="#/mapa/${r.id}">${ICONO_IA}Ver mapa mental</a>` : iaClave() ? `<button type="button" class="btn-ia" data-action="mapa-hacer" data-id="${r.id}">${ICONO_IA}Hacer mapa mental</button>` : '') : ''}
+          <a class="enlace-btn" style="font-size:14px" href="#/junta/${r.id}">Abrir ficha ›</a></div></div></div></div>`;
 }
 /* Filtro "Decisiones": una entrada por reunión, solo con sus decisiones */
 function filtroDecisiones(lista){
