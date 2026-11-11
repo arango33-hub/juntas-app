@@ -497,6 +497,9 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    ===================================================================== */
 .filtros.desliza{flex-wrap:nowrap;overflow-x:auto;margin:0 -20px;padding:0 20px 2px;scrollbar-width:none}
 .filtros.desliza::-webkit-scrollbar{display:none}
+.enlace-fila{display:flex;gap:8px;align-items:center;width:100%}
+.enlace-fila .input{flex:1 1 auto;min-width:0;width:auto}
+.form .enlace-fila .btn-pegar,.enlace-fila .btn-pegar{flex:0 0 auto;width:auto;min-width:0;padding:0 18px;height:48px}
 .ico-fila{width:36px;height:36px;border-radius:50%;background:var(--acento-suave);color:var(--acento);display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .enlace-corto{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
 .check-fila{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--texto);min-height:40px}
@@ -656,7 +659,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.38 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.39 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1464,12 +1467,12 @@ function plataforma(u){
 }
 const urlMapa = l => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(l);
 const modalidad = r => r.lugar && r.enlace ? 'Híbrida' : r.lugar ? 'Presencial' : r.enlace ? 'Virtual' : '';
-const MODOS = [['presencial', 'Presencial'], ['virtual', 'Virtual'], ['mixto', 'Una parte de cada']];
+const MODOS = [['presencial', 'Presencial'], ['virtual', 'Virtual'], ['mixto', 'Ambas']];
 /* "Fui presencial" / "Voy virtual" / "Una parte presencial y otra virtual" */
 function textoModo(r){
   if (!r.modo || r.asisti === false) return '';
   const va = juntaFutura(r);
-  return r.modo === 'mixto' ? (va ? 'Iré una parte presencial y otra virtual' : 'Asistí una parte presencial y otra virtual')
+  return r.modo === 'mixto' ? (va ? 'Voy presencial y virtual' : 'Asistí presencial y virtual')
     : (va ? 'Voy ' : 'Asistí ') + (r.modo === 'presencial' ? 'presencial' : 'virtual');
 }
 const modoCorto = r => !r.modo || r.asisti === false ? '' : r.modo === 'mixto' ? 'Presencial y virtual' : r.modo === 'presencial' ? 'Presencial' : 'Virtual';
@@ -1491,7 +1494,7 @@ function camposLugar(pre, F, organo){
   return `<fieldset><legend>Dónde <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
     <div class="campo"><label for="${pre}-lugar" style="font-size:13px;font-weight:400;color:var(--texto-2)">Lugar</label><input class="input" id="${pre}-lugar" value="${esc(F.lugar || '')}" placeholder="Ej. Sede principal, sala de juntas" autocapitalize="sentences"></div>
     <div class="campo"><label for="${pre}-enlace" style="font-size:13px;font-weight:400;color:var(--texto-2)">Enlace virtual</label>
-      <div style="display:flex;gap:8px"><input class="input" id="${pre}-enlace" value="${esc(F.enlace || '')}" placeholder="Enlace de Teams, Zoom o Meet" inputmode="url" autocapitalize="off" autocomplete="off" style="flex:1;min-width:0"><button type="button" class="btn-sec" style="min-width:auto;padding:0 14px" data-action="pegar-enlace" data-campo="${pre}-enlace">Pegar</button></div></div>
+      <div class="enlace-fila"><input class="input" id="${pre}-enlace" value="${esc(F.enlace || '')}" placeholder="Enlace de Teams, Zoom o Meet" inputmode="url" autocapitalize="off" autocomplete="off"><button type="button" class="btn-sec btn-pegar" data-action="pegar-enlace" data-campo="${pre}-enlace">Pegar</button></div></div>
     ${organo && h && (h.lugar || h.enlace) ? `<p class="ayuda" style="margin:0">Vienen ${F._nuevo ? 'puestos' : 'propuestos'} el lugar y el enlace habituales de ${esc(organo.nombre)}.</p>` : organo ? `<p class="ayuda" style="margin:0">Lo que escriba quedará como lugar y enlace habituales de ${esc(organo.nombre)}.</p>` : ''}
     ${organo && h && (h.lugar || h.enlace) ? `<label class="check-fila" id="${pre}-hab-fila" data-l="${esc(h.lugar)}" data-e="${esc(h.enlace)}"${distinto ? '' : ' hidden'}><input type="checkbox" id="${pre}-hab"${F.hab ? ' checked' : ''}> Dejar estos como habituales de ${esc(organo.nombre)}</label>` : ''}
   </fieldset>`;
