@@ -609,7 +609,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.33 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.34 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -2740,6 +2740,7 @@ const filaAgregar = (href, texto) => `<a class="fila fila-agregar" href="${href}
 const vacioAgregar = (href, texto) => `<a class="tarjeta vacio vacio-toque" href="${href}">${esc(texto)}</a>`;
 function vistaProyecto(id){
   const p = proyecto(id); if (!p) return noEncontrado();
+  if (PLEG.id !== 'pr:' + id) PLEG = {id:'pr:' + id, s:new Set(), anio:0};   /* 3.34 · secciones plegables del proyecto */
   FPJ = null;
   const c = cv(p.color), activo = proyectoActivo(p);
   const ents = entidadesProyecto(id), hs = hitosProyecto(id), cumpl = hs.filter(h => h.estado === 'cumplido').length;
@@ -2781,9 +2782,12 @@ function vistaProyecto(id){
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Hitos${hs.length ? ` <span class="avance">· ${cumpl} de ${hs.length} cumplidos</span>` : ''}</h2></div>
       ${hs.length >= 2 ? `<div class="tarjeta col" style="gap:14px;padding:18px 16px">${caminoHitos(hs)}${resumenCamino(hs)}</div>` : ''}
       ${hs.length ? `<div class="tarjeta col" style="gap:0">${hs.map(filaHito).join('')}${filaAgregar(`#/hito?proy=${id}`, 'Nuevo hito')}</div>` : vacioAgregar(`#/hito?proy=${id}`, 'Sin hitos. Son opcionales: sirven para ver en qué etapa va el proyecto.')}</div>
-    <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Personas</h2></div>
-      ${vig.length ? `<div class="tarjeta col" style="gap:0">${vig.map(filaPer).join('')}${filaAgregar(`#/papel?proy=${id}`, 'Nueva persona')}</div>` : vacioAgregar(`#/papel?proy=${id}`, 'Aún no hay personas. Agréguelas con su rol (banca de inversión, abogado del comprador…).')}
-      ${ant.length ? `<h3 class="sec-titulo" style="font-size:12px;margin-top:4px">Ya no están en el proyecto</h3><div class="tarjeta col" style="gap:0">${ant.map(filaPer).join('')}</div>` : ''}</div>
+    <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Personas</h2>${vig.length ? `<a class="enlace-btn" style="font-size:14px" href="#/papel?proy=${id}">+ Agregar persona</a>` : ''}</div>
+      ${vig.length ? (() => { const gente = [...new Set(vig.map(x => x.personaId))].map(persona).filter(Boolean), roles = [...new Set(vig.map(x => x.papel).filter(Boolean))];
+        return plegable('prper', plural(gente.length, 'persona'), roles.slice(0, 3).join(', ') + (roles.length > 3 ? '…' : ''), gente.map(pe => iniciales(pe.nombre)), vig.map(filaPer).join('') + filaAgregar(`#/papel?proy=${id}`, 'Nueva persona')); })()
+        : vacioAgregar(`#/papel?proy=${id}`, 'Aún no hay personas. Agréguelas con su rol (banca de inversión, abogado del comprador…).')}
+      ${ant.length ? `<h3 class="sec-titulo" style="font-size:12px;margin-top:4px">Ya no están en el proyecto</h3>${(() => { const nom = [...new Set(ant.map(x => persona(x.personaId)?.nombre).filter(Boolean))];
+        return plegable('prant', plural(nom.length, 'persona'), nom.slice(0, 3).join(', ') + (nom.length > 3 ? '…' : ''), null, ant.map(filaPer).join('')); })()}` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2></div>
       ${ab.length || hechos.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}${filaAgregar(`#/compromiso?proy=${id}`, 'Nuevo compromiso')}</div>` : vacioAgregar(`#/compromiso?proy=${id}`, 'Sin compromisos. También puede dejarlos al dictar una nota.')}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Reuniones</h2></div>
