@@ -586,7 +586,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.28 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.29 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -4515,7 +4515,7 @@ async function mejorarTexto(texto, modo, signal, modeloIntento){
 /* ---------- 3.26 · Mapa mental de los temas tratados ---------- */
 const MAPA_EJECUTIVO = `Usted resume en un mapa mental ejecutivo los temas tratados en una reunión de junta directiva en Colombia, para repasarlos en 30 segundos. El texto viene escrito o dictado de afán.
 - Use exactamente estas ramas, en este orden, y omita las que queden vacías: "Lo esencial", "Cifras clave", "Decisiones", "Pendientes".
-- Máximo 3 puntos por rama, sin subniveles. Cada punto, de menos de 8 palabras.
+- Máximo 5 puntos por rama, sin subniveles. Cada punto, de menos de 8 palabras.
 - Use las palabras y cifras del texto. No agregue información, no saque conclusiones y no invente nada.
 - Español de Colombia, sin adornos.`;
 const MAPA_PERSONAL_ORIGINAL = `Usted organiza en un mapa mental los temas tratados en una reunión de junta directiva en Colombia. El texto viene escrito o dictado de afán y puede mezclar varias ideas en un mismo párrafo.
