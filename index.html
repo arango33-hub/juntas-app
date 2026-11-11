@@ -497,6 +497,12 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    ===================================================================== */
 .filtros.desliza{flex-wrap:nowrap;overflow-x:auto;margin:0 -20px;padding:0 20px 2px;scrollbar-width:none}
 .filtros.desliza::-webkit-scrollbar{display:none}
+.ico-fila{width:36px;height:36px;border-radius:50%;background:var(--acento-suave);color:var(--acento);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.enlace-corto{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;display:block}
+.check-fila{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--texto);min-height:40px}
+.check-fila input{width:20px;height:20px;accent-color:var(--acento)}
+.prox-unirse{display:inline-flex;align-items:center;gap:6px;background:var(--emp-verde,#2E8B57)}
+.prox-unirse svg{width:16px;height:16px}
 .aj-lista{padding:8px 20px 0;display:flex;flex-direction:column;gap:18px}
 .aj-card{--c-f:color-mix(in srgb,var(--c) 68%,#000);background:var(--tarjeta);border:1px solid var(--borde);border-radius:18px;overflow:hidden}
 :root[data-tema="oscuro"] .aj-card{--c-f:var(--c)}
@@ -650,7 +656,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.37 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.38 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1443,6 +1449,70 @@ function pildoraPart(e){
     ? `<span class="pild pild-acento">${fmtPct(e.participacion)}</span>`
     : `<span class="pild pild-neutra">Sin participación</span>`;
 }
+/* ---------- 3.38 · Lugar, enlace virtual y cómo asistí ---------- */
+const I_LUGAR = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+const I_VIDEO = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></svg>';
+/* Toma el primer enlace de lo pegado; si no trae https://, lo agrega */
+function limpiarEnlace(t){
+  t = String(t || '').trim(); if (!t) return '';
+  const m = t.match(/https?:\/\/[^\s<>"']+/i); if (m) return m[0];
+  return /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t) ? 'https://' + t : t;
+}
+function plataforma(u){
+  const h = String(u || '').toLowerCase();
+  return /teams\.(microsoft|live)\.com/.test(h) ? 'Teams' : /zoom\.us/.test(h) ? 'Zoom' : /meet\.google\.com/.test(h) ? 'Meet' : /webex\.com/.test(h) ? 'Webex' : /whereby\.com/.test(h) ? 'Whereby' : '';
+}
+const urlMapa = l => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(l);
+const modalidad = r => r.lugar && r.enlace ? 'Híbrida' : r.lugar ? 'Presencial' : r.enlace ? 'Virtual' : '';
+const MODOS = [['presencial', 'Presencial'], ['virtual', 'Virtual'], ['mixto', 'Una parte de cada']];
+/* "Fui presencial" / "Voy virtual" / "Una parte presencial y otra virtual" */
+function textoModo(r){
+  if (!r.modo || r.asisti === false) return '';
+  const va = juntaFutura(r);
+  return r.modo === 'mixto' ? (va ? 'Iré una parte presencial y otra virtual' : 'Asistí una parte presencial y otra virtual')
+    : (va ? 'Voy ' : 'Asistí ') + (r.modo === 'presencial' ? 'presencial' : 'virtual');
+}
+const modoCorto = r => !r.modo || r.asisti === false ? '' : r.modo === 'mixto' ? 'Presencial y virtual' : r.modo === 'presencial' ? 'Presencial' : 'Virtual';
+/* Lugar y enlace habituales: de la junta (en la entidad) o del comité / reunión periódica */
+function habitual(eid, comiteId){
+  if (comiteId) { const c = comite(comiteId); return {lugar:c?.lugar || '', enlace:c?.enlace || ''}; }
+  const e = empresa(eid); return {lugar:e?.juntaLugar || '', enlace:e?.juntaEnlace || ''};
+}
+/* Al guardar: si el órgano no tenía habituales, quedan estos; si tenía otros, solo cuando el usuario lo pide */
+function habitualesParaGuardar(eid, comiteId, lugar, enlace, forzar){
+  const h = habitual(eid, comiteId), vacio = !h.lugar && !h.enlace;
+  if (!(lugar || enlace) || (!vacio && !forzar) || (h.lugar === lugar && h.enlace === enlace)) return null;
+  if (comiteId) { const c = comite(comiteId); return c ? {comites:[{...c, lugar, enlace}]} : null; }
+  const e = empresa(eid); return e ? {empresas:[{...e, juntaLugar:lugar, juntaEnlace:enlace}]} : null;
+}
+/* Campos de lugar y enlace en los formularios (Nueva reunión y ficha) */
+function camposLugar(pre, F, organo){
+  const h = organo ? habitual(organo.eid, organo.comiteId) : null, distinto = h && (h.lugar || h.enlace) && (h.lugar !== (F.lugar || '').trim() || h.enlace !== limpiarEnlace(F.enlace));
+  return `<fieldset><legend>Dónde <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
+    <div class="campo"><label for="${pre}-lugar" style="font-size:13px;font-weight:400;color:var(--texto-2)">Lugar</label><input class="input" id="${pre}-lugar" value="${esc(F.lugar || '')}" placeholder="Ej. Sede principal, sala de juntas" autocapitalize="sentences"></div>
+    <div class="campo"><label for="${pre}-enlace" style="font-size:13px;font-weight:400;color:var(--texto-2)">Enlace virtual</label>
+      <div style="display:flex;gap:8px"><input class="input" id="${pre}-enlace" value="${esc(F.enlace || '')}" placeholder="Enlace de Teams, Zoom o Meet" inputmode="url" autocapitalize="off" autocomplete="off" style="flex:1;min-width:0"><button type="button" class="btn-sec" style="min-width:auto;padding:0 14px" data-action="pegar-enlace" data-campo="${pre}-enlace">Pegar</button></div></div>
+    ${organo && h && (h.lugar || h.enlace) ? `<p class="ayuda" style="margin:0">Vienen ${F._nuevo ? 'puestos' : 'propuestos'} el lugar y el enlace habituales de ${esc(organo.nombre)}.</p>` : organo ? `<p class="ayuda" style="margin:0">Lo que escriba quedará como lugar y enlace habituales de ${esc(organo.nombre)}.</p>` : ''}
+    ${organo && h && (h.lugar || h.enlace) ? `<label class="check-fila" id="${pre}-hab-fila" data-l="${esc(h.lugar)}" data-e="${esc(h.enlace)}"${distinto ? '' : ' hidden'}><input type="checkbox" id="${pre}-hab"${F.hab ? ' checked' : ''}> Dejar estos como habituales de ${esc(organo.nombre)}</label>` : ''}
+  </fieldset>`;
+}
+/* Muestra "Dejar estos como habituales" apenas el lugar o el enlace dejan de ser los habituales */
+function enlazarLugar(pre, F){
+  const fl = $('#' + pre + '-lugar'), fe = $('#' + pre + '-enlace'), fila = $('#' + pre + '-hab-fila');
+  fl?.addEventListener('input', ev => { F.lugar = ev.target.value; upd(); }); fe?.addEventListener('input', ev => { F.enlace = ev.target.value; upd(); });
+  $('#' + pre + '-hab')?.addEventListener('change', ev => F.hab = ev.target.checked);
+  function upd(){ if (fila) fila.hidden = fila.dataset.l === (F.lugar || '').trim() && fila.dataset.e === limpiarEnlace(F.enlace); }
+}
+function bloqueDonde(r){
+  const m = modalidad(r), plat = plataforma(r.enlace), tm = textoModo(r);
+  if (!m && !tm) return '';
+  return `<div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Dónde</h2>${m ? `<span class="chip-info">${m}</span>` : ''}</div><div class="tarjeta col" style="gap:0">
+    ${r.lugar ? `<a class="fila" href="${esc(urlMapa(r.lugar))}" target="_blank" rel="noopener"><span class="ico-fila">${I_LUGAR}</span><span class="col"><span class="nom">${esc(r.lugar)}</span><span class="sub">Abrir en el mapa</span></span>${I.chev}</a>` : ''}
+    ${r.enlace ? (esURL(r.enlace) ? `<a class="fila" href="${esc(r.enlace)}" target="_blank" rel="noopener"><span class="ico-fila">${I_VIDEO}</span><span class="col"><span class="nom" style="color:var(--acento)">Unirse${plat ? ' por ' + plat : ''}</span><span class="sub enlace-corto">${esc(r.enlace)}</span></span>${I.chev}</a>` : `<div class="fila"><span class="ico-fila">${I_VIDEO}</span><span class="col"><span class="nom">${esc(r.enlace)}</span><span class="sub">Enlace virtual</span></span></div>`) : ''}
+    ${tm ? `<div class="fila"><span class="col"><span class="sub">${esc(tm)}</span></span></div>` : ''}
+  </div></div>`;
+}
+
 /* ---------- 3.24 · Próximas reuniones en Entidades, calendario del mes y pulso de la relación ---------- */
 const DIAS_CORTOS = ['dom','lun','mar','mié','jue','vie','sáb'];
 const tituloReunion = r => esSuelta(r) ? r.asunto || 'Reunión' : r.comiteId ? nombreTipoJunta(r) : 'Junta ' + (r.tipo || 'ordinaria').toLowerCase();
@@ -1464,8 +1534,8 @@ function tarjetaProxima(r){
     <div style="display:flex;align-items:center;gap:12px"><div class="prox-fecha${hoy ? ' hoy' : ''}"><span class="d">${hoy ? 'Hoy' : manana ? 'Mañana' : DIAS_CORTOS[d.getDay()]}</span><span class="n">${d.getDate()}</span></div>
       <div class="col" style="gap:2px;min-width:0"><span style="font-size:14px;${hoy ? 'color:var(--pend-texto);font-weight:600' : 'color:var(--texto-2)'}">${esc(hoy || manana ? (r.hora ? horaTexto(r.hora) : 'Sin hora') : fechaMedia(r.fecha).replace(/ \d{4}$/, '') + (r.hora ? ' · ' + horaTexto(r.hora) : ''))}${esc(hastaCuando(r))}</span>
         <span style="font-size:17px;font-weight:600;line-height:1.25">${esc(e.nombre)}</span><span style="font-size:13px;color:var(--texto-2)">${esc(esSuelta(r) ? 'Reunión · ' + titulo : titulo)}</span></div></div>
-    ${pend || temas ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${pend ? `<span class="chip-info pend">${plural(pend, 'pendiente de la anterior', 'pendientes de la anterior')}</span>` : ''}${temas ? `<span class="chip-info">${plural(temas, 'tema')}</span>` : ''}</div>` : ''}
-    <div style="display:flex;align-items:center;gap:8px;margin-top:auto">${gente.length ? `<div class="caras" aria-hidden="true">${gente.slice(0, 3).map(p => `<div class="cara">${esc(iniciales(p.nombre))}</div>`).join('')}${gente.length > 3 ? `<div class="cara">+${gente.length - 3}</div>` : ''}</div>` : ''}<span style="flex:1"></span><span class="prox-btn">Preparar</span></div>
+    ${pend || temas || modalidad(r) ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${modalidad(r) ? `<span class="chip-info">${modalidad(r)}</span>` : ''}${pend ? `<span class="chip-info pend">${plural(pend, 'pendiente de la anterior', 'pendientes de la anterior')}</span>` : ''}${temas ? `<span class="chip-info">${plural(temas, 'tema')}</span>` : ''}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;margin-top:auto">${gente.length ? `<div class="caras" aria-hidden="true">${gente.slice(0, 3).map(p => `<div class="cara">${esc(iniciales(p.nombre))}</div>`).join('')}${gente.length > 3 ? `<div class="cara">+${gente.length - 3}</div>` : ''}</div>` : ''}<span style="flex:1"></span>${hoy && esURL(r.enlace || '') ? `<span class="prox-btn prox-unirse" role="button" data-action="unirse" data-url="${esc(r.enlace)}">${I_VIDEO}Unirse</span>` : ''}<span class="prox-btn">Preparar</span></div>
   </div></a>`;
 }
 /* Sección de la pantalla de inicio: tarjetas de los próximos 14 días; si no hay, una línea con la siguiente */
@@ -1501,7 +1571,7 @@ function vistaCalendario(_, q = {}){
     return `<button type="button" class="${cls}" data-action="cal-dia" data-f="${f}" aria-pressed="${f === CAL.dia}" aria-label="${i + 1}${rs.length ? ', ' + plural(rs.length, 'reunión', 'reuniones') : ''}"><span class="n">${i + 1}</span><span class="cal-puntos">${rs.slice(0, 3).map(r => `<span class="cal-punto" style="--c:${cv(empresa(r.empresaId).color)}"></span>`).join('')}</span></button>`; }).join('');
   const delDia = porDia.get(CAL.dia) || [];
   const fila = r => { const e = empresa(r.empresaId);
-    return `<a class="fila" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([r.hora ? horaTexto(r.hora) : '', esSuelta(r) ? 'Reunión · ' + tituloReunion(r) : tituloReunion(r), juntaFutura(r) || juntaHoy(r) ? '' : estadoJunta(r).txt].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`; };
+    return `<a class="fila" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([r.hora ? horaTexto(r.hora) : '', esSuelta(r) ? 'Reunión · ' + tituloReunion(r) : tituloReunion(r), modalidad(r), juntaFutura(r) || juntaHoy(r) ? '' : estadoJunta(r).txt].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`; };
   pintar(`<div class="pagina" style="padding-bottom:40px"><div class="ini-top"><div class="cab-fila">${linkVolver('Entidades', '#/inicio')}</div>
     <h1 class="serif t28" style="margin:0">Calendario</h1>
     <div class="tarjeta col cal-tarjeta" id="cal-tarjeta" style="gap:10px;padding:14px 12px 12px">
@@ -1820,7 +1890,7 @@ const HIST_AB = new Set();
 function listaTL(titulo, xs){ return xs.length ? `<h3 class="tl-sub">${titulo}</h3><ul class="tl-lista">${xs.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : ''; }
 function itemReunionTL(r, i, ult){
   const temas = (r.temas || []).filter(Boolean), dec = (r.decisiones || []).filter(Boolean), k = 'reu-' + r.id, ab = HIST_AB.has(k);
-  const res = [temas.length ? plural(temas.length, 'tema') : '', dec.length ? plural(dec.length, 'decisión', 'decisiones') : ''].filter(Boolean).join(' · ');
+  const res = [temas.length ? plural(temas.length, 'tema') : '', dec.length ? plural(dec.length, 'decisión', 'decisiones') : '', modoCorto(r)].filter(Boolean).join(' · ');
   return `<div class="tl-item tl-reu${i===0 ? ' primera' : ''}${ab ? ' abierta' : ''}" data-ab="${k}">
       <div class="tl-eje"><div class="tl-punto" style="background:var(--acento)"></div>${ult ? '' : '<div class="tl-linea"></div>'}</div>
       <div class="tl-cuerpo${ult ? '' : ' espacio'}" style="flex:1">
@@ -3387,6 +3457,7 @@ function vistaJunta(id){
   </div></div>
   <div class="pagina con-accion">
     ${r.asisti === false && !suelta ? `<div class="sec"><div class="franja">${I.info}<span class="col"><span class="franja-t">No asistí${r.motivo ? ' · ' + esc(r.motivo) : ''}</span>${r.motivoDetalle ? `<span class="franja-s">${esc(r.motivoDetalle)}</span>` : ''}${fuenteInfo(r) ? `<span class="franja-s">Información: ${esc(fuenteInfo(r))}</span>` : ''}</span></div></div>` : ''}
+    ${bloqueDonde(r)}
     ${porUnir.length && !futura ? `<div class="sec"><div class="franja info">${I.borrador}<span class="col"><span class="franja-t">${porUnir.length === 1 ? 'Hay 1 nota' : `Hay ${porUnir.length} notas`} del ${esc(fechaCorta(r.fecha))} sin enlazar</span><span class="franja-s">${porUnir.length === 1 ? '¿Unirla' : '¿Unirlas'} a ${esteOrgano(r)}? Su texto no cambia.</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:inherit" data-action="junta-unir" data-id="${id}">Unir</button></div></div>` : ''}
     ${prep}
     <div class="sec${futura ? ' mas' : ''}"><h2 class="sec-titulo">${futura ? 'Temas a tratar' : 'Temas tratados'}</h2>${temas.length ? `<ol class="lista-num tarjeta">${temas.map(t => `<li>${esc(t)}</li>`).join('')}</ol>` : `<p class="tarjeta vacio">${futura ? 'Puede anotar la agenda desde “Editar”.' : 'Sin temas anotados. Agréguelos desde “Editar”.'}</p>`}
@@ -3420,9 +3491,10 @@ function vistaJuntaForm(id, q){
     const grupoQ = !r && !sueltaQ && !q.comite && q.gnombre && ['comite','reunion'].includes(q.gclase) ? {clase:q.gclase, nombre:q.gnombre} : null;
     FJ = r ? {_para:id, empresaId:eid, suelta:esSuelta(r), asunto:r.asunto || '', proyectoId:r.proyectoId || '', desdeProy:'', comiteId:r.comiteId || '', fecha:r.fecha || '', hora:r.hora || '', tipo: r.tipo === 'Comité' ? 'Ordinaria' : (r.tipo || 'Ordinaria'), comite:r.comite || '', asistentes:[...(r.asistentes || [])], invitados:[...(r.invitados || [])].map(x => ({id:x})),
               asisti: r.asisti !== false, motivo:r.motivo || '', motivoDetalle:r.motivoDetalle || '', fuente:r.fuente || '', fuentePersonaId:r.fuentePersonaId || '', fuenteTexto:r.fuenteTexto || '',
-              temas:(r.temas || []).join('\n'), decisiones:(r.decisiones || []).join('\n'), acta:r.acta || 'sin', actaFecha:r.actaFecha || '', actaDonde:r.actaDonde || '', invBusq:''}
+              temas:(r.temas || []).join('\n'), decisiones:(r.decisiones || []).join('\n'), acta:r.acta || 'sin', actaFecha:r.actaFecha || '', actaDonde:r.actaDonde || '', invBusq:'', lugar:r.lugar || '', enlace:r.enlace || '', modo:r.modo || '', hab:false}
            : {_para:'nueva', empresaId:eid, suelta:sueltaQ, asunto:q.asunto || '', proyectoId:proyQ, desdeProy: q.fecha ? '' : proyQ, comiteId: q.comite && comite(q.comite) ? q.comite : '', fecha: q.fecha || (q.prox ? '' : hoyISO()), hora: q.hora || (sueltaQ ? '' : reunionesOrgano(eid, q.comite && comite(q.comite) ? q.comite : '')[0]?.hora || ''), tipo: TIPOS_JUNTA.includes(q.tipo) ? q.tipo : 'Ordinaria', comite:'', asistentes: grupoQ ? [] : asistentesPropuestos(eid, q.comite && comite(q.comite) ? q.comite : ''), grupoNuevo: grupoQ, invitados: invitadosPropuestos(q.comite && comite(q.comite) ? q.comite : '').map(x => ({id:x})), asisti:true, motivo:'', motivoDetalle:'',
-              fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:'', decisiones:'', acta:'sin', actaFecha:'', actaDonde:'', invBusq:''};
+              fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:'', decisiones:'', acta:'sin', actaFecha:'', actaDonde:'', invBusq:'', modo:'', hab: q.hab === '1', _nuevo:true,
+              ...(q.lugar !== undefined || q.enlace !== undefined ? {lugar:q.lugar || '', enlace:q.enlace || ''} : sueltaQ ? {lugar:'', enlace:''} : habitual(eid, q.comite && comite(q.comite) ? q.comite : ''))};
     /* En la reunión suelta, los asistentes se escogen libremente (lista de abajo) */
     if (FJ.suelta) { FJ.invitados = r ? (r.asistentes || []).map(x => ({id:x})) : []; FJ.asistentes = []; FJ.comiteId = ''; }
   }
@@ -3446,6 +3518,9 @@ function vistaJuntaForm(id, q){
     ${suelta ? `<div class="campo"><label for="fj-asunto">Nombre o asunto</label><input class="input" id="fj-asunto" value="${esc(FJ.asunto)}" placeholder="Ej. Inducción a la compañía" autocapitalize="sentences"></div>` : ''}
     <div class="campo"><label for="fj-proy">Proyecto <span class="opc">(opcional)</span></label><select class="input" id="fj-proy"><option value="">Sin proyecto</option>${proysF.map(p => `<option value="${p.id}"${p.id === FJ.proyectoId ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
     ${suelta || perio ? '' : `<fieldset><legend>Tipo</legend><div class="chips">${TIPOS_JUNTA.map(t => chip('fj-tipo', t, t, FJ.tipo === t)).join('')}</div></fieldset>`}
+    ${camposLugar('fj', FJ, suelta || FJ.grupoNuevo ? null : {eid:e.id, comiteId:FJ.comiteId, nombre: FJ.comiteId ? nombreComite(comite(FJ.comiteId)) : 'la junta'})}
+    ${futura || FJ.asisti || suelta ? `<fieldset><legend>${futura ? '¿Cómo voy a asistir?' : '¿Cómo asistí?'} <span class="opc" style="font-weight:400;color:var(--texto-2)">(opcional)</span></legend>
+      <div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))">${MODOS.map(([k, t]) => `<button type="button" class="opc-btn${FJ.modo === k ? ' sel' : ''}" data-action="fj-modo" data-v="${k}" aria-pressed="${FJ.modo === k}">${t}</button>`).join('')}</div></fieldset>` : ''}
     ${suelta ? '' : `<fieldset><legend>Asistentes</legend>
       ${board.length ? `<div class="chips">${board.map(p => chip('fj-asis', p.id, p.nombre, FJ.asistentes.includes(p.id))).join('')}</div><p class="ayuda" style="margin:0">${enComite ? 'Vienen marcados los miembros habituales del comité (o los asistentes de su última reunión)' : 'La junta directiva vigente viene marcada'}; toque para desmarcar a quien no fue.</p>` : `<p class="ayuda" style="margin:0">${enComite ? 'El comité aún no tiene miembros habituales ni reuniones anteriores. Agregue a los asistentes como invitados, o anote los miembros en la pantalla del comité.' : 'La entidad no tiene miembros de junta registrados (personas con “Rol en junta”). Puede agregarlos como invitados.'}</p>`}
     </fieldset>`}
@@ -3480,7 +3555,7 @@ function vistaJuntaForm(id, q){
       ${!nueva ? `<button type="button" class="btn-peligro" data-action="fj-borrar">Eliminar ${pal}</button>` : ''}</div>
   </form>`);
   const b = (s, k) => $(s)?.addEventListener('input', ev => FJ[k] = ev.target.value);
-  b('#fj-comite','comite'); b('#fj-hora','hora'); b('#fj-asunto','asunto');
+  b('#fj-comite','comite'); b('#fj-hora','hora'); b('#fj-asunto','asunto'); enlazarLugar('fj', FJ);
   $('#fj-proy')?.addEventListener('change', ev => FJ.proyectoId = ev.target.value); b('#fj-detalle','motivoDetalle'); b('#fj-fuentet','fuenteTexto'); b('#fj-temas','temas'); b('#fj-decisiones','decisiones'); b('#fj-nota','nota'); b('#fj-actaf','actaFecha'); b('#fj-actad','actaDonde');
   $('#fj-fuentep')?.addEventListener('change', ev => FJ.fuentePersonaId = ev.target.value);
   /* Cambiar la fecha entre pasada y futura cambia los campos que se muestran */
@@ -3523,11 +3598,13 @@ async function guardarJunta(){
     asisti: futura ? true : FJ.asisti, motivo: !futura && !FJ.asisti ? FJ.motivo : '', motivoDetalle: !futura && !FJ.asisti ? FJ.motivoDetalle.trim() : '',
     fuente: !futura && !FJ.asisti ? FJ.fuente : '', fuentePersonaId: !futura && !FJ.asisti && FJ.fuente === 'persona' ? FJ.fuentePersonaId : '', fuenteTexto: !futura && !FJ.asisti && FJ.fuente === 'otro' ? FJ.fuenteTexto.trim() : '',
     temas: lineas(FJ.temas), decisiones: futura ? (base.decisiones || []) : lineas(FJ.decisiones),
-    acta: futura ? (base.acta || 'sin') : FJ.acta, actaFecha: !futura && FJ.acta === 'recibida' ? (FJ.actaFecha || hoyISO()) : '', actaDonde: !futura && FJ.acta !== 'sin' ? FJ.actaDonde.trim() : '', editada:ahora()};
+    acta: futura ? (base.acta || 'sin') : FJ.acta, actaFecha: !futura && FJ.acta === 'recibida' ? (FJ.actaFecha || hoyISO()) : '', actaDonde: !futura && FJ.acta !== 'sin' ? FJ.actaDonde.trim() : '',
+    lugar:(FJ.lugar || '').trim(), enlace:limpiarEnlace(FJ.enlace), modo: !futura && !FJ.asisti ? '' : (FJ.modo || ''), editada:ahora()};
+  const habs = r.clase === 'suelta' ? null : habitualesParaGuardar(r.empresaId, r.comiteId, r.lugar, r.enlace, FJ.hab);
   const txtNota = (FJ.nota || '').trim();
   const notaNueva = txtNota ? {id:uid(), creada:ahora(), fecha: r.fecha <= hoyISO() ? r.fecha : hoyISO(), ocasion: ocasionJunta(r), texto: txtNota, refTipo:'empresa', refId:r.empresaId,
     relacionadas: proyecto(r.proyectoId) ? [{tipo:'proyecto', id:r.proyectoId}] : [], hitoId:'', reunionId:r.id, editada:ahora()} : null;
-  await lote({poner:{reuniones:[r], ...(nuevasP.length ? {personas:nuevasP} : {}), ...(notaNueva ? {notas:[notaNueva]} : {})}});
+  await lote({poner:{reuniones:[r], ...(nuevasP.length ? {personas:nuevasP} : {}), ...(notaNueva ? {notas:[notaNueva]} : {}), ...(habs || {})}});
   FJ = null; aviso(futura ? `${capitalizar(palabraOrgano(r))} ${programadoOrgano(r)}` : 'Reunión guardada');
   if (nueva) reemplazar('#/junta/' + r.id); else volver('#/junta/' + r.id);
 }
@@ -3754,7 +3831,7 @@ function vistaProgramar(_, q){
     const ult = clase === 'junta' || g ? reunionesOrgano(q.e, g ? g.id : '')[0] : null;
     FPJ = {empresaId:q.e, clase, nombre: g ? nombreGrupo(clase, g.nombre) : '', proyectoId: q.proy && proyecto(q.proy) ? q.proy : '',
       desde: q.proy && proyecto(q.proy) ? '#/proyecto/' + q.proy : g ? '#/comite/' + g.id : '#/empresa/' + q.e,
-      tipo:'Ordinaria', hora: ult?.hora || '', una:'', repetir:false, primera:'', frec:1, cuantas:12, modo:'semana', fechas:[], comiteId:''};
+      tipo:'Ordinaria', hora: ult?.hora || '', una:'', repetir:false, primera:'', frec:1, cuantas:12, modo:'semana', fechas:[], comiteId:'', ...(clase === 'junta' || g ? habitual(q.e, g ? g.id : '') : {lugar:'', enlace:''}), hab:false, _nuevo:true};
   }
   const e = empresa(FPJ.empresaId), cl = FPJ.clase;
   const pasada = !!FPJ.una && FPJ.una <= hoyISO();
@@ -3793,6 +3870,11 @@ function vistaProgramar(_, q){
         <span class="sub" style="min-width:64px">${f ? (ya.has(f) ? '<span class="pend">ya programada</span>' : repes.has(f) ? '<span class="pend">repetida</span>' : DIAS_SEM[fechaD(f).getDay()]) : ''}</span><button type="button" class="quitar" data-action="pj-quitar" data-i="${i}" aria-label="Quitar fecha ${i + 1}">×</button></div>`).join('')}</div>` : '<p class="ayuda" style="margin:0">Escoja la primera fecha y toque “Calcular las fechas”, o agréguelas una por una.</p>'}
       <button type="button" class="btn-lin" data-action="pj-otra">+ Otra fecha${FPJ.fechas.filter(Boolean).length ? ` (${FPJ.frec === 1 ? 'un mes' : FPJ.frec + ' meses'} después de la última)` : ''}</button>
     </fieldset>` : ''}
+    ${(() => { const org = cl === 'junta' ? {eid:e.id, comiteId:'', nombre:'la junta'} : grupo ? {eid:e.id, comiteId:grupo.id, nombre:nombreComite(grupo)} : null;
+      /* Si cambia la junta o el comité y el usuario no ha tocado el lugar ni el enlace, vienen los habituales del nuevo */
+      const clave = org ? org.comiteId + '|' + cl : '-|' + cl, sinTocar = !FPJ._hab || ((FPJ.lugar || '') === FPJ._hab.lugar && (FPJ.enlace || '') === FPJ._hab.enlace);
+      if (FPJ._org !== clave) { if (sinTocar) { const h = org ? habitual(org.eid, org.comiteId) : {lugar:'', enlace:''}; if (FPJ._org !== undefined) Object.assign(FPJ, h); FPJ._hab = FPJ._org !== undefined ? h : {lugar:FPJ.lugar || '', enlace:FPJ.enlace || ''}; } FPJ._org = clave; }
+      return camposLugar('pj', FPJ, org); })()}
     <div class="campo"><label for="pj-proy">Proyecto <span class="opc">(opcional)</span></label><select class="input" id="pj-proy"><option value="">Sin proyecto</option>${proysP.map(p => `<option value="${p.id}"${p.id === FPJ.proyectoId ? ' selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
     <div class="guardar-final">${FPJ.repetir
       ? `<button type="submit" class="btn-pri"${validas.length ? '' : ' disabled'}>${validas.length ? `Programar ${plural(validas.length, cl === 'junta' ? 'junta' : 'reunión', cl === 'junta' ? 'juntas' : 'reuniones')}` : 'Agregue al menos una fecha'}</button>`
@@ -3802,6 +3884,7 @@ function vistaProgramar(_, q){
   </form>`);
   $('#pj-hora').addEventListener('input', ev => FPJ.hora = ev.target.value);
   $('#pj-proy').addEventListener('change', ev => FPJ.proyectoId = ev.target.value);
+  enlazarLugar('pj', FPJ);
   $('#pj-una').addEventListener('change', ev => { FPJ.una = ev.target.value; FPJ.primera = FPJ.una; reProg(); });
   $('#pj-cuantas')?.addEventListener('change', ev => { const n = parseInt(ev.target.value, 10); if (n > 0 && n <= 36) { FPJ.cuantas = n; reProg(); } });
   $$('[data-pj-i]').forEach(inp => inp.addEventListener('change', ev => { FPJ.fechas[+ev.target.dataset.pjI] = ev.target.value; reProg(); }));
@@ -3842,6 +3925,7 @@ async function irARegistrar(){
   const p = new URLSearchParams({e:FPJ.empresaId, fecha:FPJ.una});
   if (FPJ.hora) p.set('hora', FPJ.hora);
   if (FPJ.proyectoId) p.set('proy', FPJ.proyectoId);
+  if ((FPJ.lugar || '').trim() || FPJ.enlace) { p.set('lugar', (FPJ.lugar || '').trim()); p.set('enlace', limpiarEnlace(FPJ.enlace)); if (FPJ.hab) p.set('hab', '1'); }
   if (o.suelta) { p.set('suelta', '1'); p.set('asunto', o.asunto); }
   else { if (o.comiteId) p.set('comite', o.comiteId); if (o.nuevo) { p.set('gclase', o.nuevo.clase); p.set('gnombre', o.nuevo.nombre); } p.set('tipo', FPJ.tipo); }
   FPJ = null; FJ = null; reemplazar('#/junta-form?' + p.toString());
@@ -3861,7 +3945,7 @@ async function programarUna(){
   const o = await organoDeFPJ(true); if (!o) return;
   if (o.suelta) {
     const r = {id:uid(), creada:ahora(), empresaId:FPJ.empresaId, clase:'suelta', asunto:o.asunto, proyectoId: proyecto(FPJ.proyectoId) ? FPJ.proyectoId : '', comiteId:'', fecha:FPJ.una, hora:FPJ.hora || '', tipo:'', comite:'',
-      asistentes:[], invitados:[], asisti:true, motivo:'', motivoDetalle:'', fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:[], decisiones:[], acta:'sin', actaFecha:'', actaDonde:''};
+      asistentes:[], invitados:[], asisti:true, motivo:'', motivoDetalle:'', fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:[], decisiones:[], acta:'sin', actaFecha:'', actaDonde:'', lugar:(FPJ.lugar || '').trim(), enlace:limpiarEnlace(FPJ.enlace), modo:''};
     await guardar('reuniones', r);
     FPJ = null; aviso('Reunión programada'); reemplazar('#/junta/' + r.id); return;
   }
@@ -3892,15 +3976,16 @@ async function guardarProgramacion(){
   const g = FPJ.comiteId && comite(FPJ.comiteId);
   const asis = asistentesPropuestos(e.id, FPJ.comiteId), invs = invitadosPropuestos(FPJ.comiteId).filter(x => !asis.includes(x));
   const nuevas = fechas.map(f => ({id:uid(), creada:ahora(), empresaId:e.id, clase:'', comiteId:FPJ.comiteId, proyectoId: proyecto(FPJ.proyectoId) ? FPJ.proyectoId : '', fecha:f, hora:FPJ.hora || '', tipo: g && esPeriodica(g) ? '' : FPJ.tipo, comite:'', asistentes:[...asis], invitados:[...invs],
-    asisti:true, motivo:'', motivoDetalle:'', fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:[], decisiones:[], acta:'sin', actaFecha:'', actaDonde:''}));
-  await lote({poner:{reuniones:nuevas}});
+    asisti:true, motivo:'', motivoDetalle:'', fuente:'', fuentePersonaId:'', fuenteTexto:'', temas:[], decisiones:[], acta:'sin', actaFecha:'', actaDonde:'', lugar:(FPJ.lugar || '').trim(), enlace:limpiarEnlace(FPJ.enlace), modo:''}));
+  const habs = habitualesParaGuardar(e.id, FPJ.comiteId, (FPJ.lugar || '').trim(), limpiarEnlace(FPJ.enlace), FPJ.hab);
+  await lote({poner:{reuniones:nuevas, ...(habs || {})}});
   const desde = FPJ.desde || '#/empresa/' + e.id; FPJ = null;
   aviso(`${plural(nuevas.length, g ? 'reunión programada' : 'junta programada', g ? 'reuniones programadas' : 'juntas programadas')}`);
   if (nuevas.length === 1) reemplazar('#/junta/' + nuevas[0].id); else volver(desde);
 }
 /* Lista de próximas reuniones (junta y comités) de una entidad o de un comité */
 function filaProxima(r){
-  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${juntaHoy(r) ? '<span class="pend">Hoy</span> · ' : ''}${esc(conDia(r.fecha))}${r.hora ? ' · ' + esc(horaTexto(r.hora)) : ''}</span><span class="sub">${esc(nombreTipoJunta(r))}${(r.temas || []).length ? ' · ' + plural(r.temas.length, 'tema') : ''}</span></span>${I.chev}</a>`;
+  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${juntaHoy(r) ? '<span class="pend">Hoy</span> · ' : ''}${esc(conDia(r.fecha))}${r.hora ? ' · ' + esc(horaTexto(r.hora)) : ''}</span><span class="sub">${esc([nombreTipoJunta(r), modalidad(r)].filter(Boolean).join(' · '))}${(r.temas || []).length ? ' · ' + plural(r.temas.length, 'tema') : ''}</span></span>${I.chev}</a>`;
 }
 
 /* ---------- 10 · Pendientes ---------- */
@@ -5492,6 +5577,11 @@ const ACCIONES = {
   'instr-guardar': b => guardarInstr(b.dataset.k),
   'instr-restaurar': async b => { const k = b.dataset.k; AJ.mapaAbierto = !!$('#mapa-pers')?.open; await lote({poner:{ajustes:[{clave:INSTR[k].cfg, valor:''}, {clave:INSTR[k].fecha, valor:new Date().toISOString()}]}}); const t = $('#instr-' + k); if (t) t.value = INSTR[k].orig(); aviso(k === 'mapa' ? 'Instrucción original restaurada' : 'Volvió a la fija de Mentor'); rePintarAj(); },
   'red-probar': () => probarRedaccion(),
+  'fj-modo': b => { FJ.modo = FJ.modo === b.dataset.v ? '' : b.dataset.v; reJunta(); },
+  'unirse': b => { window.open(b.dataset.url, '_blank', 'noopener'); },
+  'pegar-enlace': async b => { const inp = document.getElementById(b.dataset.campo); if (!inp) return;
+    try { const t = await navigator.clipboard.readText(); const u = limpiarEnlace(t); if (!u) return aviso('No hay nada copiado.'); inp.value = u; inp.dispatchEvent(new Event('input', {bubbles:true})); aviso(plataforma(u) ? 'Enlace de ' + plataforma(u) + ' pegado' : 'Enlace pegado'); }
+    catch (_) { inp.focus(); aviso('Mantenga presionado el recuadro y escoja “Pegar”.'); } },
   'aj-tab': async b => { const sucias = algunaSucia(); AJ.prueba = $('#red-prueba')?.value ?? AJ.prueba;
     if (sucias.length && await confirmar(sucias.length > 1 ? 'Cambió instrucciones de IA y no las ha guardado.' : 'Cambió una instrucción de IA y no la ha guardado.', {titulo:'¿Guardar los cambios?', si:'Guardar', no:'Descartar'})) for (const k of sucias) await guardarInstr(k, true);
     AJ.tab = b.dataset.k; setAjuste('ajTab', AJ.tab).catch(() => {}); if (location.hash.includes('?')) reemplazar('#/ajustes'); else render(); scrollTo(0, 0); },
