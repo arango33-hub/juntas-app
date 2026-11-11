@@ -586,7 +586,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.26 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.27 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3437,7 +3437,7 @@ function botonPrepararOrgano(e, comiteId){
   const perio = comiteId && esPeriodica(comite(comiteId));
   const quien = perio ? 'reunión' : comiteId ? 'comité' : 'junta', art = comiteId && !perio ? 'próximo' : 'próxima';
   if (prox) return {href:'#/junta/' + prox.id, t:`Preparar ${art} ${quien}`, s:[fechaCorta(prox.fecha) + (prox.hora ? ' ' + horaTexto(prox.hora) : ''), pendAnt ? plural(pendAnt, 'pendiente de la anterior', 'pendientes de la anterior') : (ant ? 'sin pendientes de la anterior' : '')].filter(Boolean).join(' · ')};
-  return {href:`#/programar?e=${e.id}${comiteId ? '&comite=' + comiteId : ''}`, t:`Programar ${perio ? 'próximas reuniones' : comiteId ? 'próximos comités' : 'próximas juntas'}`, s: ant ? 'Última: ' + fechaCorta(ant.fecha) + (pendAnt ? ' · ' + plural(pendAnt, 'pendiente') : '') : (comiteId ? 'Aún no hay reuniones registradas' : 'Aún no hay juntas registradas')};
+  return {href:`#/programar?e=${e.id}${comiteId ? '&comite=' + comiteId : ''}`, t: perio ? 'Programar próximas reuniones' : comiteId ? 'Programar próximos comités' : 'Programar próxima junta, comité o reunión', s: ant ? 'Última: ' + fechaCorta(ant.fecha) + (pendAnt ? ' · ' + plural(pendAnt, 'pendiente') : '') : (comiteId ? 'Aún no hay reuniones registradas' : 'Aún no hay juntas registradas')};
 }
 function filaComite(c){
   const e = empresa(c.empresaId), b = botonPrepararOrgano(e, c.id);
