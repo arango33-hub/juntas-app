@@ -650,7 +650,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.36 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.37 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -4036,8 +4036,8 @@ async function guardarInstr(k, silencio){
 }
 /* Vuelve a pintar Ajustes sin perder lo escrito y no guardado en las instrucciones */
 function rePintarAj(){
-  const borr = {}; algunaSucia().forEach(k => borr[k] = $('#instr-' + k).value);
-  render();
+  const borr = {}, y = window.scrollY; algunaSucia().forEach(k => borr[k] = $('#instr-' + k).value);
+  render(); window.scrollTo(0, y);   /* 3.37 · la pantalla se queda donde estaba */
   Object.entries(borr).forEach(([k, v]) => { const t = $('#instr-' + k); if (t) { t.value = v; estadoInstr(k); } });
 }
 function editorInstr(k, etiqueta, filas = 9){
