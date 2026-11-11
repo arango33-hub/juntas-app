@@ -165,6 +165,33 @@ a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,v
 .av-emp{background:var(--acento-suave);background:color-mix(in srgb,var(--c) var(--mezcla-avatar),var(--tarjeta));color:var(--c)}
 :root[data-tema="oscuro"] .av-emp{color:#FFFFFF}
 .av-yo{background:var(--yo-fondo);color:var(--yo-texto)}
+.carrusel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:2px 20px 6px;scroll-padding-inline:20px;scrollbar-width:none}
+.carrusel::-webkit-scrollbar{display:none}
+.prox-card{flex:0 0 272px;scroll-snap-align:start;background:var(--tarjeta);border:1px solid var(--borde);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:var(--texto)}
+.prox-card .banda-c{height:6px;background:var(--c)}
+.prox-card .cuerpo{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;flex:1}
+.prox-fecha{width:58px;height:64px;border-radius:14px;background:var(--acento-suave);color:var(--acento);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.prox-fecha .d{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.prox-fecha .n{font-family:var(--f-titulo);font-size:26px;font-weight:600;line-height:1;color:var(--acento-texto)}
+.prox-fecha.hoy{background:var(--pend-fondo);color:var(--pend-texto)}
+.prox-fecha.hoy .n{color:var(--pend-fuerte, var(--pend-texto))}
+.chip-info{font-size:12px;padding:4px 8px;border-radius:8px;background:var(--neutro-suave);color:var(--texto-2)}
+.chip-info.pend{background:var(--pend-fondo);color:var(--pend-texto);font-weight:600}
+.prox-btn{padding:9px 14px;border-radius:12px;background:var(--boton);color:var(--boton-texto);font-size:14px;font-weight:600}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-dia{height:44px;border-radius:10px;border:0;background:none;color:var(--texto);font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:0}
+.cal-dia .n{font-size:14px;font-weight:500}
+.cal-dia.pasado .n{color:var(--punto)}
+.cal-dia.hoy{background:var(--filtro-activo);color:var(--filtro-activo-texto)}
+.cal-dia.hoy .n{color:var(--filtro-activo-texto);font-weight:700}
+.cal-dia.sel{box-shadow:inset 0 0 0 2px var(--acento)}
+.cal-puntos{display:flex;gap:2px;height:6px}
+.cal-punto,.pulso-punto{width:6px;height:6px;border-radius:50%;background:var(--c)}
+:root[data-tema="oscuro"] .cal-punto,:root[data-tema="oscuro"] .prox-card .banda-c{background:color-mix(in srgb,var(--c) 62%,#fff)}
+.pulso{display:flex;flex-direction:column;gap:6px}
+.pulso svg{display:block;width:100%;height:40px}
+.pulso-txt{display:flex;justify-content:space-between;gap:8px;font-size:13px;color:var(--texto-2)}
+.pulso-txt .frio{color:var(--pend-texto);font-weight:600}
 .pleg-cab{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:12px 14px 12px 16px;background:none;border:0;color:var(--texto);font:inherit;text-align:left;cursor:pointer}
 .pleg-res{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .pleg-res .nom{font-size:16px;font-weight:600}
@@ -509,7 +536,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.23 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.24 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1233,7 +1260,7 @@ const VISTAS = {
   'empresa-form': vistaEmpresaForm, 'persona-form': vistaPersonaForm, cargo: vistaCargo,
   personas: vistaPersonas, pendientes: vistaPendientes, ajustes: vistaAjustes, importar: vistaImportar,
   proyectos: vistaProyectos, proyecto: vistaProyecto, 'proyecto-form': vistaProyectoForm,
-  hito: vistaHito, papel: vistaPapel, compromiso: vistaCompromiso, junta: vistaJunta, 'junta-form': vistaJuntaForm, comite: vistaComite, programar: vistaProgramar
+  hito: vistaHito, papel: vistaPapel, compromiso: vistaCompromiso, junta: vistaJunta, 'junta-form': vistaJuntaForm, comite: vistaComite, programar: vistaProgramar, calendario: vistaCalendario
 };
 function render(){
   if (bloqueada) return;
@@ -1302,6 +1329,104 @@ function pildoraPart(e){
     ? `<span class="pild pild-acento">${fmtPct(e.participacion)}</span>`
     : `<span class="pild pild-neutra">Sin participación</span>`;
 }
+/* ---------- 3.24 · Próximas reuniones en Entidades, calendario del mes y pulso de la relación ---------- */
+const DIAS_CORTOS = ['dom','lun','mar','mié','jue','vie','sáb'];
+const tituloReunion = r => esSuelta(r) ? r.asunto || 'Reunión' : r.comiteId ? nombreTipoJunta(r) : 'Junta ' + (r.tipo || 'ordinaria').toLowerCase();
+const reunionesVivas = () => S.reuniones.filter(r => { const e = empresa(r.empresaId); return e && !e.archivada && r.fecha; });
+const ordenFechaHora = (a,b) => a.fecha.localeCompare(b.fecha) || (a.hora || '99').localeCompare(b.hora || '99');
+function hastaCuando(r){
+  if (!juntaHoy(r) || !r.hora) return '';
+  const [h, m] = r.hora.split(':').map(Number), ahoraD = new Date(), min = h * 60 + m - (ahoraD.getHours() * 60 + ahoraD.getMinutes());
+  return min > 90 ? ` · en ${Math.round(min / 60)} h` : min > 0 ? ` · en ${min} min` : min > -120 ? ' · ahora' : '';
+}
+function tarjetaProxima(r){
+  const e = empresa(r.empresaId), hoy = juntaHoy(r), d = fechaD(r.fecha);
+  const manana = r.fecha === iso(new Date(Date.now() + 864e5));
+  const ant = esSuelta(r) ? null : reunionesOrgano(r.empresaId, r.comiteId).find(x => x.fecha < r.fecha);
+  const pend = ant ? compromisosJunta(ant.id).filter(c => !c.cumplido).length : 0;
+  const temas = (r.temas || []).filter(Boolean).length, gente = [...asistentesJunta(r), ...invitadosJunta(r)];
+  const titulo = tituloReunion(r);
+  return `<a class="prox-card" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><div class="banda-c"></div><div class="cuerpo">
+    <div style="display:flex;align-items:center;gap:12px"><div class="prox-fecha${hoy ? ' hoy' : ''}"><span class="d">${hoy ? 'Hoy' : manana ? 'Mañana' : DIAS_CORTOS[d.getDay()]}</span><span class="n">${d.getDate()}</span></div>
+      <div class="col" style="gap:2px;min-width:0"><span style="font-size:14px;${hoy ? 'color:var(--pend-texto);font-weight:600' : 'color:var(--texto-2)'}">${esc(hoy || manana ? (r.hora ? horaTexto(r.hora) : 'Sin hora') : fechaMedia(r.fecha).replace(/ \d{4}$/, '') + (r.hora ? ' · ' + horaTexto(r.hora) : ''))}${esc(hastaCuando(r))}</span>
+        <span style="font-size:17px;font-weight:600;line-height:1.25">${esc(titulo)}</span><span style="font-size:13px;color:var(--texto-2)">${esc(e.nombre)}</span></div></div>
+    ${pend || temas ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${pend ? `<span class="chip-info pend">${plural(pend, 'pendiente de la anterior', 'pendientes de la anterior')}</span>` : ''}${temas ? `<span class="chip-info">${plural(temas, 'tema')}</span>` : ''}</div>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;margin-top:auto">${gente.length ? `<div class="caras" aria-hidden="true">${gente.slice(0, 3).map(p => `<div class="cara">${esc(iniciales(p.nombre))}</div>`).join('')}${gente.length > 3 ? `<div class="cara">+${gente.length - 3}</div>` : ''}</div>` : ''}<span style="flex:1"></span><span class="prox-btn">Preparar</span></div>
+  </div></a>`;
+}
+/* Sección de la pantalla de inicio: tarjetas de los próximos 14 días; si no hay, una línea con la siguiente */
+function seccionProximas(){
+  const hoyS = hoyISO(), limite = iso(new Date(Date.now() + 14 * 864e5));
+  const futuras = reunionesVivas().filter(r => r.fecha >= hoyS).sort(ordenFechaHora);
+  if (!futuras.length) return '';
+  const cerca = futuras.filter(r => r.fecha <= limite);
+  const cab = `<div class="sec-fila"><h2 class="sec-titulo">Próximas reuniones${cerca.length ? ' · ' + cerca.length : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/calendario">Calendario ›</a></div>`;
+  if (!cerca.length) { const r = futuras[0];
+    return `<div class="sec" id="prox" style="padding-top:20px">${cab}<a class="tarjeta fila" href="#/junta/${r.id}" style="--c:${cv(empresa(r.empresaId).color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">Nada en los próximos 14 días</span><span class="sub">La siguiente: ${esc(conDia(r.fecha))} · ${esc(nombreTipoJunta(r))} · ${esc(empresa(r.empresaId).nombre)}</span></span>${I.chev}</a></div>`; }
+  return `<div class="sec" id="prox" style="padding-top:20px">${cab}<div class="carrusel" role="list" aria-label="Próximas reuniones">${cerca.slice(0, 10).map(tarjetaProxima).join('')}</div></div>`;
+}
+/* Vista del mes */
+let CAL = {mes:'', dia:''};
+function vistaCalendario(){
+  if (!CAL.mes) { CAL.mes = hoyISO().slice(0, 7); CAL.dia = hoyISO(); }
+  const [y, m] = CAL.mes.split('-').map(Number), primero = new Date(y, m - 1, 1), dias = new Date(y, m, 0).getDate();
+  const blancos = (primero.getDay() + 6) % 7, porDia = new Map();
+  reunionesVivas().filter(r => r.fecha.startsWith(CAL.mes)).sort(ordenFechaHora).forEach(r => { if (!porDia.has(r.fecha)) porDia.set(r.fecha, []); porDia.get(r.fecha).push(r); });
+  const nombreMes = capitalizar(primero.toLocaleDateString('es-CO', {month:'long'})) + ' ' + y;
+  const celdas = Array.from({length: blancos}, () => '<span></span>').join('') + Array.from({length: dias}, (_, i) => {
+    const f = `${CAL.mes}-${String(i + 1).padStart(2, '0')}`, rs = porDia.get(f) || [];
+    const cls = ['cal-dia', f === hoyISO() ? 'hoy' : f < hoyISO() ? 'pasado' : '', f === CAL.dia ? 'sel' : ''].filter(Boolean).join(' ');
+    return `<button type="button" class="${cls}" data-action="cal-dia" data-f="${f}" aria-pressed="${f === CAL.dia}" aria-label="${i + 1}${rs.length ? ', ' + plural(rs.length, 'reunión', 'reuniones') : ''}"><span class="n">${i + 1}</span><span class="cal-puntos">${rs.slice(0, 3).map(r => `<span class="cal-punto" style="--c:${cv(empresa(r.empresaId).color)}"></span>`).join('')}</span></button>`; }).join('');
+  const delDia = porDia.get(CAL.dia) || [];
+  const fila = r => { const e = empresa(r.empresaId);
+    return `<a class="fila" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc([r.hora ? horaTexto(r.hora) : '', tituloReunion(r)].filter(Boolean).join(' · '))}</span><span class="sub">${esc(e.nombre)}${juntaFutura(r) || juntaHoy(r) ? '' : ' · ' + esc(estadoJunta(r).txt)}</span></span>${I.chev}</a>`; };
+  pintar(`<div class="pagina" style="padding-bottom:40px"><div class="ini-top"><div class="cab-fila">${linkVolver('Entidades', '#/inicio')}</div>
+    <h1 class="serif t28" style="margin:0">Calendario</h1>
+    <div class="tarjeta col" style="gap:10px;padding:14px 12px 12px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><button type="button" class="enlace-btn" data-action="cal-mes" data-d="-1" aria-label="Mes anterior" style="font-size:22px;padding:4px 12px">‹</button>
+        <span class="serif" style="font-size:19px;font-weight:600">${esc(nombreMes)}</span>
+        <button type="button" class="enlace-btn" data-action="cal-mes" data-d="1" aria-label="Mes siguiente" style="font-size:22px;padding:4px 12px">›</button></div>
+      <div class="cal-grid" aria-hidden="true" style="font-size:11px;color:var(--texto-2);text-align:center"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="cal-grid">${celdas}</div>
+      ${CAL.mes !== hoyISO().slice(0, 7) ? `<button type="button" class="enlace-btn" data-action="cal-hoy" style="align-self:center;font-size:14px">Volver a hoy</button>` : ''}
+    </div></div>
+    <div class="sec"><h2 class="sec-titulo">${esc(fechaLarga(CAL.dia))}</h2>${delDia.length ? `<div class="tarjeta col" style="gap:0">${delDia.map(fila).join('')}</div>` : `<p class="tarjeta vacio">Sin reuniones este día.</p>`}</div>
+  </div>`);
+}
+/* Pulso: actividad de los últimos 12 meses (notas, reuniones y compromisos) */
+function pulsoDe(tipo, id){
+  const hoyD = new Date(), meses = Array(12).fill(0), fechas = [];
+  const mesIdx = f => { const d = fechaD(f); return 11 - ((hoyD.getFullYear() - d.getFullYear()) * 12 + hoyD.getMonth() - d.getMonth()); };
+  const sumar = f => { if (!f || f > hoyISO()) return; fechas.push(f); const i = mesIdx(f); if (i >= 0 && i < 12) meses[i]++; };
+  S.notas.forEach(n => { if (tocaA(n, tipo, id)) sumar(n.fecha); });
+  S.reuniones.forEach(r => { if ((tipo === 'empresa' && r.empresaId === id) || (tipo === 'proyecto' && r.proyectoId === id) || (tipo === 'persona' && [...(r.asistentes || []), ...(r.invitados || [])].includes(id))) sumar(r.fecha); });
+  S.compromisos.forEach(c => { if ((c.refTipo === tipo && c.refId === id) || (tipo === 'proyecto' && c.proyectoId === id)) sumar(String(c.creada || '').slice(0, 10)); });
+  const ult = fechas.sort().pop() || '', hace90 = iso(new Date(Date.now() - 90 * 864e5));
+  const n90 = fechas.filter(f => f >= hace90).length + (ult >= hace90 ? 1 : 0);
+  const total = meses.reduce((a, b) => a + b, 0);
+  return {meses, ult, n90, total, frio: !!ult && ult < hace90 && total >= 2};
+}
+function svgPulso(p){
+  const max = Math.max(...p.meses, 1), pts = p.meses.map((v, i) => [Math.round(i * 320 / 11), Math.round(36 - v / max * 30)]);
+  const linea = pts.map((q, i) => (i ? 'L' : 'M') + q[0] + ' ' + q[1]).join(' '), col = p.frio ? 'var(--pend-texto)' : 'var(--acento)', fin = pts[11];
+  return `<svg viewBox="0 0 320 40" preserveAspectRatio="none" role="img" aria-label="Actividad de los últimos 12 meses${p.frio ? ', en descenso' : ''}"><path d="${linea} L320 40 L0 40 Z" fill="${col}" fill-opacity=".14"/><path d="${linea}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><circle cx="${fin[0]}" cy="${fin[1]}" r="3.5" fill="${col}"/></svg>`;
+}
+function textoPulso(p){
+  if (p.frio) return `<span class="frio">Enfriándose · último registro ${esc(fechaCorta(p.ult))}</span>`;
+  const n = p.n90 - (p.ult ? 0 : 0);
+  return n >= 10 ? `Muy activa · ${n} registros en 90 días` : n >= 3 ? `Activa · ${n} registros en 90 días` : n ? `Poca actividad · ${plural(n, 'registro')} en 90 días` : '';
+}
+function bloquePulso(tipo, id){
+  const p = pulsoDe(tipo, id); if (!p.total) return '';
+  return `<div class="pulso">${svgPulso(p)}<div class="pulso-txt">${textoPulso(p)}</div></div>`;
+}
+/* Franja del inicio: la entidad que más se está enfriando */
+function franjaEnfriando(){
+  const frias = empresasActivas().map(e => ({e, p: pulsoDe('empresa', e.id)})).filter(x => x.p.frio).sort((a,b) => b.p.total - a.p.total);
+  if (!frias.length) return '';
+  const {e, p} = frias[0], meses = Math.max(3, Math.round((Date.now() - fechaD(p.ult).getTime()) / (30 * 864e5)));
+  return `<a class="franja" href="#/empresa/${e.id}">${I.info}<span class="col"><span class="franja-t">Se está enfriando: ${esc(e.nombre)}</span><span class="franja-s">Hace ${meses} meses no registra nada${frias.length > 1 ? ` · y ${plural(frias.length - 1, 'entidad más', 'entidades más')}` : ''}.</span></span></a>`;
+}
 function tarjetaEmpresa(e){
   const t = tipo(e.vinculoId), junta = esJunta(e), {nJunta, nFunc, hay} = conteos(e);
   let linea = tipoTarjeta(t);
@@ -1311,6 +1436,7 @@ function tarjetaEmpresa(e){
   return `<div class="emp-card${junta ? '' : ' punteada'}" data-go="#/empresa/${e.id}" role="link" tabindex="0" aria-label="${esc(e.nombre)}">
     <div class="emp-top"><span class="emp-nom-fila"><button type="button" class="circulo" style="background:${cv(e.color)}" data-action="color" data-id="${e.id}" aria-label="Cambiar color de ${esc(e.nombre)}"></button><span class="emp-nombre">${esc(e.nombre)}</span></span>${pildoraPart(e)}</div>
     <span class="emp-linea">${esc(linea)}</span>
+    ${bloquePulso('empresa', e.id)}
     <div class="emp-pie"><span>${juntasEntidad(e.id).some(juntaHoy) ? capitalizar(palabraOrgano(juntasEntidad(e.id).find(juntaHoy))) + ' hoy' : proximaJunta(e.id) ? rotuloProxima(proximaJunta(e.id)) + fechaCorta(proximaJunta(e.id).fecha) : ult ? 'Último contacto: ' + fechaCorta(ult) : '<span class="t2">Sin contacto registrado</span>'}</span>${pend ? `<span class="pend">${plural(pend,'pendiente')}</span>` : '<span class="t2">Sin pendientes</span>'}</div>
   </div>`;
 }
@@ -1330,16 +1456,18 @@ function vistaInicio(){
       <div class="cab-fila"><h1 class="serif t30">Entidades</h1>
         <div class="ini-botones"><a class="btn-icono" href="#/nota?libre=1" aria-label="Nota rápida">${I.micPeq}</a><button type="button" class="btn-icono" data-action="exportar" aria-label="Exportar respaldo">${I.descargar}</button><a class="btn-icono" href="#/ajustes" aria-label="Ajustes">${I.ajustes}</a>${btnBloquear()}</div></div>
       <div class="campo-busq"><label for="buscar">Buscar persona, cargo, entidad, proyecto, compromiso o palabra clave</label><input class="input" id="buscar" type="search" placeholder="Ej. tesorería" value="${esc(BUSQUEDA)}" autocomplete="off" enterkeyhint="search"></div>
-      ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaConvertir()}${franjaCumples()}${franjaIOS()}
+      ${franjaBorrador()}${franjaPendientes()}${franjaRespaldo()}${franjaEnfriando()}${franjaConvertir()}${franjaCumples()}${franjaIOS()}
     </div>
+    ${seccionProximas()}
     <div class="sec" style="padding-top:24px">
       <div class="sec-fila"><h2 class="sec-titulo">Mis entidades</h2>${botonOrden('empresa')}</div>
       <div class="filtros" role="group" aria-label="Filtrar entidades">${f('todas','Todas',act.length)}${f('junta','Con junta',nJ)}${f('sinjunta','Sin junta',act.length - nJ)}</div>
       <div id="lista" class="col" style="gap:12px"></div>
     </div>
   </div>${fab('#/empresa-form','Agregar entidad')}${nav('inicio')}`);
-  $('#buscar').addEventListener('input', e => { BUSQUEDA = e.target.value; pintarLista(); });
-  pintarLista();
+  const prox = () => { const x = $('#prox'); if (x) x.hidden = !!BUSQUEDA.trim(); };
+  $('#buscar').addEventListener('input', e => { BUSQUEDA = e.target.value; prox(); pintarLista(); });
+  prox(); pintarLista();
 }
 function pintarLista(){
   const cont = $('#lista'); if (!cont) return;
@@ -1617,6 +1745,7 @@ function vistaPersona(id, q){
   </div></div>
   <div class="pagina con-accion">
     ${seccionAsistentes(p)}
+    ${(() => { const b = bloquePulso('persona', id); return b ? `<div class="sec"><h2 class="sec-titulo">Pulso · 12 meses</h2><div class="tarjeta" style="padding:14px 16px">${b}</div></div>` : ''; })()}
     <div class="sec"><h2 class="sec-titulo">Datos</h2>${datos ? `<div class="tarjeta datos">${datos}</div>` : `<p class="tarjeta vacio">Sin datos de contacto. Toque “Editar” para agregarlos.</p>`}</div>
     <div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Entidades y cargos</h2><a class="enlace-btn" style="font-size:14px" href="#/cargo?p=${id}">+ Agregar</a></div>
       ${cs.length ? `<div class="tarjeta col" style="gap:0">${cs.map(filaCargo).join('')}</div>` : `<p class="tarjeta vacio">No está vinculada a ninguna entidad.</p>`}</div>
@@ -4876,6 +5005,9 @@ const ACCIONES = {
   'pj-calcular': () => { calcularFechas(); reProg(); },
   'pj-otra': () => { otraFecha(); reProg(); },
   'pj-una': () => programarUna(),
+  'cal-dia': b => { CAL.dia = b.dataset.f; vistaCalendario(); },
+  'cal-mes': b => { const [y, m] = CAL.mes.split('-').map(Number), d = new Date(y, m - 1 + Number(b.dataset.d), 1); CAL.mes = iso(d).slice(0, 7); CAL.dia = CAL.mes === hoyISO().slice(0, 7) ? hoyISO() : CAL.mes + '-01'; vistaCalendario(); },
+  'cal-hoy': () => { CAL = {mes:'', dia:''}; vistaCalendario(); },
   'pj-sin-fecha': () => crearSinFecha(),
   'pj-clase': b => { if (FPJ.clase !== b.dataset.v) { FPJ.clase = b.dataset.v; FPJ.nombre = ''; } reProg(); },
   'pj-rep': b => { FPJ.repetir = b.dataset.v === '1'; if (FPJ.repetir && !FPJ.fechas.length && FPJ.una) calcularFechas(); reProg(); },
