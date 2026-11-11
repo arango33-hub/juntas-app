@@ -179,10 +179,11 @@ a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,v
 .chip-info.pend{background:var(--pend-fondo);color:var(--pend-texto);font-weight:600}
 .prox-btn{padding:9px 14px;border-radius:12px;background:var(--boton);color:var(--boton-texto);font-size:14px;font-weight:600}
 .cal-tarjeta{touch-action:pan-y}
-.cal-mes-entra-sig{animation:calSig .22s ease-out}
-.cal-mes-entra-ant{animation:calAnt .22s ease-out}
-@keyframes calSig{from{transform:translateX(40px);opacity:.3}to{transform:none;opacity:1}}
-@keyframes calAnt{from{transform:translateX(-40px);opacity:.3}to{transform:none;opacity:1}}
+.cal-mes-entra-sig{animation:calSig var(--cal-entra,.16s) cubic-bezier(.2,.8,.3,1)}
+.cal-mes-entra-ant{animation:calAnt var(--cal-entra,.16s) cubic-bezier(.2,.8,.3,1)}
+@keyframes calSig{from{transform:translateX(70px);opacity:.2}to{transform:none;opacity:1}}
+@keyframes calAnt{from{transform:translateX(-70px);opacity:.2}to{transform:none;opacity:1}}
+.cal-grid{will-change:transform}
 @media (prefers-reduced-motion: reduce){.cal-mes-entra-sig,.cal-mes-entra-ant{animation:none}}
 .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
 .cal-dia{height:44px;border-radius:10px;border:0;background:none;color:var(--texto);font:inherit;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;padding:0}
@@ -608,7 +609,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.32 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.33 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1467,20 +1468,36 @@ function vistaCalendario(_, q = {}){
         <span class="serif" style="font-size:19px;font-weight:600">${esc(nombreMes)}</span>
         <button type="button" class="enlace-btn" data-action="cal-mes" data-d="1" aria-label="Mes siguiente" style="font-size:22px;padding:4px 12px">›</button></div>
       <div class="cal-grid" aria-hidden="true" style="font-size:11px;color:var(--texto-2);text-align:center"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
-      <div class="cal-grid${CAL.anim ? ' cal-mes-entra-' + CAL.anim : ''}">${celdas}</div>
+      <div class="cal-grid${CAL.anim ? ' cal-mes-entra-' + CAL.anim : ''}" id="cal-dias">${celdas}</div>
       ${CAL.mes !== hoyISO().slice(0, 7) ? `<button type="button" class="enlace-btn" data-action="cal-hoy" style="align-self:center;font-size:14px">Volver a hoy</button>` : ''}
     </div></div>
     <div class="sec"><h2 class="sec-titulo">${esc(fechaLarga(CAL.dia))}</h2>${delDia.length ? `<div class="tarjeta col" style="gap:0">${delDia.map(fila).join('')}</div>` : `<p class="tarjeta vacio">Sin reuniones este día.</p>`}</div>
   </div>`);
   CAL.anim = '';
-  /* 3.30 · Deslizar el dedo a la izquierda o a la derecha cambia de mes */
-  const t = $('#cal-tarjeta'); let x0 = null, y0 = 0;
-  t.addEventListener('touchstart', ev => { const p = ev.touches[0]; x0 = p.clientX; y0 = p.clientY; }, {passive:true});
-  t.addEventListener('touchend', ev => {
-    if (x0 === null) return; const p = ev.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0; x0 = null;
-    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    cambiarMesCal(dx < 0 ? 1 : -1);
+  /* 3.30 · Deslizar el dedo cambia de mes. 3.33 · El mes sigue al dedo y sale a la velocidad con que se soltó */
+  const t = $('#cal-tarjeta'), g = $('#cal-dias'), quieto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let x0 = null, y0 = 0, dir = null, dx = 0, pts = [];
+  t.addEventListener('touchstart', ev => { const p = ev.touches[0]; x0 = p.clientX; y0 = p.clientY; dir = null; dx = 0; pts = [{x:x0, t:ev.timeStamp}]; g.style.transition = 'none'; }, {passive:true});
+  t.addEventListener('touchmove', ev => {
+    if (x0 === null) return; const p = ev.touches[0], ddx = p.clientX - x0, ddy = p.clientY - y0;
+    if (!dir && (Math.abs(ddx) > 8 || Math.abs(ddy) > 8)) dir = Math.abs(ddx) > Math.abs(ddy) ? 'h' : 'v';
+    if (dir !== 'h') return;
+    dx = ddx; pts.push({x:p.clientX, t:ev.timeStamp}); while (pts.length > 2 && ev.timeStamp - pts[0].t > 100) pts.shift();
+    if (!quieto) { g.style.transform = `translateX(${dx}px)`; g.style.opacity = String(1 - Math.min(Math.abs(dx) / 500, .5)); }
   }, {passive:true});
+  const soltar = ev => {
+    if (x0 === null) return; x0 = null; if (dir !== 'h') return;
+    const a = pts[0], b = pts[pts.length - 1], v = b && a && b.t > a.t ? (b.x - a.x) / (b.t - a.t) : 0;   /* px por ms */
+    const ancho = g.offsetWidth || 320, rapido = Math.abs(v) > .3 && Math.sign(v) === Math.sign(dx);
+    if (ev.type === 'touchend' && (Math.abs(dx) > ancho * .2 || (rapido && Math.abs(dx) > 15))) {
+      const paso = dx < 0 ? 1 : -1;
+      if (quieto) { cambiarMesCal(paso); return; }
+      const falta = ancho - Math.abs(dx), ms = Math.max(60, Math.min(180, falta / Math.max(Math.abs(v), 1.2)));
+      g.style.transition = `transform ${ms}ms linear, opacity ${ms}ms linear`; g.style.transform = `translateX(${-paso * ancho}px)`; g.style.opacity = '0';
+      setTimeout(() => { document.documentElement.style.setProperty('--cal-entra', Math.max(.1, Math.min(.2, ms / 1000 * 1.2)) + 's'); cambiarMesCal(paso); }, ms);
+    } else { g.style.transition = 'transform .15s ease-out, opacity .15s ease-out'; g.style.transform = ''; g.style.opacity = ''; }
+  };
+  t.addEventListener('touchend', soltar, {passive:true}); t.addEventListener('touchcancel', soltar, {passive:true});
 }
 /* Calendario del año de una entidad: un punto por reunión (junta, comité o reunión), asistencia y conteos */
 const MESES_CORTOS = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
