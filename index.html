@@ -497,6 +497,19 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    ===================================================================== */
 .filtros.desliza{flex-wrap:nowrap;overflow-x:auto;margin:0 -20px;padding:0 20px 2px;scrollbar-width:none}
 .filtros.desliza::-webkit-scrollbar{display:none}
+.aj-tabs{position:sticky;top:0;z-index:5;background:var(--fondo);padding:14px 20px 8px}
+.aj-tabs .filtros{display:grid;grid-template-columns:1.1fr .7fr 1fr 1fr 1.25fr;gap:5px;overflow:visible}
+.aj-tabs .filtro,.aj-tabs .filtro.act{padding:0 2px;font-size:13.5px;min-height:40px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.etq-fija,.etq-edit{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:2px 7px;border-radius:6px;margin-left:6px;vertical-align:middle}
+.etq-fija{background:var(--linea);color:var(--texto-2)}
+.etq-edit{background:var(--acento-suave);color:var(--acento)}
+.instr-fija{margin-top:8px;font-size:14px;line-height:1.45;white-space:pre-wrap;color:var(--texto-2);background:var(--fondo);border:1px solid var(--linea);border-radius:12px;padding:12px}
+.mapa-det summary{cursor:pointer;color:var(--acento);font-weight:600;font-size:15px;min-height:44px;display:flex;align-items:center}
+.guardar-fila{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.estado-guardado{font-size:14px;color:var(--texto-2)}
+.estado-guardado.ok{color:#2E7D57;font-weight:600}
+:root[data-tema="oscuro"] .estado-guardado.ok{color:#6FCF97}
+.estado-guardado.pend{color:var(--pend-texto);font-weight:600}
 .filtros.desliza .filtro{flex-shrink:0;white-space:nowrap}
 .origenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
 .origen{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--texto-2);background:var(--neutro-suave);padding:3px 9px;border-radius:999px}
@@ -609,7 +622,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.34 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.35 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -3941,6 +3954,26 @@ function hojaConvertir(eid){
 }
 
 /* ---------- Ajustes ---------- */
+const AJ_TABS = [['general','General'], ['ia','IA'], ['datos','Datos'], ['listas','Listas'], ['papelera','Papelera']];
+const AJ = {tab:null};
+/* 3.35 · Instrucción personalizada del mapa: se guarda con su botón y muestra si quedó guardada */
+const mapaInstrGuardada = () => instrMapaPersonal().trim();
+function mapaInstrSucia(){ const t = $('#mapa-instr'); return !!t && t.value.trim() !== mapaInstrGuardada(); }
+function estadoMapaInstr(){
+  const t = $('#mapa-instr'), b = $('#mapa-guardar'), e = $('#mapa-estado'); if (!t || !b || !e) return;
+  const sucia = mapaInstrSucia(); b.disabled = !sucia;
+  const f = S.cfg.mapaInstrFecha;
+  e.className = 'estado-guardado' + (sucia ? ' pend' : (S.cfg.mapaInstr || '').trim() ? ' ok' : '');
+  e.textContent = sucia ? 'Cambios sin guardar' : (S.cfg.mapaInstr || '').trim() ? '✓ Guardada' + (f ? ' · ' + fechaCorta(f.slice(0, 10)) + ', ' + horaDe(f) : '') : 'Es la instrucción original';
+}
+const horaDe = f => { const d = new Date(f); return isNaN(d) ? '' : d.toLocaleTimeString('es-CO', {hour:'numeric', minute:'2-digit'}); };
+async function guardarMapaInstr(silencio){
+  const t = $('#mapa-instr'); if (!t) return; const v = t.value.trim();
+  const orig = !v || v === MAPA_PERSONAL_ORIGINAL.trim();
+  await lote({poner:{ajustes:[{clave:'mapaInstr', valor: orig ? '' : v}, {clave:'mapaInstrFecha', valor: new Date().toISOString()}]}});
+  if (orig) t.value = MAPA_PERSONAL_ORIGINAL;
+  aviso(orig ? 'Quedó la instrucción original' : 'Instrucción del mapa guardada'); if (!silencio) estadoMapaInstr();
+}
 function vistaAjustes(id, q = {}){
   const ult = S.cfg.ultimoRespaldo, dias = +S.cfg.recordatorioDias || 15;
   const conv = porConvertir();
@@ -3953,53 +3986,55 @@ function vistaAjustes(id, q = {}){
     .sort((a,b) => String(b.o.archivadaEl || b.o.archivadoEl || '').localeCompare(String(a.o.archivadaEl || a.o.archivadoEl || '')) || compararTexto(a.o.nombre, b.o.nombre));
   const hayEjemplo = [...S.empresas, ...S.personas].some(x => x.ejemplo);
   const opDias = [7,15,30,60].map(d => `<option value="${d}"${d===dias ? ' selected' : ''}>Cada ${d} días</option>`).join('');
-  pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
-    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Entidades','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
-    ${convHtml}
-
-    <div class="sec"><h2 class="sec-titulo">Apariencia</h2><div class="tarjeta"><div class="ajuste">
+  /* 3.35 · Ajustes en pestañas: General · IA · Datos · Listas · Papelera */
+  const tab = AJ_TABS.some(t => t[0] === q.tab) ? q.tab : q.convertir ? 'datos' : (AJ.tab || S.cfg.ajTab || 'general');
+  AJ.tab = tab;
+  const papelHtml = S.papelera.length ? (() => { const lst = [...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada));
+      return `<p class="ayuda" style="margin:0">Lo que borra se guarda aquí ${PAPELERA_DIAS} días antes de eliminarse.</p>` + plegable('papelera', plural(lst.length, 'elemento borrado', 'elementos borrados'), 'El más reciente: ' + lst[0].titulo + ' · ' + fechaMedia(lst[0].creada), null, `<div class="col" style="gap:0">${[...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada)).map(it => {
+        const vence = new Date(new Date(it.creada).getTime() + PAPELERA_DIAS * 86400000);
+        return `<div class="dup"><span class="col"><span class="nom">${esc(it.titulo)}</span><span class="sub">Borrado el ${fechaMedia(it.creada)} · se elimina el ${fechaMedia(iso(vence))}</span></span>
+          <div class="dos"><button type="button" class="btn-sec" data-action="papelera-restaurar" data-id="${it.id}">Restaurar</button><button type="button" class="btn-peligro" data-action="papelera-eliminar" data-id="${it.id}">Eliminar ya</button></div></div>`; }).join('')}</div>`); })()
+    : `<p class="tarjeta vacio">La papelera está vacía. Lo que borre se guarda aquí ${PAPELERA_DIAS} días antes de eliminarse.</p>`;
+  const secs = {
+    general: `    <div class="sec"><h2 class="sec-titulo">Apariencia</h2><div class="tarjeta"><div class="ajuste">
       <p>Modo claro: fondo blanco y letra oscura. Modo oscuro: fondo oscuro y letra clara. “Según el sistema” cambia solo, igual que su celular.</p>
       <div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Apariencia">${[['sistema','Según el sistema'],['claro','Claro'],['oscuro','Oscuro']].map(([k,t]) => `<button type="button" class="opc-btn${(S.cfg.tema || 'sistema') === k ? ' sel' : ''}" data-action="tema" data-v="${k}" aria-pressed="${(S.cfg.tema || 'sistema') === k}">${t}</button>`).join('')}</div>
     </div></div></div>
-
-    ${ajustesIA()}
-
-    <div class="sec"><h2 class="sec-titulo">Respaldo</h2><div class="tarjeta">
+    <div class="sec"><h2 class="sec-titulo">Seguridad</h2><div class="tarjeta"><div class="ajuste">
+      <p>La app pide el PIN al abrirse y se bloquea sola después de ${BLOQUEO_MIN} minutos en segundo plano.</p>
+      <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div></div></div>
+    <div class="sec"><p class="ayuda" style="text-align:center;margin:8px 0 0">${esc(APP.nombre)} · versión ${esc(APP.version)}<br>${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}</p>
+      ${HAY_VERSION ? '<button type="button" class="btn-pri" data-action="actualizar-app">Actualizar a la versión nueva</button>' : '<button type="button" class="enlace-btn" style="align-self:center" data-action="buscar-version">Buscar versión nueva</button>'}</div>
+`,
+    ia: ajustesIA(),
+    datos: `${convHtml}    <div class="sec"><h2 class="sec-titulo">Respaldo</h2><div class="tarjeta">
       <div class="ajuste"><p>${ult ? `Último respaldo: ${fechaMedia(ult)}.` : 'Aún no ha exportado ningún respaldo.'} Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
         <div class="dos"><button type="button" class="btn-sec" data-action="exportar">Exportar respaldo</button><button type="button" class="btn-sec" data-action="importar-respaldo">Importar respaldo</button></div></div>
       <div class="ajuste"><label for="aj-dias" class="leyenda">Recordarme exportar</label><select class="input" id="aj-dias">${opDias}</select></div>
     </div></div>
-
     <div class="sec"><h2 class="sec-titulo">Importar desde Excel</h2><div class="tarjeta"><div class="ajuste">
       <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo y, si quiere, a quién representa y el usuario de WhatsApp). Para miembros de junta escriba “Junta directiva” en área y el rol en cargo. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div>
     </div></div></div>
-
-    <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una entidad.</p>`}</div>
-
-    <div class="sec" id="archivo"><h2 class="sec-titulo">Archivo</h2>${arch.length ? `<p class="ayuda" style="margin:0">Entidades y proyectos que ya no aparecen en las listas. Toque uno para consultarlo.</p><div class="tarjeta col" style="gap:0">${arch.map(({t, o}) => `<div class="fila fila-rol" style="--c:${cv(o.color)}"><a href="#/${t}/${o.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(o.nombre)}</span><span class="sub">${esc([t === 'empresa' ? 'Entidad' : 'Proyecto', lineaArchivo(o)].filter(Boolean).join(' · '))}</span></span></a><button type="button" class="rol-btn" data-action="restaurar-arch" data-t="${t}" data-id="${o.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">El archivo está vacío. Una entidad se archiva desde “Editar”; un proyecto, desde abajo en su pantalla.</p>`}</div>
-
-    <div class="sec"><h2 class="sec-titulo">Papelera</h2>${S.papelera.length ? `<div class="tarjeta col" style="gap:0">${[...S.papelera].sort((a,b) => b.creada.localeCompare(a.creada)).map(it => {
-        const vence = new Date(new Date(it.creada).getTime() + PAPELERA_DIAS * 86400000);
-        return `<div class="dup"><span class="col"><span class="nom">${esc(it.titulo)}</span><span class="sub">Borrado el ${fechaMedia(it.creada)} · se elimina el ${fechaMedia(iso(vence))}</span></span>
-          <div class="dos"><button type="button" class="btn-sec" data-action="papelera-restaurar" data-id="${it.id}">Restaurar</button><button type="button" class="btn-peligro" data-action="papelera-eliminar" data-id="${it.id}">Eliminar ya</button></div></div>`; }).join('')}</div>`
-      : `<p class="tarjeta vacio">La papelera está vacía. Lo que borre se guarda aquí ${PAPELERA_DIAS} días antes de eliminarse.</p>`}</div>
-
-    <div class="sec"><h2 class="sec-titulo">Seguridad</h2><div class="tarjeta"><div class="ajuste">
-      <p>La app pide el PIN al abrirse y se bloquea sola después de ${BLOQUEO_MIN} minutos en segundo plano.</p>
-      <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div></div></div>
-
     <div class="sec"><h2 class="sec-titulo">Datos de ejemplo</h2><div class="tarjeta"><div class="ajuste">
       <p>Cargan entidades, personas y un proyecto ficticios para probar la app. Se borran sin tocar sus datos reales.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="ejemplo-cargar">Cargar ejemplo</button><button type="button" class="btn-peligro" data-action="ejemplo-borrar" ${hayEjemplo ? '' : 'disabled'}>Borrar ejemplo</button></div>
     </div></div></div>
-
-    <div class="sec"><p class="ayuda" style="text-align:center;margin:8px 0 0">${esc(APP.nombre)} · versión ${esc(APP.version)}<br>${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}</p>
-      ${HAY_VERSION ? '<button type="button" class="btn-pri" data-action="actualizar-app">Actualizar a la versión nueva</button>' : '<button type="button" class="enlace-btn" style="align-self:center" data-action="buscar-version">Buscar versión nueva</button>'}</div>
+`,
+    listas: `    <div class="sec"><h2 class="sec-titulo">Tipos de vínculo propios</h2>${propios.length ? `<div class="tarjeta col" style="gap:0">${propios.map(t => `<div class="fila"><span class="col"><span class="nom">${esc(t.nombre)}</span><span class="sub">${t.grupo==='junta' ? 'En la junta' : 'Sin junta'}</span></span><button type="button" class="enlace-btn" style="margin-left:auto;color:var(--peligro)" data-action="tipo-borrar" data-id="${t.id}">Quitar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">No ha creado tipos propios. Se crean con “+ Otro tipo” al agregar una entidad.</p>`}</div>
+    <div class="sec" id="archivo"><h2 class="sec-titulo">Archivo</h2>${arch.length ? `<p class="ayuda" style="margin:0">Entidades y proyectos que ya no aparecen en las listas. Toque uno para consultarlo.</p><div class="tarjeta col" style="gap:0">${arch.map(({t, o}) => `<div class="fila fila-rol" style="--c:${cv(o.color)}"><a href="#/${t}/${o.id}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(o.nombre)}</span><span class="sub">${esc([t === 'empresa' ? 'Entidad' : 'Proyecto', lineaArchivo(o)].filter(Boolean).join(' · '))}</span></span></a><button type="button" class="rol-btn" data-action="restaurar-arch" data-t="${t}" data-id="${o.id}">Restaurar</button></div>`).join('')}</div>` : `<p class="tarjeta vacio">El archivo está vacío. Una entidad se archiva desde “Editar”; un proyecto, desde abajo en su pantalla.</p>`}</div>
+`,
+    papelera: `<div class="sec"><h2 class="sec-titulo">Papelera</h2>${papelHtml}</div>`
+  };
+  pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
+    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Entidades','#/inicio')}<h1 class="serif t30">Ajustes</h1></div>
+    <div class="aj-tabs"><div class="filtros" role="tablist" aria-label="Secciones de Ajustes">${AJ_TABS.map(([k, t]) => `<button type="button" class="filtro${k === tab ? ' act' : ''}" role="tab" aria-selected="${k === tab}" data-action="aj-tab" data-k="${k}">${t}</button>`).join('')}</div></div>
+    ${secs[tab]}
   </div>`);
-  $('#aj-dias').addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
+  $('#aj-dias')?.addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
   $('#dic-modelo')?.addEventListener('change', async e => { await guardarModeloDictado('openai', e.target.value); aviso('Modelo de transcripción actualizado'); });
-  $('#mapa-instr')?.addEventListener('change', async e => { const v = e.target.value.trim(); await setAjuste('mapaInstr', v === MAPA_PERSONAL_ORIGINAL.trim() ? '' : v); aviso(v ? 'Instrucción del mapa guardada' : 'Instrucción original restaurada'); });
+  $('#mapa-instr')?.addEventListener('input', () => estadoMapaInstr());
+  estadoMapaInstr();
   ['mejorar', 'transcribir'].forEach(k => $('#ia-esp-' + k)?.addEventListener('change', async e => { await setAjuste('iaEspera', {...(S.cfg.iaEspera || {}), [k]: +e.target.value}); aviso('Tiempo de espera actualizado'); }));
   $('#ia-modelo')?.addEventListener('change', async e => { await setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [iaProveedor()]: e.target.value}); aviso('Modelo actualizado'); });
 }
@@ -4849,9 +4884,11 @@ function ajustesIA(){
       <button type="button" class="enlace-btn" data-action="ia-lista" data-p="${p}">Actualizar lista</button>
     </div>` : ''}
     <div class="ajuste"><span class="leyenda">Mapa mental con IA</span>
-      <p>En cada junta, comité o reunión, “Hacer mapa mental” envía solo el texto de los temas tratados y dibuja el mapa en el celular. Estilo que viene escogido:</p>
+      <p>En cada junta, comité o reunión, “Hacer mapa mental” envía solo el texto de los temas tratados y dibuja el mapa en el celular. Hay dos estilos: <b>Ejecutivo</b>, con una instrucción fija que no se edita, y <b>Personalizado</b>, con su propia instrucción. Estilo que viene escogido:</p>
       <div class="opc2" role="group" aria-label="Estilo del mapa">${Object.entries(ESTILOS_MAPA).map(([k, n]) => `<button type="button" class="opc-btn${k === estiloMapa() ? ' sel' : ''}" data-action="mapa-estilo" data-v="${k}" aria-pressed="${k === estiloMapa()}">${n}</button>`).join('')}</div>
-      <div class="campo"><label for="mapa-instr">Instrucción personalizada</label><textarea class="input" id="mapa-instr" rows="9" style="font-size:14px;line-height:1.45">${esc(instrMapaPersonal())}</textarea></div>
+      <details class="mapa-det"><summary>Ver la instrucción Ejecutivo <span class="etq-fija">FIJA</span></summary><div class="instr-fija">${esc(MAPA_EJECUTIVO)}</div></details>
+      <div class="campo"><label for="mapa-instr">Instrucción Personalizado <span class="etq-edit">EDITABLE</span></label><textarea class="input" id="mapa-instr" rows="9" style="font-size:14px;line-height:1.45">${esc(instrMapaPersonal())}</textarea></div>
+      <div class="guardar-fila"><button type="button" class="btn-sec" id="mapa-guardar" data-action="mapa-guardar" disabled>Guardar instrucción</button><span id="mapa-estado" class="estado-guardado" aria-live="polite"></span></div>
       <p style="margin:0">Mentor agrega siempre al final: “${esc(MAPA_FIJO.split('. Responda')[0])}. Responda únicamente con el mapa en el formato que Mentor sabe dibujar.” Esa parte no se edita.</p>
       <div style="display:flex;gap:16px;flex-wrap:wrap">${(S.cfg.mapaInstr || '').trim() ? '<button type="button" class="enlace-btn" data-action="mapa-restaurar">Restaurar la original</button>' : ''}${clave ? '<button type="button" class="enlace-btn" data-action="mapa-probar">Probar con la última reunión</button>' : ''}</div>
     </div>
@@ -5336,8 +5373,12 @@ const ACCIONES = {
   'mapa-hacer': b => hojaMapa(b.dataset.id),
   'mapa-actualizar': b => { const r = reunion(b.dataset.id); if (r) hacerMapa(r.id, r.mapa?.estilo || estiloMapa()); },
   'mm-toggle': b => { const k = b.dataset.k; if (MAPA_CERR.s.has(k)) MAPA_CERR.s.delete(k); else MAPA_CERR.s.add(k); vistaMapa(MAPA_CERR.id); },
-  'mapa-estilo': async b => { await setAjuste('mapaEstilo', b.dataset.v); render(); },
-  'mapa-restaurar': async () => { await setAjuste('mapaInstr', ''); aviso('Instrucción original restaurada'); render(); },
+  'mapa-estilo': async b => { const t = $('#mapa-instr'), borrador = t && mapaInstrSucia() ? t.value : null; await setAjuste('mapaEstilo', b.dataset.v); render();
+    if (borrador !== null && $('#mapa-instr')) { $('#mapa-instr').value = borrador; estadoMapaInstr(); } },
+  'mapa-restaurar': async () => { await lote({poner:{ajustes:[{clave:'mapaInstr', valor:''}, {clave:'mapaInstrFecha', valor:new Date().toISOString()}]}}); aviso('Instrucción original restaurada'); render(); },
+  'mapa-guardar': () => guardarMapaInstr(),
+  'aj-tab': async b => { if (mapaInstrSucia() && await confirmar('Cambió la instrucción del mapa y no la ha guardado.', {titulo:'¿Guardar la instrucción?', si:'Guardar', no:'Descartar'})) await guardarMapaInstr(true);
+    AJ.tab = b.dataset.k; setAjuste('ajTab', AJ.tab).catch(() => {}); if (location.hash.includes('?')) reemplazar('#/ajustes'); else render(); scrollTo(0, 0); },
   'mapa-probar': () => { const r = [...S.reuniones].filter(x => textoTemas(x).trim() && x.fecha <= hoyISO()).sort((a,b) => b.fecha.localeCompare(a.fecha))[0];
     if (!r) return aviso('No hay reuniones con temas tratados para probar.'); hacerMapa(r.id, 'personal'); },
   'pulso-ver': async () => { await setAjuste('verPulso', !verPulso()); vistaInicio(); },
@@ -5436,7 +5477,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && HOJA) { cerrarHoja(); return; }
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-go]')) { e.preventDefault(); ir(e.target.dataset.go); }
 });
-window.addEventListener('hashchange', () => { render(); try { contarVisita(); } catch (_) {} });
+window.addEventListener('hashchange', () => { if (mapaInstrSucia() && !location.hash.startsWith('#/ajustes')) guardarMapaInstr(true).catch(() => {});
+  render(); try { contarVisita(); } catch (_) {} });
 $('#archivo-respaldo').addEventListener('change', e => { const f = e.target.files[0]; if (f) importarRespaldo(f); });
 $('#archivo-csv').addEventListener('change', e => { const f = e.target.files[0]; if (f) cargarCSV(f); });
 let ocultaDesde = 0;
