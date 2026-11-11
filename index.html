@@ -497,7 +497,8 @@ mark{background:var(--acento-suave);color:var(--acento-texto);border-radius:3px;
    ===================================================================== */
 .filtros.desliza{flex-wrap:nowrap;overflow-x:auto;margin:0 -20px;padding:0 20px 2px;scrollbar-width:none}
 .filtros.desliza::-webkit-scrollbar{display:none}
-.prox-cuanto{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--acento)}
+.prox-cuanto{align-self:flex-start;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--acento);color:var(--fondo);padding:3px 9px;border-radius:7px;margin-bottom:3px}
+.prox-cuanto.pronto{background:#E3A24B;color:#2A1A05}
 .enlace-fila{display:flex;gap:8px;align-items:center;width:100%}
 .enlace-fila .input{flex:1 1 auto;min-width:0;width:auto}
 .form .enlace-fila .btn-pegar,.enlace-fila .btn-pegar{flex:0 0 auto;width:auto;min-width:0;padding:0 18px;height:48px}
@@ -660,7 +661,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.40 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.41 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1476,6 +1477,14 @@ function textoModo(r){
   return r.modo === 'mixto' ? (va ? 'Voy presencial y virtual' : 'Asistí presencial y virtual')
     : (va ? 'Voy ' : 'Asistí ') + (r.modo === 'presencial' ? 'presencial' : 'virtual');
 }
+/* 3.41 · Una sola etiqueta: si marcó cómo va o fue, manda eso; en una híbrida dice además cómo va */
+function etiquetaDonde(r){
+  const m = modalidad(r), mo = r.asisti === false ? '' : r.modo;
+  if (!mo) return m;
+  if (mo === 'mixto') return 'Híbrida';
+  const t = mo === 'presencial' ? 'Presencial' : 'Virtual';
+  return m === 'Híbrida' ? 'Híbrida · ' + (juntaFutura(r) ? 'voy ' : 'fui ') + t.toLowerCase() : t;
+}
 const modoCorto = r => !r.modo || r.asisti === false ? '' : r.modo === 'mixto' ? 'Presencial y virtual' : r.modo === 'presencial' ? 'Presencial' : 'Virtual';
 /* Lugar y enlace habituales: de la junta (en la entidad) o del comité / reunión periódica */
 function habitual(eid, comiteId){
@@ -1536,10 +1545,10 @@ function tarjetaProxima(r){
   const titulo = tituloReunion(r);
   /* 3.40 · "En N días" y cómo voy a asistir, también en reuniones sin lugar ni enlace */
   const dias = Math.round((fechaD(r.fecha) - fechaD(hoyISO())) / 864e5);
-  const chipsDonde = [modalidad(r), textoModo(r)].filter(Boolean);
+  const chipsDonde = [etiquetaDonde(r)].filter(Boolean);
   return `<a class="prox-card" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><div class="banda-c"></div><div class="cuerpo">
     <div style="display:flex;align-items:center;gap:12px"><div class="prox-fecha${hoy ? ' hoy' : ''}"><span class="d">${hoy ? 'Hoy' : manana ? 'Mañana' : DIAS_CORTOS[d.getDay()]}</span><span class="n">${d.getDate()}</span></div>
-      <div class="col" style="gap:2px;min-width:0">${!hoy && !manana && dias > 1 ? `<span class="prox-cuanto">En ${dias} días</span>` : ''}<span style="font-size:14px;${hoy ? 'color:var(--pend-texto);font-weight:600' : 'color:var(--texto-2)'}">${esc(hoy || manana ? (r.hora ? horaTexto(r.hora) : 'Sin hora') : fechaMedia(r.fecha).replace(/ \d{4}$/, '') + (r.hora ? ' · ' + horaTexto(r.hora) : ''))}${esc(hastaCuando(r))}</span>
+      <div class="col" style="gap:2px;min-width:0">${!hoy && !manana && dias > 1 ? `<span class="prox-cuanto${dias <= 3 ? ' pronto' : ''}">En ${dias} días</span>` : ''}<span style="font-size:14px;${hoy ? 'color:var(--pend-texto);font-weight:600' : 'color:var(--texto-2)'}">${esc(hoy || manana ? (r.hora ? horaTexto(r.hora) : 'Sin hora') : fechaMedia(r.fecha).replace(/ \d{4}$/, '') + (r.hora ? ' · ' + horaTexto(r.hora) : ''))}${esc(hastaCuando(r))}</span>
         <span style="font-size:17px;font-weight:600;line-height:1.25">${esc(e.nombre)}</span><span style="font-size:13px;color:var(--texto-2)">${esc(esSuelta(r) ? 'Reunión · ' + titulo : titulo)}</span></div></div>
     ${pend || temas || chipsDonde.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap">${chipsDonde.map(t => `<span class="chip-info">${esc(t)}</span>`).join('')}${pend ? `<span class="chip-info pend">${plural(pend, 'pendiente de la anterior', 'pendientes de la anterior')}</span>` : ''}${temas ? `<span class="chip-info">${plural(temas, 'tema')}</span>` : ''}</div>` : ''}
     <div style="display:flex;align-items:center;gap:8px;margin-top:auto">${gente.length ? `<div class="caras" aria-hidden="true">${gente.slice(0, 3).map(p => `<div class="cara">${esc(iniciales(p.nombre))}</div>`).join('')}${gente.length > 3 ? `<div class="cara">+${gente.length - 3}</div>` : ''}</div>` : ''}<span style="flex:1"></span>${hoy && esURL(r.enlace || '') ? `<span class="prox-btn prox-unirse" role="button" data-action="unirse" data-url="${esc(r.enlace)}">${I_VIDEO}Unirse</span>` : ''}<span class="prox-btn">Preparar</span></div>
@@ -1578,7 +1587,7 @@ function vistaCalendario(_, q = {}){
     return `<button type="button" class="${cls}" data-action="cal-dia" data-f="${f}" aria-pressed="${f === CAL.dia}" aria-label="${i + 1}${rs.length ? ', ' + plural(rs.length, 'reunión', 'reuniones') : ''}"><span class="n">${i + 1}</span><span class="cal-puntos">${rs.slice(0, 3).map(r => `<span class="cal-punto" style="--c:${cv(empresa(r.empresaId).color)}"></span>`).join('')}</span></button>`; }).join('');
   const delDia = porDia.get(CAL.dia) || [];
   const fila = r => { const e = empresa(r.empresaId);
-    return `<a class="fila" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([r.hora ? horaTexto(r.hora) : '', esSuelta(r) ? 'Reunión · ' + tituloReunion(r) : tituloReunion(r), modalidad(r) || modoCorto(r), juntaFutura(r) || juntaHoy(r) ? '' : estadoJunta(r).txt].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`; };
+    return `<a class="fila" href="#/junta/${r.id}" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc([r.hora ? horaTexto(r.hora) : '', esSuelta(r) ? 'Reunión · ' + tituloReunion(r) : tituloReunion(r), etiquetaDonde(r), juntaFutura(r) || juntaHoy(r) ? '' : estadoJunta(r).txt].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>`; };
   pintar(`<div class="pagina" style="padding-bottom:40px"><div class="ini-top"><div class="cab-fila">${linkVolver('Entidades', '#/inicio')}</div>
     <h1 class="serif t28" style="margin:0">Calendario</h1>
     <div class="tarjeta col cal-tarjeta" id="cal-tarjeta" style="gap:10px;padding:14px 12px 12px">
@@ -3992,7 +4001,7 @@ async function guardarProgramacion(){
 }
 /* Lista de próximas reuniones (junta y comités) de una entidad o de un comité */
 function filaProxima(r){
-  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${juntaHoy(r) ? '<span class="pend">Hoy</span> · ' : ''}${esc(conDia(r.fecha))}${r.hora ? ' · ' + esc(horaTexto(r.hora)) : ''}</span><span class="sub">${esc([nombreTipoJunta(r), modalidad(r) || modoCorto(r)].filter(Boolean).join(' · '))}${(r.temas || []).length ? ' · ' + plural(r.temas.length, 'tema') : ''}</span></span>${I.chev}</a>`;
+  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${juntaHoy(r) ? '<span class="pend">Hoy</span> · ' : ''}${esc(conDia(r.fecha))}${r.hora ? ' · ' + esc(horaTexto(r.hora)) : ''}</span><span class="sub">${esc([nombreTipoJunta(r), etiquetaDonde(r)].filter(Boolean).join(' · '))}${(r.temas || []).length ? ' · ' + plural(r.temas.length, 'tema') : ''}</span></span>${I.chev}</a>`;
 }
 
 /* ---------- 10 · Pendientes ---------- */
