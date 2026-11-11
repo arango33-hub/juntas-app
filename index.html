@@ -4591,7 +4591,7 @@ function genGemini(modelo, maxTokens, pensar){
 }
 /* Tiempo máximo de espera por intento, en segundos (Ajustes; 10 y 10 por defecto, 3.17) */
 const ESPERAS_IA = {mejorar:[10, 15, 20, 30, 45, 60], transcribir:[10, 15, 20, 30, 60, 120]};
-const esperaIA = k => { const v = +((S.cfg.iaEspera || {})[k]); return ESPERAS_IA[k].includes(v) ? v : (k === 'transcribir' ? 60 : 20); };
+const esperaIA = k => { const v = +((S.cfg.iaEspera || {})[k]); return ESPERAS_IA[k].includes(v) ? v : 10; };
 /* Versión de un modelo de Gemini por su nombre (gemini-3.8-flash → 3.8); los alias como gemini-flash-latest dan 0 */
 const versionGemini = id => { const m = /^gemini-(\d+(?:\.\d+)?)-/.exec(id); return m ? parseFloat(m[1]) : 0; };
 /* Flash estables (sin lite, preview ni fecha), del más nuevo al más viejo */
