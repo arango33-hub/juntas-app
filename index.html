@@ -661,7 +661,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.41 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.42 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1380,9 +1380,80 @@ function bloqueArchivo(filas){
 }
 let FE = null, FP = null, FC = null, FN = null, IMPORT = null;
 
+/* ---------- 3.42 · Contacto compartido a Mentor desde la app Contactos (Web Share Target) ---------- */
+const CACHE_COMPARTIDO = 'mentor-compartido';
+/* Decodifica "quoted-printable" (Samsung lo usa para nombres con tildes) */
+function qpDecodificar(t){
+  const bytes = []; t = t.replace(/=\r?\n/g, '');
+  for (let i = 0; i < t.length; i++) { if (t[i] === '=' && /^[0-9A-F]{2}$/i.test(t.substr(i + 1, 2))) { bytes.push(parseInt(t.substr(i + 1, 2), 16)); i += 2; } else bytes.push(...new TextEncoder().encode(t[i])); }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+function leerVCards(txt){
+  const out = [];
+  const lineas = String(txt).replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '').replace(/=\n/g, '=\n').split('\n');
+  let c = null, qpBuf = null;
+  for (let l of lineas) {
+    if (qpBuf !== null) { qpBuf.v += '\n' + l; if (!/=$/.test(l)) { l = qpBuf.k + ':' + qpBuf.v; qpBuf = null; } else continue; }
+    const k = l.indexOf(':'); if (k < 0) continue;
+    const cab = l.slice(0, k), val0 = l.slice(k + 1), [prop, ...params] = cab.split(';'), P = prop.toUpperCase().replace(/^ITEM\d+\./, '');
+    if (/ENCODING=QUOTED-PRINTABLE/i.test(cab) && /=$/.test(val0)) { qpBuf = {k:cab, v:val0}; continue; }
+    let val = /ENCODING=QUOTED-PRINTABLE/i.test(cab) ? qpDecodificar(val0) : val0;
+    val = val.replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+    if (P === 'BEGIN') c = {name:[], tel:[], email:[], org:'', cargo:''};
+    else if (P === 'END' && c) { out.push(c); c = null; }
+    else if (!c) continue;
+    else if (P === 'FN' && val) c.name.unshift(val);
+    else if (P === 'N' && val && !c.name.length) { const [ap, nom, otros] = val.split(';'); const n = [nom, otros, ap].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim(); if (n) c.name.push(n); }
+    else if (P === 'TEL' && val) c.tel.push(val);
+    else if (P === 'EMAIL' && val) c.email.push(val);
+    else if (P === 'ORG' && val) c.org = val.split(';').filter(Boolean).join(' · ');
+    else if (P === 'TITLE' && val) c.cargo = val;
+  }
+  return out;
+}
+/* Si se compartió como texto: nombre en la primera línea sin números; teléfonos y correos donde aparezcan */
+function leerTextoContacto(txt){
+  const t = String(txt || ''), email = [...new Set(t.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) || [])];
+  const tel = [...new Set((t.match(/\+?\d[\d\s().-]{5,}\d/g) || []).map(x => x.trim()).filter(x => x.replace(/\D/g, '').length >= 7))];
+  const nombre = t.split(/\n/).map(x => x.replace(/^(nombre|name)\s*:\s*/i, '').trim()).find(x => x && !/\d|@|https?:/i.test(x));
+  return (nombre || tel.length || email.length) ? [{name: nombre ? [nombre] : [], tel, email, org:'', cargo:''}] : [];
+}
+async function leerCompartido(){
+  try { const c = await caches.open(CACHE_COMPARTIDO), r = await c.match('ultimo'); return r ? await r.json() : null; } catch (_) { return null; }
+}
+async function borrarCompartido(){ try { const c = await caches.open(CACHE_COMPARTIDO); await c.delete('ultimo'); } catch (_) {} }
+let COMP = null;   /* lo recibido: {contactos, i, busq} */
+async function vistaCompartido(){
+  if (!COMP) {
+    const d = await leerCompartido();
+    let lista = [];
+    if (d) { for (const f of d.archivos || []) lista.push(...leerVCards(f.texto)); if (!lista.length) lista = leerVCards([d.text, d.title].filter(Boolean).join('\n')); if (!lista.length) lista = leerTextoContacto([d.title, d.text, d.url].filter(Boolean).join('\n')); }
+    COMP = {contactos: lista, i: 0, busq: ''};
+  }
+  const lista = COMP.contactos, c = lista[COMP.i];
+  if (!c) { pintar(`<div class="pagina"><div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Entidades', '#/inicio')}<h1 class="serif t30">Contacto compartido</h1></div>
+    <div class="sec"><p class="tarjeta vacio">No llegó ningún contacto que Mentor pueda leer. En la app Contactos, al compartir, escoja “Archivo VCF” o “Texto”.</p></div></div>`); return; }
+  const nombre = c.name[0] || 'Sin nombre', q = norm(COMP.busq || nombre).split(' ').filter(w => w.length > 2);
+  const parecidas = S.personas.filter(p => !p.ejemplo || true).map(p => ({p, n: q.filter(w => norm(p.nombre).includes(w)).length + (c.tel.some(t => p.telefono && t.replace(/\D/g, '').slice(-7) === p.telefono.replace(/\D/g, '').slice(-7)) ? 5 : 0)}))
+    .filter(x => x.n > 0).sort((a, b) => b.n - a.n || compararTexto(a.p.nombre, b.p.nombre)).slice(0, 8);
+  pintar(`<div class="pagina" style="padding-bottom:calc(40px + env(safe-area-inset-bottom))">
+    <div class="ini-top" style="padding-top:calc(12px + env(safe-area-inset-top))">${linkVolver('Entidades', '#/inicio')}<h1 class="serif t30">Contacto compartido</h1></div>
+    ${lista.length > 1 ? `<div class="sec"><div class="filtros desliza">${lista.map((x, i) => `<button type="button" class="filtro${i === COMP.i ? ' act' : ''}" data-action="comp-escoger" data-i="${i}">${esc(x.name[0] || 'Sin nombre')}</button>`).join('')}</div></div>` : ''}
+    <div class="sec"><div class="tarjeta col" style="gap:6px;padding:16px">
+      <span style="font-size:19px;font-weight:650">${esc(nombre)}</span>
+      ${c.cargo || c.org ? `<span class="sub" style="color:var(--texto-2)">${esc([c.cargo, c.org].filter(Boolean).join(' · '))}</span>` : ''}
+      ${c.tel.map(t => `<span>${esc(t)}</span>`).join('')}${c.email.map(t => `<span>${esc(t)}</span>`).join('')}
+    </div></div>
+    <div class="sec"><button type="button" class="btn-pri" data-action="comp-nueva">${I.mas || ''}Crear persona nueva</button></div>
+    <div class="sec"><h2 class="sec-titulo">O actualizar a alguien que ya está en Mentor</h2>
+      <input class="input" id="comp-busq" value="${esc(COMP.busq)}" placeholder="Buscar persona" autocomplete="off">
+      <div class="tarjeta col" style="gap:0;margin-top:10px" id="comp-lista">${parecidas.length ? parecidas.map(({p}) => `<button type="button" class="fila" style="width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit" data-action="comp-existente" data-id="${p.id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([cargosPersona(p.id)[0] && (cargosPersona(p.id)[0].rolJunta || cargosPersona(p.id)[0].cargo), cargosPersona(p.id)[0] && empresa(cargosPersona(p.id)[0].empresaId)?.nombre].filter(Boolean).join(' · ') || p.telefono || '')}</span></span>${I.chev}</button>`).join('') : '<p class="vacio" style="padding:14px">No hay nadie con un nombre parecido. Búsquelo arriba.</p>'}</div>
+    </div></div>`);
+  $('#comp-busq').addEventListener('input', ev => { COMP.busq = ev.target.value; const pos = ev.target.selectionStart; vistaCompartido().then(() => { const b = $('#comp-busq'); b.focus(); b.setSelectionRange(pos, pos); }); });
+}
 const VISTAS = {
   inicio: vistaInicio, empresa: vistaEmpresa, persona: vistaPersona, nota: vistaNota,
-  'empresa-form': vistaEmpresaForm, 'persona-form': vistaPersonaForm, cargo: vistaCargo,
+  'empresa-form': vistaEmpresaForm, 'persona-form': vistaPersonaForm, cargo: vistaCargo, compartido: vistaCompartido,
   personas: vistaPersonas, pendientes: vistaPendientes, ajustes: vistaAjustes, importar: vistaImportar,
   proyectos: vistaProyectos, proyecto: vistaProyecto, 'proyecto-form': vistaProyectoForm,
   hito: vistaHito, papel: vistaPapel, compromiso: vistaCompromiso, junta: vistaJunta, 'junta-form': vistaJuntaForm, comite: vistaComite, programar: vistaProgramar, calendario: vistaCalendario, mapa: vistaMapa
@@ -1395,6 +1466,7 @@ function render(){
   const r = VISTAS[partes[0]] ? partes[0] : 'inicio';
   if (r !== 'empresa-form') FE = null;
   if (r !== 'persona-form') FP = null;
+  if (r !== 'compartido') COMP = null;
   if (r !== 'cargo') FC = null;
   if (r !== 'nota') FN = null;
   if (r !== 'proyecto-form') FPR = null;
@@ -1845,6 +1917,13 @@ function vistaEmpresa(id){
     ${junta ? `<div class="sec"><div class="sec-fila"><h2 class="sec-titulo">Junta directiva</h2><a class="enlace-btn" style="font-size:14px" href="#/persona-form?e=${id}&rj=1">+ Agregar miembro</a></div>${board.length ? (() => { const gente = [...new Set(board.map(x => x.personaId))].map(persona).filter(Boolean);
         return plegable('junta', plural(gente.length + 1, 'miembro'), 'Incluido usted', [...gente.map(p => iniciales(p.nombre)), 'Yo'], board.map(filaJunta).join('') + yo); })() : `<div class="tarjeta col" style="gap:0">${yo}</div>`}
       ${board.length ? '' : '<p class="ayuda" style="margin:0">Para agregar miembros de junta, use “+ Agregar” y llene el campo “Rol en junta”.</p>'}</div>` : ''}
+    <!-- 3.42 · Las personas juntas: junta directiva, funcionarios y cargos anteriores; después las reuniones -->
+    <div class="sec mas">
+      <div class="sec-fila"><h2 class="sec-titulo">Funcionarios por área</h2><a class="enlace-btn" href="#/persona-form?e=${id}" style="font-size:14px">+ Agregar funcionario</a></div>
+      ${funcHtml ? (() => { const n = new Set(func.map(x => x.personaId)).size, areas = [...grupos.keys()];
+        return plegable('func', plural(n, 'funcionario'), `${plural(areas.length, 'área')}: ${areas.join(', ')}`, null, funcHtml); })() : `<p class="tarjeta vacio">Aún no hay funcionarios registrados.</p>`}
+    </div>
+    ${ant.length ? `<div class="sec mas"><h2 class="sec-titulo">Cargos anteriores</h2>${plegable('ant', plural(ant.length, 'cargo anterior', 'cargos anteriores'), ant.map(x => persona(x.personaId)?.nombre).filter(Boolean).slice(0, 3).join(', ') + (ant.length > 3 ? '…' : ''), null, ant.map(x => { const p = persona(x.personaId); return p ? `<a class="fila" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta || x.cargo, x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>` : ''; }).join(''))}</div>` : ''}
     ${(() => {
       const pasadas = juntasEntidad(id).filter(r => r.fecha < hoyISO());
       const juntasP = pasadas.filter(r => !r.comiteId && !esSuelta(r)), grupos = comitesEntidad(id), otras = pasadas.filter(esSuelta);
@@ -1865,12 +1944,6 @@ function vistaEmpresa(id){
       return `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">${cm ? 'Próximas reuniones' : 'Próximas juntas'}</h2><a class="enlace-btn" style="font-size:14px" href="#/programar?e=${id}">+ Nueva reunión</a></div>
         ${prox.length ? `<div class="tarjeta col" style="gap:0">${prox.slice(0, 6).map(filaProxima).join('')}</div>${prox.length > 6 ? `<p class="ayuda" style="margin:0">Y ${plural(prox.length - 6, 'más')} en el historial.</p>` : ''}` : `<p class="tarjeta vacio">No hay ${cm ? 'reuniones programadas' : 'juntas programadas'}. Con “+ Nueva reunión” puede programar una o cargar varias fechas de una vez (por ejemplo, el calendario del año).</p>`}</div>`; })()}
     ${calendarioAnio(id)}
-    <div class="sec mas">
-      <div class="sec-fila"><h2 class="sec-titulo">Funcionarios por área</h2><a class="enlace-btn" href="#/persona-form?e=${id}" style="font-size:14px">+ Agregar funcionario</a></div>
-      ${funcHtml ? (() => { const n = new Set(func.map(x => x.personaId)).size, areas = [...grupos.keys()];
-        return plegable('func', plural(n, 'funcionario'), `${plural(areas.length, 'área')}: ${areas.join(', ')}`, null, funcHtml); })() : `<p class="tarjeta vacio">Aún no hay funcionarios registrados.</p>`}
-    </div>
-    ${ant.length ? `<div class="sec mas"><h2 class="sec-titulo">Cargos anteriores</h2>${plegable('ant', plural(ant.length, 'cargo anterior', 'cargos anteriores'), ant.map(x => persona(x.personaId)?.nombre).filter(Boolean).slice(0, 3).join(', ') + (ant.length > 3 ? '…' : ''), null, ant.map(x => { const p = persona(x.personaId); return p ? `<a class="fila" href="#/persona/${p.id}?e=${id}"><span class="col"><span class="nom">${esc(p.nombre)}</span><span class="sub">${esc([x.rolJunta || x.cargo, x.fin ? 'hasta ' + mesAnio(x.fin) : ''].filter(Boolean).join(' · '))}</span></span>${I.chev}</a>` : ''; }).join(''))}</div>` : ''}
     ${proysE.length ? `<div class="sec mas"><h2 class="sec-titulo">Proyectos</h2><div class="tarjeta col" style="gap:0">${proysE.map(filaProyecto).join('')}</div></div>` : ''}
     <div class="sec mas">${seccionCompromisos(ordenParaLista(compromisosEntidad(id)), {tipo:'empresa', id}, `#/compromiso?empresa=${id}`, true)}</div>
     <div class="sec mas" style="padding-bottom:32px"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'empresa', id}, conReuniones, [
@@ -2461,6 +2534,22 @@ function volverAPapel(pid){
   volver('#/proyectos');
 }
 /* Escoge qué datos traer de un contacto del celular: Android entrega todos sus teléfonos y correos */
+/* 3.42 · Llena el formulario de persona con un contacto (del selector o compartido desde Contactos) */
+async function aplicarContacto(c){
+  const nueva = FP._para === 'nueva';
+  const d = await hojaDatosContacto(c, nueva);
+  if (!d) return;
+  if (d.nombre) FP.nombre = d.nombre;
+  if (d.tel) FP.telefono = d.tel;
+  if (d.tel2) { FP.telefono2 = d.tel2; FP.ext2 = ''; }
+  if (d.correo) FP.correo = d.correo;
+  vistaPersonaForm(nueva ? undefined : FP._para, ruta().q); if (nueva && FP.nombre) sugerirPersonas();
+  aviso(nueva ? 'Datos traídos. Revise y toque Guardar.' : 'Datos actualizados. Toque Guardar para conservarlos.');
+}
+function ayudaCompartir(){
+  mensaje('1. Abra la app Contactos del celular y entre al contacto.\n2. Toque Compartir (o los tres puntos → Compartir).\n3. Escoja “Archivo VCF” o “Texto”, si lo pregunta.\n4. En la lista de apps, toque Mentor.\n\nMentor se abre (le pide el PIN) y le pregunta si es una persona nueva o si actualiza una que ya existe.\n\nSi Mentor no aparece en la lista, abra Mentor una vez y espere un rato: el celular tarda en enterarse de que Mentor ya recibe contactos.', 'Traer un contacto compartiéndolo');
+}
+let CONTACTO_PEND = null;
 function hojaDatosContacto(c, nueva){
   return new Promise(res => {
     const unicos = l => [...new Map((l || []).map(x => String(x || '').trim()).filter(Boolean).map(x => [x.replace(/[\s()-]/g, '').toLowerCase(), x])).values()];
@@ -2510,6 +2599,7 @@ function vistaPersonaForm(id, q){
     ${eCtx ? `<p class="ayuda" style="margin:-8px 0 0">En ${esc(eCtx.nombre)}</p>` : ''}
     ${ex ? `<div class="aviso"><span>Se agregará el cargo a <b>${esc(ex.nombre)}</b>, que ya existe. Su historia se conserva.</span><button type="button" class="enlace-btn" data-action="fp-sin-existente">Cambiar</button></div>` : `
     ${hayContactos() ? `<button type="button" class="btn-sec" data-action="fp-contacto">${I.gente}${nueva ? 'Traer de mis contactos' : 'Actualizar desde mis contactos'}</button>` : ''}
+    <button type="button" class="enlace-btn" style="align-self:flex-start;font-size:14px;margin-top:-4px" data-action="ayuda-compartir">${hayContactos() ? '¿No lo trae? ' : ''}Traerlo compartiéndolo desde Contactos</button>
     <div class="campo"><label for="fp-nombre">Nombre</label><input class="input" id="fp-nombre" value="${esc(FP.nombre)}" autocomplete="off" autocapitalize="words">
       <div class="sugerencias tarjeta" id="fp-sug" hidden></div></div>
     <div class="campo"><span class="leyenda">Cómo referirse <span class="opc" style="font-size:14px">(para los textos)</span></span><div class="chips">${trato('ella','Ella')}${trato('él','Él')}${trato('','Sin especificar')}</div></div>
@@ -2575,6 +2665,7 @@ function vistaPersonaForm(id, q){
     $(`#fpc${i}-fin`).addEventListener('input', e => c.fin = e.target.value);
   });
   $('#f-per').addEventListener('submit', e => { e.preventDefault(); guardarPersona(); });
+  if (CONTACTO_PEND) { const c = CONTACTO_PEND; CONTACTO_PEND = null; setTimeout(() => aplicarContacto(c), 50); }
 }
 function sugerirPersonas(){
   const cont = $('#fp-sug'); const q = norm(FP.nombre);
@@ -5510,20 +5601,23 @@ const ACCIONES = {
     await borrarBorrador(); FN = null; aviso('Nota enviada a la papelera'); volver();
   },
   'fp-contacto': async () => {
-    try {
-      const [c] = await navigator.contacts.select(['name','tel','email'], {multiple:false});
-      if (!c) return;
-      const nueva = FP._para === 'nueva';
-      const d = await hojaDatosContacto(c, nueva);
-      if (!d) return;
-      if (d.nombre) FP.nombre = d.nombre;
-      if (d.tel) FP.telefono = d.tel;
-      if (d.tel2) { FP.telefono2 = d.tel2; FP.ext2 = ''; }
-      if (d.correo) FP.correo = d.correo;
-      vistaPersonaForm(nueva ? undefined : FP._para, ruta().q); if (nueva && FP.nombre) sugerirPersonas();
-      if (!nueva) aviso('Datos actualizados. Toque Guardar para conservarlos.');
-    } catch (err) { if (err.name !== 'AbortError') aviso('No se pudo abrir la lista de contactos.'); }
+    let lista;
+    try { lista = await navigator.contacts.select(['name','tel','email'], {multiple:false}); }
+    catch (err) { if (err.name !== 'AbortError') mensaje(`El celular no dejó abrir la lista de contactos (${err.name || 'error'}${err.message ? ': ' + err.message : ''}). Puede traerlo desde la app Contactos con “Compartir” → Mentor.`, 'No se pudo abrir'); return; }
+    /* 3.42 · Si el celular devuelve el contacto vacío, se dice qué llegó y se ofrece el otro camino */
+    const c = (lista || [])[0];
+    const vacio = x => !(x?.name || []).some(v => String(v || '').trim()) && !(x?.tel || []).some(v => String(v || '').trim()) && !(x?.email || []).some(v => String(v || '').trim());
+    if (!c || vacio(c)) {
+      if (!lista || !lista.length) { if (!(await confirmar('Si escogió un contacto y tocó “Listo”, el celular no se lo entregó a Mentor (llegó una respuesta vacía). Desde la actualización de Android 17 / One UI 9 puede pasar con Chrome.\n\nOtro camino: en la app Contactos abra el contacto, toque Compartir y escoja Mentor.', {titulo:'No llegó ningún contacto', si:'Cómo compartir', no:'Cerrar'}))) return; }
+      else if (!(await confirmar('El celular entregó el contacto, pero sin nombre, teléfono ni correo. Desde la actualización de Android 17 / One UI 9 puede pasar con Chrome.\n\nOtro camino: en la app Contactos abra el contacto, toque Compartir y escoja Mentor.', {titulo:'El contacto llegó vacío', si:'Cómo compartir', no:'Cerrar'}))) return;
+      return ayudaCompartir();
+    }
+    await aplicarContacto(c);
   },
+  'ayuda-compartir': () => ayudaCompartir(),
+  'comp-escoger': b => { COMP.i = +b.dataset.i; vistaCompartido(); },
+  'comp-nueva': async () => { CONTACTO_PEND = COMP.contactos[COMP.i]; COMP = null; await borrarCompartido(); FP = null; reemplazar('#/persona-form'); },
+  'comp-existente': async b => { CONTACTO_PEND = COMP.contactos[COMP.i]; COMP = null; await borrarCompartido(); FP = null; reemplazar('#/persona-form/' + b.dataset.id); },
   /* Historia unificada */
   hist: b => { HIST[b.dataset.clave] = b.dataset.k; render(); },
   'hist-ab': b => { const caja = b.closest('[data-ab]'), k = caja.dataset.ab, ab = !HIST_AB.has(k); if (ab) HIST_AB.add(k); else HIST_AB.delete(k);

@@ -1,6 +1,6 @@
 /* Service worker: guarda la app en el dispositivo para que funcione sin internet.
    Al publicar una versión nueva, cambie VERSION para que los celulares la descarguen. */
-const VERSION = 'junta-app-v3.41';
+const VERSION = 'junta-app-v3.42';
 const FUENTES = 'junta-app-fuentes';
 const URL_FUENTES = 'https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600&display=swap';
 const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png'];
@@ -31,8 +31,22 @@ self.addEventListener('activate', e => {
   })());
 });
 
+/* 3.42 · Contacto compartido a Mentor (Contactos → Compartir → Mentor): se guarda aparte y se abre la pantalla para usarlo */
+const COMPARTIDO = 'mentor-compartido';
+async function recibirCompartido(req){
+  try {
+    const fd = await req.formData(), archivos = [];
+    for (const f of fd.getAll('contacto')) if (f && typeof f.text === 'function' && f.size < 2e6) archivos.push({nombre: f.name || '', tipo: f.type || '', texto: await f.text()});
+    const datos = {title: fd.get('title') || '', text: fd.get('text') || '', url: fd.get('url') || '', archivos, cuando: Date.now()};
+    const c = await caches.open(COMPARTIDO);
+    await c.put('ultimo', new Response(JSON.stringify(datos), {headers: {'Content-Type': 'application/json'}}));
+  } catch (_) {}
+  return Response.redirect(new URL('./index.html#/compartido', self.registration.scope).href, 303);
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
+  if (req.method === 'POST' && new URL(req.url).pathname.endsWith('/compartir')) { e.respondWith(recibirCompartido(req)); return; }
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
