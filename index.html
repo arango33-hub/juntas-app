@@ -278,6 +278,8 @@ a.func:hover{color:var(--texto);background:color-mix(in srgb,var(--acento-suave)
 .btn-pri,.btn-sec,.btn-peligro{display:flex;align-items:center;justify-content:center;gap:10px;min-height:56px;border-radius:16px;font-weight:600;font-size:16px;text-decoration:none;width:100%;padding:0 16px;border:0;text-align:center}
 .btn-pri{background:var(--boton);color:var(--boton-texto)}
 .btn-pri:hover{color:var(--boton-texto);filter:brightness(1.08)}
+.btn-dbx{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:48px;border:0;border-radius:12px;background:#0061FF;color:#fff;font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+.btn-dbx:active{background:#0050D4}
 .btn-sec{min-height:48px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--texto);font-weight:500;font-size:15px}
 .btn-peligro{min-height:48px;border-radius:12px;border:1px solid var(--borde-campo);background:var(--tarjeta);color:var(--peligro);font-size:15px}
 .btn-peligro.lleno{background:var(--peligro);color:#fff;border:0}
@@ -663,7 +665,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.44 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.45 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -4650,7 +4652,7 @@ function tarjetaNube(){
       <select class="input" id="aj-nube-horas">${horas}</select>
       <p>Solo respalda cuando hubo cambios. Se conservan todos los de los últimos 2 días, uno por día hasta 14 días, uno por semana hasta 3 meses y uno por mes después.</p></div>
     <div class="ajuste"><button type="button" class="btn-sec" data-action="nube-clave">Cambiar contraseña de los respaldos</button>
-      <button type="button" class="enlace-btn" data-action="nube-desconectar">Desconectar Dropbox</button></div>`);
+      <button type="button" class="btn-dbx" data-action="nube-desconectar"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M6 1.807L0 5.629l6 3.822 6.001-3.822L6 1.807zM18 1.807l-6 3.822 6 3.822 6-3.822-6-3.822zM0 13.274l6 3.822 6.001-3.822L6 9.452l-6 3.822zM18 9.452l-6 3.822 6 3.822 6-3.822-6-3.822zM6 18.371l6.001 3.822 6-3.822-6-3.822L6 18.371z"/></svg>Desconectar Dropbox</button></div>`);
 }
 function franjaNube(){
   const n = nubeCfg(); if (!n || !n.refresh) return '';
