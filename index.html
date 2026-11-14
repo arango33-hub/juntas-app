@@ -661,7 +661,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.42 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.43 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -903,6 +903,7 @@ async function lote({poner={}, quitar={}, vaciar=[]}){
     else { const s = new Set(ids); S[n] = S[n].filter(x => !s.has(x.id)); }
   }
   try { contarActividad(poner); } catch (_) {}
+  try { nubeCambio(poner, quitar, vaciar); } catch (_) {}
 }
 const guardar = (n, o) => lote({poner:{[n]:[o]}}).then(() => o);
 const setAjuste = (clave, valor) => lote({poner:{ajustes:[{clave, valor}]}});
@@ -1354,6 +1355,7 @@ function desbloquear(){
   app.hidden = false; P.cambiando = false;
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
   render();
+  nubeAlAbrir();
 }
 async function olvidoPin(){
   const v = abrirHoja(`<h2 class="hoja-titulo">¿Olvidó su PIN?</h2>
@@ -1499,6 +1501,8 @@ function franjaConvertir(){
 }
 function franjaRespaldo(){
   if (!S.empresas.length && !S.personas.length) return '';
+  const fn = franjaNube(); if (fn) return fn;            /* 3.43 · problemas con el respaldo en la nube */
+  if (nubeSana()) return '';                              /* con el respaldo automático al día no hace falta el recordatorio manual */
   const dias = +S.cfg.recordatorioDias || 15;
   const ult = S.cfg.ultimoRespaldo;
   const hace = ult ? Math.floor((Date.now() - new Date(ult)) / 86400000) : null;
@@ -4194,6 +4198,7 @@ const AJ_I = {
   flechas: ajSvg('<path d="M4 8h13l-3-3M20 16H7l3 3"/>'),
   etiqueta: ajSvg('<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="8.5" r="1.5"/>'),
   caja: ajSvg('<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v10a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19V9M10 13h4"/>'),
+  nube: ajSvg('<path d="M7 18a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8.5 4.8 4.8 0 0 1 17.5 18H7z"/><path d="M12 15V10M9.8 12.2L12 10l2.2 2.2"/>'),
   papelera: ajSvg('<path d="M4 7h16M9 7V4.5h6V7M6 7l1 13h10l1-13M10 11v6M14 11v6"/>')
 };
 function tarjAj(c, ico, tit, sub, cuerpo, extra = ''){
@@ -4270,6 +4275,7 @@ function vistaAjustes(id, q = {}){
       <p>Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="exportar">Exportar respaldo</button><button type="button" class="btn-sec" data-action="importar-respaldo">Importar respaldo</button></div></div>
       <div class="ajuste"><label for="aj-dias" class="leyenda">Recordarme exportar</label><select class="input" id="aj-dias">${opDias}</select></div>`)
+    + tarjetaNube()
     + tarjAj('verde', 'tabla', 'Importar desde Excel', 'Cargue muchas personas de una vez', `<div class="ajuste">
       <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo y, si quiere, a quién representa y el usuario de WhatsApp). Para miembros de junta escriba “Junta directiva” en área y el rol en cargo. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div></div>`)
@@ -4295,6 +4301,7 @@ function vistaAjustes(id, q = {}){
     <div class="aj-tabs"><div class="filtros" role="tablist" aria-label="Secciones de Ajustes">${AJ_TABS.map(([k, t]) => `<button type="button" class="filtro${k === tab ? ' act' : ''}" role="tab" aria-selected="${k === tab}" data-action="aj-tab" data-k="${k}">${t}</button>`).join('')}</div></div>
     <div class="aj-lista">${secs[tab]}</div>
   </div>`);
+  $('#aj-nube-horas')?.addEventListener('change', async e => { await guardarNube({horas:+e.target.value}); aviso('Guardado'); });
   $('#aj-dias')?.addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
   $('#dic-modelo')?.addEventListener('change', async e => { await guardarModeloDictado('openai', e.target.value); aviso('Modelo de transcripción actualizado'); });
   document.querySelectorAll('.instr-area').forEach(t => { t.addEventListener('input', () => estadoInstr(t.dataset.instr)); estadoInstr(t.dataset.instr); });
@@ -4323,25 +4330,343 @@ async function exportar(){
   const clave = await pedirClave({titulo:'Exportar respaldo', texto:'Escoja una contraseña para proteger el archivo. La necesitará para importarlo; si la olvida, el respaldo no se puede abrir.', doble:true});
   if (!clave) return;
   aviso('Preparando respaldo…');
-  const datos = {};
-  TABLAS.forEach(n => datos[n] = S[n]);
-  datos.ajustes = Object.entries(S.cfg).filter(([k]) => !['pin','ultimoRespaldo','iaClaves','dictadosPendientes'].includes(k)).map(([clave, valor]) => ({clave, valor}));
-  const sal = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const sal = crypto.getRandomValues(new Uint8Array(16));
   const k = await claveAES(clave, sal, RESPALDO_ITER);
-  const cif = new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM', iv}, k, enc.encode(JSON.stringify(datos))));
-  const archivo = {formato:'junta-app-respaldo', version:1, tipo:'solo-datos', exportado:ahora(),
-    resumen:{empresas:S.empresas.length, personas:S.personas.length, proyectos:S.proyectos.length},
-    cifrado:{alg:'AES-GCM-256', kdf:'PBKDF2-SHA256', iteraciones:RESPALDO_ITER, sal:b64(sal), iv:b64(iv)}, datos:b64(cif)};
-  const ok = await descargar(`${slug(APP.nombre)}-respaldo-${hoyISO()}.json`, JSON.stringify(archivo), 'application/json');
+  const archivo = await archivoRespaldo(k, sal);
+  const ok = await descargar(`${slug(APP.nombre)}-respaldo-${hoyISO()}.json`, archivo, 'application/json');
   if (!ok) return;
   await setAjuste('ultimoRespaldo', ahora());
   aviso('Respaldo exportado. Guárdelo en Drive u otro lugar seguro.');
   if (!bloqueada) render();
 }
+/* =====================================================================
+   RESPALDO EN LA NUBE (3.43) · Dropbox
+   La app se conecta con PKCE (sin servidor ni clave secreta). La llave pública (App key) está en config.json.
+   Lo que sube es el mismo archivo cifrado del respaldo manual, con la contraseña del usuario.
+   ===================================================================== */
+const AJ_NUBE = ['nube', 'nubeLlave', 'nubeCambio'];                       /* ajustes de este celular: no van en los respaldos */
+const AJ_NO_EXPORTAR = ['pin', 'ultimoRespaldo', 'iaClaves', 'dictadosPendientes', ...AJ_NUBE];
+const AJ_CONSERVAR = AJ_NO_EXPORTAR;                                         /* lo que se conserva al importar un respaldo */
+const DBX = {
+  auth: 'https://www.dropbox.com/oauth2/authorize',
+  token: 'https://api.dropbox.com/oauth2/token',
+  api: 'https://api.dropboxapi.com/2',
+  contenido: 'https://content.dropboxapi.com/2',
+  scopes: 'account_info.read files.metadata.read files.content.read files.content.write'
+};
+const NUBE_PKCE = 'mentor-nube-pkce', NUBE_NOMBRE = /^Mentor_(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})?(?: \(\d+\))?\.json$/;   /* con o sin segundos; Dropbox agrega " (1)" si el nombre se repite */
+const NUBE_ESPERA_MIN = 10;                                                  /* minutos después de un cambio importante */
+const NUBE = {llaveApp: undefined, acceso: null, expira: 0, ocupado: false, timer: null, marca: null, retorno: null};
+const nubeCfg = () => S.cfg.nube || null;
+const nubeConectada = () => !!(nubeCfg() && nubeCfg().refresh);
+const guardarNube = p => setAjuste('nube', {...(S.cfg.nube || {}), ...p});
+const b64url = u8 => b64(u8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const nubeAzar = n => b64url(crypto.getRandomValues(new Uint8Array(n)));
+const nubeReto = async verif => b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(verif))));
+const nubeRedir = () => new URL('./', location.href).href;                  /* https://…/juntas-app/ (la que se registró en Dropbox) */
+const nubeKB = n => n >= 1048576 ? (n / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+const nubeErr = (m, extra) => Object.assign(new Error(m), extra || {});
+const nubeMsgError = err => err.sinRed ? 'No hay conexión con Dropbox. Intente de nuevo con internet.'
+  : err.reconectar ? 'Dropbox pide conectarse de nuevo (el permiso se venció o se quitó). Toque “Reconectar Dropbox”.'
+  : err.estado === 507 || /insufficient_space/.test(err.message) ? 'Su Dropbox no tiene espacio libre.'
+  : err.message || 'Error desconocido.';
+
+/* ---- Archivo de respaldo (lo comparten el manual y el de la nube) ---- */
+function datosRespaldo(){
+  const datos = {};
+  TABLAS.forEach(n => datos[n] = S[n]);
+  datos.ajustes = Object.entries(S.cfg).filter(([k]) => !AJ_NO_EXPORTAR.includes(k)).map(([clave, valor]) => ({clave, valor}));
+  return datos;
+}
+async function archivoRespaldo(k, sal){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cif = new Uint8Array(await crypto.subtle.encrypt({name: 'AES-GCM', iv}, k, enc.encode(JSON.stringify(datosRespaldo()))));
+  return JSON.stringify({formato: 'junta-app-respaldo', version: 1, tipo: 'solo-datos', exportado: ahora(),
+    resumen: {empresas: S.empresas.length, personas: S.personas.length, proyectos: S.proyectos.length},
+    cifrado: {alg: 'AES-GCM-256', kdf: 'PBKDF2-SHA256', iteraciones: RESPALDO_ITER, sal: b64(sal), iv: b64(iv)}, datos: b64(cif)});
+}
+
+/* ---- Llave (App key) desde config.json ---- */
+async function nubeLlaveApp(){
+  if (NUBE.llaveApp !== undefined) return NUBE.llaveApp;
+  let v = null;                                                              /* null = no se pudo leer; '' = no es una llave válida */
+  try {
+    const r = await fetch('./config.json', {cache: 'no-store'});
+    if (r.ok) { const j = await r.json(); v = String(j.dropboxAppKey || '').trim(); if (!/^[a-z0-9]{8,24}$/i.test(v)) v = ''; }
+  } catch (_) {}
+  if (v !== null) NUBE.llaveApp = v;
+  return v;
+}
+
+/* ---- Conexión (PKCE) ---- */
+async function nubeConectar(){
+  const llave = await nubeLlaveApp();
+  if (!llave) return mensaje(llave === null ? 'No se pudo leer config.json. Revise la conexión a internet e intente de nuevo.' : 'Falta la llave (App key) de Dropbox en config.json, o no tiene la forma de un App key (unos 15 caracteres, sin puntos).', 'Dropbox sin configurar');
+  const verif = nubeAzar(48), state = nubeAzar(16);
+  try { localStorage.setItem(NUBE_PKCE, JSON.stringify({verif, state, t: Date.now()})); }
+  catch (_) { return mensaje('Este navegador no deja guardar el dato temporal de la conexión.', 'No se pudo conectar'); }
+  const q = new URLSearchParams({client_id: llave, response_type: 'code', code_challenge: await nubeReto(verif), code_challenge_method: 'S256',
+    token_access_type: 'offline', redirect_uri: nubeRedir(), state, scope: DBX.scopes}).toString().replace(/\+/g, '%20');
+  location.href = `${DBX.auth}?${q}`;
+}
+function nubeLeerRetorno(){                                                  /* al arrancar: ¿volvemos de Dropbox? */
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code') && !q.has('error')) return;
+  NUBE.retorno = {code: q.get('code'), state: q.get('state'), error: q.get('error')};
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch (_) {}
+}
+async function nubeProcesarRetorno(){
+  const r = NUBE.retorno; if (!r) return;
+  NUBE.retorno = null;
+  let guard = null;
+  try { guard = JSON.parse(localStorage.getItem(NUBE_PKCE) || 'null'); localStorage.removeItem(NUBE_PKCE); } catch (_) {}
+  reemplazar('#/ajustes?tab=datos');
+  if (r.error) return mensaje(r.error === 'access_denied' ? 'No se dio el permiso en Dropbox, así que no se conectó.' : `Dropbox no completó la conexión (${r.error}).`, 'Dropbox');
+  if (!r.code || !guard || guard.state !== r.state || Date.now() - guard.t > 30 * 60000) return mensaje('No se pudo verificar la conexión. Intente de nuevo desde Ajustes → Datos → Respaldo en la nube.', 'Dropbox');
+  aviso('Conectando con Dropbox…');
+  try {
+    const llave = await nubeLlaveApp();
+    if (!llave) throw nubeErr('Falta la llave de Dropbox en config.json.');
+    const res = await fetch(DBX.token, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({code: r.code, grant_type: 'authorization_code', client_id: llave, redirect_uri: nubeRedir(), code_verifier: guard.verif})});
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.refresh_token) throw nubeErr(j.error_description || j.error || `Dropbox respondió ${res.status}`);
+    NUBE.acceso = j.access_token; NUBE.expira = Date.now() + (j.expires_in || 14400) * 1000;
+    const previo = nubeCfg() || {};
+    await setAjuste('nube', {auto: true, horas: 24, cambios: true, ...previo, refresh: j.refresh_token, cuenta: '', correo: '', ultimo: {...(previo.ultimo || {}), error: null, reconectar: false}});
+    try { const c = await nubeApi('users/get_current_account'); await guardarNube({cuenta: c.name?.display_name || '', correo: c.email || ''}); } catch (_) {}
+  } catch (err) { return mensaje(nubeMsgError(err), 'No se pudo conectar con Dropbox'); }
+  aviso('Dropbox conectada'); render();
+  if (await nubeAsegurarClave()) await nubeRespaldar({manual: true});
+}
+
+/* ---- Llamadas a Dropbox ---- */
+async function nubeToken(){
+  const n = nubeCfg();
+  if (!n || !n.refresh) throw nubeErr('Dropbox no está conectada.', {reconectar: true});
+  if (NUBE.acceso && Date.now() < NUBE.expira - 60000) return NUBE.acceso;
+  const llave = await nubeLlaveApp();
+  if (!llave) throw nubeErr(llave === null ? 'No se pudo leer config.json.' : 'Falta la llave de Dropbox en config.json.', llave === null ? {sinRed: true} : {});
+  let res;
+  try { res = await fetch(DBX.token, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: new URLSearchParams({grant_type: 'refresh_token', refresh_token: n.refresh, client_id: llave})}); }
+  catch (_) { throw nubeErr('Sin conexión.', {sinRed: true}); }
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw nubeErr(j.error_description || j.error || `Dropbox respondió ${res.status}`, {reconectar: j.error === 'invalid_grant', estado: res.status});
+  NUBE.acceso = j.access_token; NUBE.expira = Date.now() + (j.expires_in || 14400) * 1000;
+  return NUBE.acceso;
+}
+async function nubeLlamar(url, opc, reintento){
+  const tk = await nubeToken();
+  let res;
+  try { res = await fetch(url, {...opc, headers: {...(opc.headers || {}), Authorization: 'Bearer ' + tk}}); }
+  catch (_) { throw nubeErr('Sin conexión.', {sinRed: true}); }
+  if (res.status === 401 && !reintento) { NUBE.acceso = null; return nubeLlamar(url, opc, true); }
+  if (!res.ok) { const t = await res.text().catch(() => ''); throw nubeErr(`Dropbox respondió ${res.status}${t ? ': ' + t.slice(0, 160) : ''}`, {estado: res.status, reconectar: res.status === 401}); }
+  return res;
+}
+async function nubeApi(ruta, cuerpo){
+  const o = {method: 'POST'};
+  if (cuerpo !== undefined) { o.headers = {'Content-Type': 'application/json'}; o.body = JSON.stringify(cuerpo); }
+  return (await nubeLlamar(`${DBX.api}/${ruta}`, o)).json();
+}
+async function nubeSubir(nombre, texto){
+  const res = await nubeLlamar(`${DBX.contenido}/files/upload`, {method: 'POST', body: new Blob([texto], {type: 'application/octet-stream'}),
+    headers: {'Content-Type': 'application/octet-stream', 'Dropbox-API-Arg': JSON.stringify({path: '/' + nombre, mode: 'add', autorename: true, mute: true})}});
+  return res.json();
+}
+async function nubeBajar(id){
+  const res = await nubeLlamar(`${DBX.contenido}/files/download`, {method: 'POST', headers: {'Dropbox-API-Arg': JSON.stringify({path: id})}});
+  return res.text();
+}
+async function nubeListar(){                                                 /* solo los archivos con nombre de respaldo de Mentor, del más nuevo al más viejo */
+  let r = await nubeApi('files/list_folder', {path: '', limit: 2000}), todo = r.entries || [];
+  while (r.has_more) { r = await nubeApi('files/list_folder/continue', {cursor: r.cursor}); todo = todo.concat(r.entries || []); }
+  return todo.filter(e => e['.tag'] === 'file' && NUBE_NOMBRE.test(e.name)).map(e => {
+    const m = NUBE_NOMBRE.exec(e.name);
+    return {id: e.id, nombre: e.name, bytes: e.size || 0, fecha: new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))};
+  }).sort((a, b) => b.fecha - a.fecha);
+}
+
+/* ---- Conservación: todo lo de los últimos 2 días; uno por día hasta 14 días; uno por semana hasta ~3 meses; uno por mes después ---- */
+function nubeEtapa(fecha, ahoraMs = Date.now()){
+  const edad = (ahoraMs - fecha) / 86400000;
+  return edad < 2 ? 'reciente' : edad < 14 ? 'diario' : edad < 92 ? 'semanal' : 'mensual';
+}
+function nubeQueBorrar(lista, ahoraMs = Date.now()){                         /* lista: del más nuevo al más viejo */
+  const guardar = new Set(), vistos = new Set();
+  const lunes = f => { const d = new Date(f); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return iso(d); };
+  lista.forEach((a, i) => {
+    const et = nubeEtapa(a.fecha, ahoraMs);
+    if (i === 0 || et === 'reciente') { guardar.add(a.id); return; }
+    const clave = et === 'diario' ? 'd' + iso(a.fecha) : et === 'semanal' ? 's' + lunes(a.fecha) : 'm' + a.fecha.getFullYear() + '-' + a.fecha.getMonth();
+    if (!vistos.has(clave)) { vistos.add(clave); guardar.add(a.id); }
+  });
+  return lista.filter(a => !guardar.has(a.id));
+}
+async function nubeLimpiar(){
+  const borrar = nubeQueBorrar(await nubeListar()).slice(0, 40);
+  for (const a of borrar) { try { await nubeApi('files/delete_v2', {path: a.id}); } catch (_) {} }
+}
+
+/* ---- Contraseña recordada en este celular (llave no extraíble) ---- */
+async function nubeAsegurarClave(cambiar){
+  if (S.cfg.nubeLlave && !cambiar) return true;
+  const pass = await pedirClave({titulo: cambiar ? 'Nueva contraseña de los respaldos' : 'Contraseña de los respaldos', doble: true,
+    texto: 'Escoja la contraseña que protege los respaldos de Dropbox; puede ser la misma de sus respaldos manuales. Mentor la recuerda en este celular, sin poder mostrarla ni copiarla, para respaldar sola. La necesitará para restaurar en otro celular; si la olvida, esos respaldos no se pueden abrir.'});
+  if (!pass) return false;
+  const sal = crypto.getRandomValues(new Uint8Array(16));
+  const key = await claveAES(pass, sal, RESPALDO_ITER);                      /* extractable = false */
+  await setAjuste('nubeLlave', {sal: b64(sal), iter: RESPALDO_ITER, key});
+  return true;
+}
+
+/* ---- Respaldar ---- */
+const NUBE_CUENTA = ['empresas', 'personas', 'notas', 'reuniones', 'compromisos'];
+const nubeResumen = () => Object.fromEntries(NUBE_CUENTA.map(n => [n, (S[n] || []).length]));
+const nubeSuma = r => Object.values(r || {}).reduce((a, b) => a + b, 0);
+async function nubeRespaldar({manual = false} = {}){
+  if (NUBE.ocupado || !nubeConectada()) return false;
+  if (!navigator.onLine) { if (manual) aviso('Sin internet. Intente de nuevo con conexión.'); return false; }
+  const resumen = nubeResumen(), ult = nubeCfg().ultimo || {};
+  if (!resumen.empresas && !resumen.personas) {                              /* nunca subir un respaldo vacío */
+    if (manual) await mensaje('Mentor no tiene datos todavía, así que no hay nada que respaldar. Si quiere recuperar un respaldo, use “Restaurar desde la nube”.', 'Nada que respaldar');
+    return false;
+  }
+  if (!manual && ult.resumen && nubeSuma(resumen) < nubeSuma(ult.resumen) * 0.5) {   /* de repente hay mucho menos: no pisar lo bueno */
+    if (!ult.aviso) { await guardarNube({ultimo: {...ult, aviso: ahora()}}); nubeRefrescar(); }
+    return false;
+  }
+  if (!S.cfg.nubeLlave && !(manual && await nubeAsegurarClave())) return false;
+  NUBE.ocupado = true;
+  const inicio = ahora(), d = new Date(), p2 = n => String(n).padStart(2, '0');
+  const nombre = `Mentor_${hoyISO()}_${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}.json`;
+  if (manual) aviso('Respaldando en Dropbox…');
+  try {
+    const texto = await archivoRespaldo(S.cfg.nubeLlave.key, deb64(S.cfg.nubeLlave.sal));
+    const r = await nubeSubir(nombre, texto);
+    await guardarNube({ultimo: {ok: inicio, nombre: r.name || nombre, bytes: new Blob([texto]).size, resumen, error: null, reconectar: false, aviso: null}});
+    try { await nubeLimpiar(); } catch (_) {}
+    if (manual) aviso('Respaldo guardado en Dropbox');
+    return true;
+  } catch (err) {
+    if (!err.sinRed || manual) {
+      await guardarNube({ultimo: {...ult, error: {en: ahora(), msg: nubeMsgError(err)}, reconectar: !!err.reconectar}});
+      if (manual) await mensaje(nubeMsgError(err), 'No se pudo respaldar');
+    }
+    return false;
+  } finally { NUBE.ocupado = false; nubeRefrescar(); }
+}
+function nubeRefrescar(){ try { if (!bloqueada && !HOJA && ruta().partes[0] === 'ajustes') render(); } catch (_) {} }
+
+/* ---- Cuándo respaldar solo ---- */
+function nubeCambio(poner, quitar, vaciar){                                  /* lo llama lote() cada vez que se guardan datos */
+  const tablas = [...Object.keys(poner || {}), ...Object.keys(quitar || {}), ...(vaciar || [])];
+  if (!tablas.some(n => n !== 'ajustes') || !nubeConectada()) return;
+  clearTimeout(NUBE.marca);
+  NUBE.marca = setTimeout(() => setAjuste('nubeCambio', ahora()).catch(() => {}), 1500);
+  const n = nubeCfg();
+  clearTimeout(NUBE.timer);
+  if (n.auto !== false && n.cambios !== false) NUBE.timer = setTimeout(() => nubeRespaldar(), NUBE_ESPERA_MIN * 60000);
+}
+async function nubeRecargar(){                                               /* por si la conexión se completó en otra ventana del navegador */
+  try {
+    const filas = await leerTodo('ajustes');
+    AJ_NUBE.forEach(k => { const f = filas.find(a => a.clave === k); if (f) S.cfg[k] = f.valor; else delete S.cfg[k]; });
+  } catch (_) {}
+}
+async function nubeAlAbrir(){                                                /* tras el PIN y al volver a la app */
+  try {
+    if (NUBE.retorno) { await nubeProcesarRetorno(); return; }
+    await nubeRecargar();
+    const n = nubeCfg();
+    if (!n || !n.refresh || n.auto === false) return;
+    const ok = n.ultimo && n.ultimo.ok, cam = S.cfg.nubeCambio;
+    if (ok && !(cam && cam > ok)) return;                                    /* nada nuevo desde el último respaldo */
+    const pasaron = !ok || Date.now() - new Date(ok) >= (n.horas || 24) * 3600000;
+    if (pasaron || n.cambios !== false) await nubeRespaldar();
+  } catch (_) {}
+}
+
+/* ---- Restaurar ---- */
+async function nubeRestaurar(){
+  if (!nubeConectada()) return;
+  aviso('Buscando respaldos…');
+  let lista;
+  try { lista = await nubeListar(); } catch (err) { return mensaje(nubeMsgError(err), 'No se pudo leer Dropbox'); }
+  if (!lista.length) return mensaje('Todavía no hay respaldos de Mentor en la carpeta de Dropbox.', 'Sin respaldos');
+  const etq = {reciente: 'Reciente', diario: 'Diario', semanal: 'Semanal', mensual: 'Mensual'};
+  const fila = a => `<button type="button" class="fila" data-id="${esc(a.id)}"><span class="col"><span class="nom">${esc(a.fecha.toLocaleDateString('es-CO', {weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'}))} · ${esc(horaDe(a.fecha))}</span><span class="sub">${etq[nubeEtapa(a.fecha)]} · ${nubeKB(a.bytes)}</span></span></button>`;
+  const v = abrirHoja(`<h2 class="hoja-titulo">Restaurar desde Dropbox</h2>
+    <p class="hoja-texto">Escoja el respaldo por su fecha. Antes de reemplazar nada, Mentor le pedirá la contraseña y le mostrará lo que trae.</p>
+    <div style="max-height:46vh;overflow:auto;margin:0 -4px">${lista.slice(0, 80).map(fila).join('')}</div>
+    <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Cancelar</button></div>`);
+  $('[data-r="0"]', v).addEventListener('click', () => cerrarHoja());
+  $$('[data-id]', v).forEach(b => b.addEventListener('click', () => { cerrarHoja(); nubeAbrirRespaldo(b.dataset.id); }));
+}
+async function nubeAbrirRespaldo(id){
+  aviso('Descargando respaldo…');
+  let obj;
+  try { obj = JSON.parse(await nubeBajar(id)); }
+  catch (err) { return mensaje(err instanceof SyntaxError ? 'El archivo de Dropbox no es un respaldo válido.' : nubeMsgError(err), 'No se pudo descargar'); }
+  return importarObjeto(obj);
+}
+async function nubeDesconectar(){
+  if (!(await confirmar('Mentor dejará de respaldar en Dropbox. Los respaldos que ya están allá se quedan, y los datos de este celular no cambian.', {titulo: 'Desconectar Dropbox', si: 'Desconectar', peligro: true}))) return;
+  try { if (NUBE.acceso || nubeConectada()) await nubeApi('auth/token/revoke'); } catch (_) {}
+  clearTimeout(NUBE.timer); NUBE.acceso = null;
+  await lote({quitar: {ajustes: ['nube', 'nubeCambio']}});
+  aviso('Dropbox desconectada'); render();
+}
+
+/* ---- Pantalla: tarjeta en Ajustes → Datos ---- */
+function nubeCuando(f){
+  const d = new Date(f); if (isNaN(d)) return '';
+  return (hoyISO() === iso(d) ? 'hoy' : fechaMedia(f)) + ' · ' + horaDe(d);
+}
+function tarjetaNube(){
+  const n = nubeCfg();
+  if (!nubeConectada()) {
+    return tarjAj('azul', 'nube', 'Respaldo en la nube', 'Copias cifradas y automáticas en su Dropbox', `<div class="ajuste">
+      <p>Mentor puede guardar sola un respaldo cifrado en su Dropbox (carpeta Apps/Mentor) y dejarle restaurar escogiendo la fecha. Sus datos siguen viviendo en este celular; a Dropbox solo sube el archivo cifrado con su contraseña.</p>
+      <button type="button" class="btn-pri" data-action="nube-conectar">Conectar Dropbox</button></div>`);
+  }
+  const u = n.ultimo || {}, auto = n.auto !== false, cambios = n.cambios !== false;
+  const linea = u.reconectar ? 'Dropbox pide conectarse de nuevo.'
+    : u.error && (!u.ok || u.error.en > u.ok) ? `No se pudo respaldar: ${u.error.msg}`
+    : u.ok ? `Último respaldo: ${nubeCuando(u.ok)}${u.bytes ? ' · ' + nubeKB(u.bytes) : ''}` : 'Aún no hay ningún respaldo en Dropbox.';
+  const sino = (accion, val) => [[1, 'Sí'], [0, 'No']].map(([v, t]) => `<button type="button" class="opc-btn${(val ? 1 : 0) === v ? ' sel' : ''}" data-action="${accion}" data-v="${v}" aria-pressed="${(val ? 1 : 0) === v}">${t}</button>`).join('');
+  const horas = [6, 12, 24, 48].map(h => `<option value="${h}"${(n.horas || 24) === h ? ' selected' : ''}>${h} horas</option>`).join('');
+  return tarjAj('azul', 'nube', 'Respaldo en la nube', `Dropbox${n.cuenta ? ' · ' + esc(n.cuenta) : ''}`, `<div class="ajuste">
+      <p>${esc(linea)}${u.aviso ? '<br>El último respaldo automático se saltó porque ahora hay mucho menos datos que antes. Si es correcto, toque “Respaldar ahora”.' : ''}</p>
+      ${u.reconectar ? '<button type="button" class="btn-pri" data-action="nube-conectar">Reconectar Dropbox</button>' : ''}
+      <div class="dos"><button type="button" class="btn-sec" data-action="nube-ahora">Respaldar ahora</button><button type="button" class="btn-sec" data-action="nube-restaurar">Restaurar desde la nube</button></div></div>
+    <div class="ajuste"><span class="leyenda">Respaldo automático</span>
+      <div class="opc2" role="group" aria-label="Respaldo automático">${sino('nube-auto', auto)}</div>
+      <span class="leyenda">Después de cambios importantes (unos ${NUBE_ESPERA_MIN} minutos más tarde)</span>
+      <div class="opc2" role="group" aria-label="Después de cambios importantes">${sino('nube-cambios', cambios)}</div>
+      <label for="aj-nube-horas" class="leyenda">Al abrir Mentor, si hubo cambios y pasaron</label>
+      <select class="input" id="aj-nube-horas">${horas}</select>
+      <p>Solo respalda cuando hubo cambios. Se conservan todos los de los últimos 2 días, uno por día hasta 14 días, uno por semana hasta 3 meses y uno por mes después.</p></div>
+    <div class="ajuste"><button type="button" class="btn-sec" data-action="nube-clave">Cambiar contraseña de los respaldos</button>
+      <button type="button" class="enlace-btn" data-action="nube-desconectar">Desconectar Dropbox</button></div>`);
+}
+function franjaNube(){
+  const n = nubeCfg(); if (!n || !n.refresh) return '';
+  const u = n.ultimo || {};
+  const mal = u.reconectar ? ['Dropbox pide conectarse de nuevo', 'Toque para reconectar y seguir respaldando']
+    : u.aviso ? ['El respaldo automático se saltó', 'Ahora hay mucho menos datos que en el último respaldo · Toque para revisar']
+    : u.error && (!u.ok || Date.now() - new Date(u.ok) > 86400000) ? ['No se está respaldando en Dropbox', 'Toque para ver el motivo'] : null;
+  return mal ? `<a class="franja" href="#/ajustes?tab=datos">${I.alerta}<span class="col"><span class="franja-t">${mal[0]}</span><span class="franja-s">${mal[1]}</span></span></a>` : '';
+}
+const nubeSana = () => { const n = nubeCfg(); return !!(n && n.refresh && n.auto !== false && n.ultimo && n.ultimo.ok); };
+
 async function importarRespaldo(file){
   let obj;
   try { obj = JSON.parse(await file.text()); } catch { return mensaje('El archivo no es un respaldo válido.', 'No se pudo importar'); }
-  if (obj.formato !== 'junta-app-respaldo' || !obj.cifrado) return mensaje('El archivo no es un respaldo de esta app.', 'No se pudo importar');
+  return importarObjeto(obj);
+}
+async function importarObjeto(obj){
+  if (!obj || obj.formato !== 'junta-app-respaldo' || !obj.cifrado) return mensaje('El archivo no es un respaldo de esta app.', 'No se pudo importar');
   const clave = await pedirClave({titulo:'Importar respaldo', texto:`Respaldo del ${fechaMedia(obj.exportado)}. Escriba la contraseña con la que lo exportó.`});
   if (!clave) return;
   let datos;
@@ -4353,10 +4678,10 @@ async function importarRespaldo(file){
   if (!ok) return;
   const poner = {};
   TABLAS.forEach(n => poner[n] = Array.isArray(datos[n]) ? datos[n] : []);
-  poner.ajustes = (datos.ajustes || []).filter(a => !['pin','iaClaves','dictadosPendientes'].includes(a.clave));
-  const pin = S.cfg.pin, ultimo = S.cfg.ultimoRespaldo, clavesIA = S.cfg.iaClaves, grabaciones = S.cfg.dictadosPendientes;
+  poner.ajustes = (datos.ajustes || []).filter(a => !AJ_CONSERVAR.includes(a.clave));
+  const locales = AJ_CONSERVAR.filter(k => S.cfg[k] !== undefined && S.cfg[k] !== null).map(clave => ({clave, valor:S.cfg[clave]}));   /* PIN, claves de IA, grabaciones y la conexión con Dropbox se quedan como están */
   await lote({vaciar:[...TABLAS, 'ajustes'], poner});
-  await lote({poner:{ajustes:[{clave:'pin', valor:pin}, ...(ultimo ? [{clave:'ultimoRespaldo', valor:ultimo}] : []), ...(clavesIA ? [{clave:'iaClaves', valor:clavesIA}] : []), ...(grabaciones ? [{clave:'dictadosPendientes', valor:grabaciones}] : [])]}});
+  await lote({poner:{ajustes:locales}});
   await asegurarTiposBase();
   await migrarComites();
   aviso('Respaldo importado'); reemplazar('#/inicio'); render();
@@ -5499,6 +5824,13 @@ const ACCIONES = {
   'ia-quitar': async b => { const P = IA_PROV[b.dataset.p]; if (!(await confirmar(`Se borra la clave de ${P.n} de este dispositivo. La clave sigue existiendo en ${P.consolaN}: si ya no la va a usar, revóquela allá.`, {titulo:'Quitar clave', si:'Quitar clave', peligro:true}))) return; const c = {...iaClaves()}; delete c[b.dataset.p]; await setAjuste('iaClaves', c); aviso('Clave quitada'); vistaAjustes(); },
   'poner-color': async b => { await guardar('empresas', {...empresa(b.dataset.id), color:b.dataset.c}); cerrarHoja(); render(); },
   exportar: () => exportar(),
+  'nube-conectar': () => nubeConectar(),
+  'nube-ahora': () => nubeRespaldar({manual:true}),
+  'nube-restaurar': () => nubeRestaurar(),
+  'nube-auto': async b => { if (b.dataset.v === '1' && !S.cfg.nubeLlave && !(await nubeAsegurarClave())) return; await guardarNube({auto: b.dataset.v === '1'}); vistaAjustes(); },
+  'nube-cambios': async b => { await guardarNube({cambios: b.dataset.v === '1'}); vistaAjustes(); },
+  'nube-clave': async () => { if (await nubeAsegurarClave(true)) aviso('Contraseña guardada en este celular'); },
+  'nube-desconectar': () => nubeDesconectar(),
   'importar-respaldo': () => { const i = $('#archivo-respaldo'); i.value = ''; i.click(); },
   plantilla: () => descargar('plantilla-importacion.csv', plantillaCSV(), 'text/csv'),
   'cargar-csv': () => { const i = $('#archivo-csv'); i.value = ''; i.click(); },
@@ -5801,6 +6133,7 @@ let ocultaDesde = 0;
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { ocultaDesde = Date.now(); if (FN) guardarBorrador(true); }
   else if (!bloqueada && ocultaDesde && Date.now() - ocultaDesde > BLOQUEO_MIN * 60000) bloquear();
+  if (!document.hidden && !bloqueada) nubeAlAbrir();
 });
 
 async function iniciar(){
@@ -5811,6 +6144,7 @@ async function iniciar(){
     return;
   }
   try {
+    nubeLeerRetorno();
     db = await abrirDB();
     await cargarTodo();
     await asegurarTiposBase();
