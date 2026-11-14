@@ -449,6 +449,8 @@ legend{padding:0;margin-bottom:4px;font-size:14px;font-weight:600}
 .sugerencias{display:flex;flex-direction:column}
 #hay-version{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 10px);z-index:60;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 12px 16px;border-radius:14px;background:var(--acento);color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:560px;margin:0 auto}
 #hay-version[hidden]{display:none}
+#hay-version{touch-action:pan-y;transition:transform .2s,opacity .2s}
+#hay-version .hv-x{border:0;background:rgba(255,255,255,.18);color:#fff;width:36px;height:36px;padding:0;border-radius:50%;font-size:22px;line-height:1;display:grid;place-items:center;margin-left:-4px}
 #hay-version button{flex-shrink:0;border:0;border-radius:10px;padding:10px 14px;background:#fff;color:var(--acento);font:inherit;font-weight:700;cursor:pointer}
 .aviso{padding:14px 16px;border-radius:14px;background:var(--acento-suave);color:var(--acento-texto);font-size:14px;line-height:1.45;display:flex;justify-content:space-between;gap:12px;align-items:center}
 .sobre{display:flex;flex-direction:column;gap:6px}
@@ -651,7 +653,7 @@ button.btn-mini{width:40px}
 <div id="app" hidden></div>
 <div id="bloqueo"></div>
 <div id="aviso" role="status" aria-live="polite"></div>
-<div id="hay-version" role="status" hidden><span>Hay una versión nueva de Mentor</span><button type="button" data-action="actualizar-app">Actualizar</button></div>
+<div id="hay-version" role="status" hidden><span>Hay una versión nueva de Mentor</span><button type="button" data-action="actualizar-app">Actualizar</button><button type="button" class="hv-x" data-action="cerrar-version" aria-label="Quitar este aviso">×</button></div>
 <input type="file" id="archivo-respaldo" accept=".json,application/json" hidden>
 <input type="file" id="archivo-csv" accept=".csv,text/csv,text/plain" hidden>
 
@@ -661,7 +663,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.43 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.44 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -4269,13 +4271,13 @@ function vistaAjustes(id, q = {}){
       <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div>`)
     + tarjAj('azul', 'estrella', 'Acerca de Mentor', `Versión ${esc(APP.version)} · ${esInstalada() ? 'Instalada como app' : 'Abierta en el navegador'}`, `<div class="ajuste">
       ${HAY_VERSION ? '<p>Ya descargó una versión nueva. Tóquela para usarla (le pedirá el PIN).</p><button type="button" class="btn-pri" data-action="actualizar-app">Actualizar a la versión nueva</button>' : '<p>Mentor revisa sola si hay versión nueva al abrirse y cada 30 minutos. También puede revisar ahora.</p><button type="button" class="btn-sec" data-action="buscar-version">Buscar versión nueva</button>'}</div>`);
-  const datos = (conv.length ? tarjAj('ambar', 'flechas', 'Convertir en proyecto', 'Entidades que en realidad son proyectos', `<div class="ajuste"><p>Estas entidades se crearon con el vínculo “Proyecto” antes de que existiera la pestaña Proyectos. Al convertirlas pasan a Proyectos con sus personas (cada cargo se vuelve un rol) y sus notas; la entidad queda archivada.</p></div>
-      ${conv.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc(tipo(e.vinculoId).nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="convertir" data-id="${e.id}">Convertir</button></div>`).join('')}`) : '')
+  const datos = tarjetaNube()
     + tarjAj('teal', 'escudo', 'Respaldo', ult ? `Último respaldo: ${fechaMedia(ult)}` : 'Aún no ha exportado ningún respaldo', `<div class="ajuste">
       <p>Los datos viven solo en este dispositivo; si se borra el navegador o cambia de celular, el respaldo es lo único que los recupera. Guarde el archivo en Drive u otro lugar seguro.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="exportar">Exportar respaldo</button><button type="button" class="btn-sec" data-action="importar-respaldo">Importar respaldo</button></div></div>
       <div class="ajuste"><label for="aj-dias" class="leyenda">Recordarme exportar</label><select class="input" id="aj-dias">${opDias}</select></div>`)
-    + tarjetaNube()
+    + (conv.length ? tarjAj('ambar', 'flechas', 'Convertir en proyecto', 'Entidades que en realidad son proyectos', `<div class="ajuste"><p>Estas entidades se crearon con el vínculo “Proyecto” antes de que existiera la pestaña Proyectos. Al convertirlas pasan a Proyectos con sus personas (cada cargo se vuelve un rol) y sus notas; la entidad queda archivada.</p></div>
+      ${conv.map(e => `<div class="fila" style="--c:${cv(e.color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">${esc(e.nombre)}</span><span class="sub">${esc(tipo(e.vinculoId).nombre)}</span></span><button type="button" class="enlace-btn" style="margin-left:auto" data-action="convertir" data-id="${e.id}">Convertir</button></div>`).join('')}`) : '')
     + tarjAj('verde', 'tabla', 'Importar desde Excel', 'Cargue muchas personas de una vez', `<div class="ajuste">
       <p>1. Descargue la plantilla y ábrala en Excel. 2. Llene una fila por persona (empresa, participación, vínculo, nombre, cargo, área, a quién reporta, teléfono, correo y, si quiere, a quién representa y el usuario de WhatsApp). Para miembros de junta escriba “Junta directiva” en área y el rol en cargo. 3. Guárdela como CSV y cárguela aquí. Antes de guardar verá un resumen.</p>
       <div class="dos"><button type="button" class="btn-sec" data-action="plantilla">Descargar plantilla</button><button type="button" class="btn-sec" data-action="cargar-csv">Cargar archivo CSV</button></div></div>`)
@@ -6046,6 +6048,7 @@ const ACCIONES = {
     const caja = b.closest('.plegable'); caja.classList.toggle('abierta', ab); b.setAttribute('aria-expanded', ab); },
   'pj-registrar': () => irARegistrar(),
   'actualizar-app': () => location.reload(),
+  'cerrar-version': () => ocultarAvisoVersion(),
   'buscar-version': () => buscarVersion(),
   'fj-organo': b => { let nuevo = b.dataset.v; FJ.grupoNuevo = null;
     if (nuevo === '__suelta') { if (FJ.suelta) return; FJ.suelta = true; const viejo = new Set(invitadosPropuestos(FJ.comiteId)); FJ.invitados = [...FJ.asistentes.map(x => ({id:x})), ...FJ.invitados.filter(x => !viejo.has(x.id))]; FJ.asistentes = []; FJ.comiteId = ''; FJ.comiteAnt = ''; reJunta(); return; }
@@ -6169,10 +6172,26 @@ async function iniciar(){
     }).catch(() => {});
   }
 }
-let REG_SW = null, HAY_VERSION = false;
+let REG_SW = null, HAY_VERSION = false, AVISO_OCULTO = false;
+/* 3.44 · El aviso de versión nueva se puede quitar con la × o deslizándolo hacia un lado; sigue disponible en Ajustes → Acerca de Mentor */
+function ocultarAvisoVersion(){
+  AVISO_OCULTO = true;
+  const b = $('#hay-version'); if (!b) return;
+  b.style.opacity = '0'; setTimeout(() => { b.hidden = true; b.style.transform = ''; b.style.opacity = ''; }, 180);
+}
+(function(){
+  const b = document.getElementById('hay-version'); if (!b) return;
+  let x0 = null, y0 = 0, dx = 0;
+  b.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; b.style.transition = 'none'; }, {passive:true});
+  b.addEventListener('touchmove', e => { if (x0 === null) return; dx = e.touches[0].clientX - x0; if (Math.abs(dx) > Math.abs(e.touches[0].clientY - y0)) b.style.transform = `translateX(${dx}px)`; }, {passive:true});
+  b.addEventListener('touchend', () => {
+    if (x0 === null) return; x0 = null; b.style.transition = '';
+    if (Math.abs(dx) > 70) { b.style.transform = `translateX(${dx > 0 ? 120 : -120}%)`; ocultarAvisoVersion(); } else b.style.transform = '';
+  });
+})();
 function avisarVersion(){
   HAY_VERSION = true;
-  const b = $('#hay-version'); if (b) b.hidden = false;
+  const b = $('#hay-version'); if (b && !AVISO_OCULTO) b.hidden = false;
   if (ruta().partes[0] === 'ajustes') render();
 }
 async function buscarVersion(){
