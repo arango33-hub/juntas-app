@@ -154,6 +154,7 @@ svg{flex-shrink:0}
 .vacio{margin:0;padding:16px;font-size:15px;line-height:1.5;color:var(--texto-2)}
 a.vacio-toque{display:block;text-decoration:none;color:var(--texto-2)}
 .fila.fila-agregar{color:var(--acento);font-weight:600;border-bottom:0}
+.fila.fila-agregar:first-child:not(:last-child){border-bottom:1px solid var(--linea)}
 .parrafo{margin:0;padding:16px;font-size:15px;line-height:1.5;white-space:pre-line}
 
 /* Filas dentro de tarjetas */
@@ -665,7 +666,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.45 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.46 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -908,7 +909,19 @@ async function lote({poner={}, quitar={}, vaciar=[]}){
   }
   try { contarActividad(poner); } catch (_) {}
   try { nubeCambio(poner, quitar, vaciar); } catch (_) {}
+  try { CANAL_DATOS?.postMessage({cambio: Date.now()}); } catch (_) {}
 }
+/* 3.46 · Si Mentor está abierta en dos ventanas (la app y una pestaña de Chrome, o la que abre "Compartir"),
+   lo que se guarda en una avisa a la otra, que vuelve a leer los datos y se repinta sola */
+const CANAL_DATOS = 'BroadcastChannel' in window ? new BroadcastChannel('mentor-datos') : null;
+let DATOS_VIEJOS = false, DIA_PINTADO = '';
+const VISTAS_LECTURA = ['inicio','personas','empresa','persona','proyectos','proyecto','pendientes','junta','comite','calendario'];
+async function refrescarDatos(){
+  DATOS_VIEJOS = false;
+  try { await cargarTodo(); } catch (_) { return; }
+  if (!bloqueada && !document.querySelector('.velo') && VISTAS_LECTURA.includes(ruta().partes[0] || 'inicio')) render();
+}
+CANAL_DATOS?.addEventListener('message', () => { DATOS_VIEJOS = true; if (!document.hidden) refrescarDatos(); });
 const guardar = (n, o) => lote({poner:{[n]:[o]}}).then(() => o);
 const setAjuste = (clave, valor) => lote({poner:{ajustes:[{clave, valor}]}});
 async function asegurarTiposBase(){
@@ -1482,6 +1495,7 @@ function render(){
   if (r !== 'junta-form' && !(r === 'persona-form' && q.desde === 'junta')) FJ = null;
   if (r !== 'programar') FPJ = null;
   VISTAS[r](partes[1], q);
+  DIA_PINTADO = hoyISO();
   document.title = APP.nombre;
   rutaActual = location.hash;
   const y = SCROLL[rutaActual] || 0;
@@ -2060,8 +2074,9 @@ function filtrosPorRef(notas, sujeto, tipos){
 function inicialesProyecto(n){ const w = String(n || '').replace(/^proyecto\s+/i, '').trim(); const i = iniciales(w); return i.length > 1 ? i : (w.slice(0, 2).toUpperCase() || '?'); }
 /* Sección "Compromisos" de una persona o entidad: abiertos y los últimos cumplidos */
 function seccionCompromisos(lista, sujeto, hrefNuevo, sinEnvoltura){
-  const cab = `<div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2><a class="enlace-btn" style="font-size:14px" href="${hrefNuevo}">+ Agregar</a></div>`;
-  const cuerpo = lista.length ? `<div class="tarjeta col" style="gap:0">${lista.map(c => filaCompromiso(c, {conProyecto:true, excluir:sujeto})).join('')}</div>` : `<p class="tarjeta vacio">Sin compromisos.</p>`;
+  /* 3.46 · "+ Nuevo compromiso" va arriba de la lista, para no tener que bajar */
+  const cab = `<div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2></div>`;
+  const cuerpo = lista.length ? `<div class="tarjeta col" style="gap:0">${filaAgregar(hrefNuevo, 'Nuevo compromiso')}${lista.map(c => filaCompromiso(c, {conProyecto:true, excluir:sujeto})).join('')}</div>` : vacioAgregar(hrefNuevo, 'Sin compromisos.');
   return sinEnvoltura ? cab + cuerpo : `<div class="sec">${cab}${cuerpo}</div>`;
 }
 function filaProyecto(p){
@@ -3015,7 +3030,7 @@ function vistaProyecto(id){
       ${ant.length ? `<h3 class="sec-titulo" style="font-size:12px;margin-top:4px">Ya no están en el proyecto</h3>${(() => { const nom = [...new Set(ant.map(x => persona(x.personaId)?.nombre).filter(Boolean))];
         return plegable('prant', plural(nom.length, 'persona'), nom.slice(0, 3).join(', ') + (nom.length > 3 ? '…' : ''), null, ant.map(filaPer).join('')); })()}` : ''}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo" style="color:var(--pend-texto)">Compromisos</h2></div>
-      ${ab.length || hechos.length ? `<div class="tarjeta col" style="gap:0">${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}${filaAgregar(`#/compromiso?proy=${id}`, 'Nuevo compromiso')}</div>` : vacioAgregar(`#/compromiso?proy=${id}`, 'Sin compromisos. También puede dejarlos al dictar una nota.')}</div>
+      ${ab.length || hechos.length ? `<div class="tarjeta col" style="gap:0">${filaAgregar(`#/compromiso?proy=${id}`, 'Nuevo compromiso')}${[...ab, ...hechos].map(x => filaCompromiso(x)).join('')}</div>` : vacioAgregar(`#/compromiso?proy=${id}`, 'Sin compromisos. También puede dejarlos al dictar una nota.')}</div>
     <div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Reuniones</h2></div>
       ${reunionesProyecto(id).length ? `<div class="tarjeta col" style="gap:0">${reunionesProyecto(id).map(filaReunionProyecto).join('')}${botonReunionProyecto(p, true)}</div>` : botonReunionProyecto(p, false)}</div>
     <div class="sec mas"><h2 class="sec-titulo">Historia</h2>${historia({tipo:'proyecto', id}, [...notasPr, ...itemsReunion(reunionesProyecto(id))], [
@@ -6139,6 +6154,8 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) { ocultaDesde = Date.now(); if (FN) guardarBorrador(true); }
   else if (!bloqueada && ocultaDesde && Date.now() - ocultaDesde > BLOQUEO_MIN * 60000) bloquear();
   if (!document.hidden && !bloqueada) nubeAlAbrir();
+  /* 3.46 · Al volver a Mentor: si otra ventana guardó algo, o cambió el día ("En N días", "Hoy"), se repinta */
+  if (!document.hidden && !bloqueada && (DATOS_VIEJOS || (DIA_PINTADO && DIA_PINTADO !== hoyISO()))) refrescarDatos();
 });
 
 async function iniciar(){
