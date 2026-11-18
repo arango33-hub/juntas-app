@@ -692,7 +692,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.50 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.51 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -2051,12 +2051,12 @@ function vistaEmpresa(id){
         : PLEG.tab === 'grupos' ? `<div class="tarjeta col" style="gap:0">${grupos.map(filaComite).join('')}</div>`
         : PLEG.tab === 'otras' ? `<div class="tarjeta col" style="gap:0">${otras.map(filaOtraReunion).join('')}</div>`
         : PLEG.tab === 'asambleas' ? `<div class="tarjeta col" style="gap:0">${asambleas.map(filaJuntaHist).join('')}</div>`
-        : `<p class="tarjeta vacio">Aún no hay juntas, comités ni reuniones registradas. Las programadas aparecen en Próximas reuniones.</p>`;
-      return `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Juntas, comités y reuniones</h2><a class="enlace-btn" style="font-size:14px" href="#/programar?e=${id}&clase=${claseAg}">+ Agregar</a></div>
-      ${pills.length ? `<div class="filtros desliza" role="tablist" aria-label="Juntas, comités y reuniones">${pills.map(tab).join('')}</div>` : ''}${cuerpo}</div>`; })()}
+        : `<p class="tarjeta vacio">Aún no hay juntas, comités, reuniones ni asambleas registradas. Las programadas aparecen en Próximas reuniones.</p>`;
+      return `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">Juntas, comités, reuniones y asambleas</h2><a class="enlace-btn" style="font-size:14px;flex-shrink:0;align-self:flex-start" href="#/programar?e=${id}&clase=${claseAg}">+ Agregar</a></div>
+      ${pills.length ? `<div class="filtros desliza" role="tablist" aria-label="Juntas, comités, reuniones y asambleas">${pills.map(tab).join('')}</div>` : ''}${cuerpo}</div>`; })()}
     ${(() => { const prox = juntasEntidad(id).filter(r => r.fecha >= hoyISO()).sort((a,b) => a.fecha.localeCompare(b.fecha) || (a.hora || '').localeCompare(b.hora || ''));
       if (!prox.length && !junta && !comitesEntidad(id).length) return '';
-      const cm = comitesEntidad(id).length > 0 || juntasEntidad(id).some(esSuelta);
+      const cm = comitesEntidad(id).length > 0 || juntasEntidad(id).some(r => esSuelta(r) || esAsamblea(r));
       return `<div class="sec mas"><div class="sec-fila"><h2 class="sec-titulo">${cm ? 'Próximas reuniones' : 'Próximas juntas'}</h2><a class="enlace-btn" style="font-size:14px" href="#/programar?e=${id}">+ Nueva reunión</a></div>
         ${prox.length ? `<div class="tarjeta col" style="gap:0">${prox.slice(0, 6).map(filaProxima).join('')}</div>${prox.length > 6 ? `<p class="ayuda" style="margin:0">Y ${plural(prox.length - 6, 'más')} en el historial.</p>` : ''}` : `<p class="tarjeta vacio">No hay ${cm ? 'reuniones programadas' : 'juntas programadas'}. Con “+ Nueva reunión” puede programar una o cargar varias fechas de una vez (por ejemplo, el calendario del año).</p>`}</div>`; })()}
     ${calendarioAnio(id)}
