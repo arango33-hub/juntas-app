@@ -183,7 +183,8 @@ a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,v
 .prox-linea .pto span{font-size:11px;white-space:nowrap;line-height:1}
 .prox-linea .pto.hoy span{color:#F2A56B;font-weight:700}
 .prox-linea .pto b{position:absolute;top:0;right:-2px;font-size:9.5px;font-weight:800;background:var(--texto);color:var(--fondo);border-radius:7px;padding:0 4px;line-height:13px}
-.prox-linea .fin{position:absolute;right:0;top:26px;font-size:10.5px;color:var(--texto-3,var(--texto-2));opacity:.7}
+.prox-linea .tope{position:absolute;right:0;top:10px;width:2px;height:12px;border-radius:1px;background:color-mix(in srgb,var(--acento) 35%,transparent)}
+.prox-linea .fin{position:absolute;right:0;top:27px;font-size:10.5px;color:var(--texto-3,var(--texto-2));opacity:.7}
 .prox-card{flex:0 0 272px;scroll-snap-align:start;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:var(--texto);
   background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--c) 30%,transparent),transparent 62%),var(--tarjeta);
   border:1px solid color-mix(in srgb,var(--c) 45%,var(--borde));box-shadow:0 10px 26px -14px color-mix(in srgb,var(--c) 70%,transparent)}
@@ -686,7 +687,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.48 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.49 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1693,7 +1694,7 @@ function lineaProximas(lista){
     const f = fechaD(d.rs[0].fecha), txt = d.n === 0 ? 'Hoy' : d.n === 1 ? 'Mañana' : capitalizar(DIAS_CORTOS[f.getDay()]) + ' ' + f.getDate();
     return `<button type="button" class="pto${d.n === 0 ? ' hoy' : ''}" style="left:${x}%;--c:${cv(empresa(d.rs[0].empresaId).color)}" data-action="prox-ir" data-i="${d.i}" aria-label="${esc(txt + ': ' + d.rs.map(r => empresa(r.empresaId).nombre).join(', '))}"><i></i>${d.rs.length > 1 ? `<b>${d.rs.length}</b>` : ''}<span>${conTexto ? esc(txt) : '&nbsp;'}</span></button>`;
   }).join('');
-  return `<div class="prox-linea"><div class="eje"></div>${hayHoy ? '' : `<span class="pto hoy" style="left:${pct(0)}%;pointer-events:none" aria-hidden="true"><i></i><span>Hoy</span></span>`}${ptos}<span class="fin" aria-hidden="true">14 días</span></div>`;
+  return `<div class="prox-linea"><div class="eje"></div>${hayHoy ? '' : `<span class="pto hoy" style="left:${pct(0)}%;pointer-events:none" aria-hidden="true"><i></i><span>Hoy</span></span>`}${ptos}<span class="tope" aria-hidden="true"></span>${ultimo < 76 ? '<span class="fin" aria-hidden="true">14 días</span>' : ''}</div>`;   /* 3.49 · "14 días" solo si no choca con la última fecha */
 }
 /* Vista del mes */
 function cambiarMesCal(paso){
