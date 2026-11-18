@@ -168,14 +168,34 @@ a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,v
 .av-yo{background:var(--yo-fondo);color:var(--yo-texto)}
 .carrusel{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:2px 20px 6px;scroll-padding-inline:20px;scrollbar-width:none}
 .carrusel::-webkit-scrollbar{display:none}
-.prox-card{flex:0 0 272px;scroll-snap-align:start;background:var(--tarjeta);border:1px solid var(--borde);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:var(--texto)}
+/* 3.47 · Próximas reuniones: una franja propia, con línea de tiempo y tarjetas con el brillo de cada entidad */
+.prox-panel{margin-top:22px;padding:18px 20px 20px;display:flex;flex-direction:column;gap:12px;
+  background:radial-gradient(110% 90% at 0% 0%,color-mix(in srgb,var(--acento) 16%,transparent),transparent 62%),radial-gradient(90% 80% at 100% 100%,color-mix(in srgb,var(--acento) 9%,transparent),transparent 60%),color-mix(in srgb,var(--acento) 6%,var(--fondo));
+  border-top:1px solid color-mix(in srgb,var(--acento) 26%,transparent);border-bottom:1px solid color-mix(in srgb,var(--acento) 26%,transparent)}
+.prox-panel .sec-titulo{display:flex;align-items:center;gap:10px;color:var(--texto)}
+.prox-ico{width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--acento) 20%,transparent);color:var(--acento);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.prox-ico svg{width:17px;height:17px}
+.prox-linea{position:relative;height:50px;margin:2px 6px 0}
+.prox-linea .eje{position:absolute;left:0;right:0;top:15px;height:2px;border-radius:1px;background:linear-gradient(90deg,#F2A56B,color-mix(in srgb,var(--acento) 80%,transparent) 35%,color-mix(in srgb,var(--acento) 25%,transparent))}
+.prox-linea .pto{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;background:none;border:0;padding:0;font:inherit;color:var(--texto-2);cursor:pointer;min-width:30px}
+.prox-linea .pto i{display:block;width:16px;height:16px;margin-top:8px;border-radius:50%;background:var(--c);border:3px solid color-mix(in srgb,var(--acento) 6%,var(--fondo));box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 50%,transparent)}
+.prox-linea .pto.hoy i{background:#F2A56B;box-shadow:0 0 0 4px rgba(242,165,107,.28)}
+.prox-linea .pto span{font-size:11px;white-space:nowrap;line-height:1}
+.prox-linea .pto.hoy span{color:#F2A56B;font-weight:700}
+.prox-linea .pto b{position:absolute;top:0;right:-2px;font-size:9.5px;font-weight:800;background:var(--texto);color:var(--fondo);border-radius:7px;padding:0 4px;line-height:13px}
+.prox-linea .fin{position:absolute;right:0;top:26px;font-size:10.5px;color:var(--texto-3,var(--texto-2));opacity:.7}
+.prox-card{flex:0 0 272px;scroll-snap-align:start;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:var(--texto);
+  background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--c) 30%,transparent),transparent 62%),var(--tarjeta);
+  border:1px solid color-mix(in srgb,var(--c) 45%,var(--borde));box-shadow:0 10px 26px -14px color-mix(in srgb,var(--c) 70%,transparent)}
+.prox-card .banda-c{display:none}
 .prox-card .banda-c{height:6px;background:var(--c)}
 .prox-card .cuerpo{padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px;flex:1}
-.prox-fecha{width:58px;height:64px;border-radius:14px;background:var(--acento-suave);color:var(--acento);display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0}
+.prox-fecha{width:58px;height:64px;border-radius:15px;background:var(--c);color:#FFFFFF;display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 6px 14px -6px var(--c)}
 .prox-fecha .d{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.prox-fecha .n{font-family:var(--f-titulo);font-size:26px;font-weight:600;line-height:1;color:var(--acento-texto)}
-.prox-fecha.hoy{background:var(--pend-fondo);color:var(--pend-texto)}
-.prox-fecha.hoy .n{color:var(--pend-fuerte, var(--pend-texto))}
+.prox-fecha .d{opacity:.92}
+.prox-fecha .n{font-family:var(--f-titulo);font-size:26px;font-weight:600;line-height:1;color:#FFFFFF}
+.prox-fecha.hoy{background:#E07B39;color:#FFFFFF;box-shadow:0 6px 14px -6px #E07B39}
+.prox-fecha.hoy .n{color:#FFFFFF}
 .chip-info{font-size:12px;padding:4px 8px;border-radius:8px;background:var(--neutro-suave);color:var(--texto-2)}
 .chip-info.pend{background:var(--pend-fondo);color:var(--pend-texto);font-weight:600}
 .prox-btn{padding:9px 14px;border-radius:12px;background:var(--boton);color:var(--boton-texto);font-size:14px;font-weight:600}
@@ -666,7 +686,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.46 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.47 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1549,6 +1569,7 @@ function pildoraPart(e){
     : `<span class="pild pild-neutra">Sin participación</span>`;
 }
 /* ---------- 3.38 · Lugar, enlace virtual y cómo asistí ---------- */
+const I_CAL = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>';
 const I_LUGAR = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
 const I_VIDEO = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="M16 10.5l5-3v9l-5-3"/></svg>';
 /* Toma el primer enlace de lo pegado; si no trae https://, lo agrega */
@@ -1654,10 +1675,25 @@ function seccionProximas(){
   const futuras = reunionesVivas().filter(r => r.fecha >= hoyS).sort(ordenFechaHora);
   if (!futuras.length) return '';
   const cerca = futuras.filter(r => r.fecha <= limite);
-  const cab = `<div class="sec-fila"><h2 class="sec-titulo">Próximas reuniones${cerca.length ? ' · ' + cerca.length : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/calendario">Calendario ›</a></div>`;
+  const cab = `<div class="sec-fila"><h2 class="sec-titulo"><span class="prox-ico" aria-hidden="true">${I_CAL}</span>Próximas reuniones${cerca.length ? ' · ' + cerca.length : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/calendario">Calendario ›</a></div>`;
   if (!cerca.length) { const r = futuras[0];
-    return `<div class="sec" id="prox" style="padding-top:20px">${cab}<a class="tarjeta fila" href="#/junta/${r.id}" style="--c:${cv(empresa(r.empresaId).color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">Nada en los próximos 14 días</span><span class="sub">La siguiente: ${esc(conDia(r.fecha))} · ${esc(nombreTipoJunta(r))} · ${esc(empresa(r.empresaId).nombre)}</span></span>${I.chev}</a></div>`; }
-  return `<div class="sec" id="prox" style="padding-top:20px">${cab}<div class="carrusel" role="list" aria-label="Próximas reuniones">${cerca.slice(0, 10).map(tarjetaProxima).join('')}</div></div>`;
+    return `<div class="prox-panel" id="prox">${cab}<a class="tarjeta fila" href="#/junta/${r.id}" style="--c:${cv(empresa(r.empresaId).color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">Nada en los próximos 14 días</span><span class="sub">La siguiente: ${esc(conDia(r.fecha))} · ${esc(nombreTipoJunta(r))} · ${esc(empresa(r.empresaId).nombre)}</span></span>${I.chev}</a></div>`; }
+  const lista = cerca.slice(0, 10);
+  return `<div class="prox-panel" id="prox">${cab}${lineaProximas(lista)}<div class="carrusel" id="prox-carrusel" role="list" aria-label="Próximas reuniones">${lista.map(tarjetaProxima).join('')}</div></div>`;
+}
+/* 3.47 · Línea de los próximos 14 días: un punto por día con reuniones, del color de la entidad; al tocarlo, la tarjeta se trae a la vista */
+function lineaProximas(lista){
+  const hoyD = fechaD(hoyISO()), pos = f => Math.round((fechaD(f) - hoyD) / 864e5), pct = n => 3 + n / 14 * 91;
+  const dias = [];
+  lista.forEach((r, i) => { const n = pos(r.fecha); let d = dias.find(x => x.n === n); if (!d) dias.push(d = {n, i, rs:[]}); d.rs.push(r); });
+  const hayHoy = dias.some(d => d.n === 0);
+  let ultimo = hayHoy ? -99 : pct(0);   /* si no hay reunión hoy, "Hoy" ocupa el primer lugar */
+  const ptos = dias.map(d => {
+    const x = pct(d.n), conTexto = x - ultimo >= 13; if (conTexto) ultimo = x;
+    const f = fechaD(d.rs[0].fecha), txt = d.n === 0 ? 'Hoy' : d.n === 1 ? 'Mañana' : capitalizar(DIAS_CORTOS[f.getDay()]) + ' ' + f.getDate();
+    return `<button type="button" class="pto${d.n === 0 ? ' hoy' : ''}" style="left:${x}%;--c:${cv(empresa(d.rs[0].empresaId).color)}" data-action="prox-ir" data-i="${d.i}" aria-label="${esc(txt + ': ' + d.rs.map(r => empresa(r.empresaId).nombre).join(', '))}"><i></i>${d.rs.length > 1 ? `<b>${d.rs.length}</b>` : ''}<span>${conTexto ? esc(txt) : '&nbsp;'}</span></button>`;
+  }).join('');
+  return `<div class="prox-linea"><div class="eje"></div>${hayHoy ? '' : `<span class="pto hoy" style="left:${pct(0)}%;pointer-events:none" aria-hidden="true"><i></i><span>Hoy</span></span>`}${ptos}<span class="fin" aria-hidden="true">14 días</span></div>`;
 }
 /* Vista del mes */
 function cambiarMesCal(paso){
@@ -6038,6 +6074,7 @@ const ACCIONES = {
   'instr-guardar': b => guardarInstr(b.dataset.k),
   'instr-restaurar': async b => { const k = b.dataset.k; AJ.mapaAbierto = !!$('#mapa-pers')?.open; await lote({poner:{ajustes:[{clave:INSTR[k].cfg, valor:''}, {clave:INSTR[k].fecha, valor:new Date().toISOString()}]}}); const t = $('#instr-' + k); if (t) t.value = INSTR[k].orig(); aviso(k === 'mapa' ? 'Instrucción original restaurada' : 'Volvió a la fija de Mentor'); rePintarAj(); },
   'red-probar': () => probarRedaccion(),
+  'prox-ir': b => { const c = $('#prox-carrusel'), t = c?.children[+b.dataset.i]; if (t) c.scrollTo({left: t.getBoundingClientRect().left - c.getBoundingClientRect().left + c.scrollLeft - 20, behavior:'smooth'}); },
   'fj-modo': b => { FJ.modo = FJ.modo === b.dataset.v ? '' : b.dataset.v; reJunta(); },
   'unirse': b => { window.open(b.dataset.url, '_blank', 'noopener'); },
   'pegar-enlace': async b => { const inp = document.getElementById(b.dataset.campo); if (!inp) return;
