@@ -686,7 +686,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.47 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.48 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -5062,7 +5062,7 @@ function barraIA(campo, modo = 'nota', valor = '', siempre = false){
   if (!mej && !dic) return '';
   const d = IA_DESHACER[campo];
   if (d && d.despues !== valor) delete IA_DESHACER[campo];
-  const u = IA_DESHACER[campo], pend = dic ? pendientesDictado() : [];
+  const u = IA_DESHACER[campo], pend = dic ? pendientesPara(campo) : [];
   return `<div class="ia-barra" data-ia-barra="${campo}" data-modo="${modo}" data-siempre="${siempre ? '1' : ''}">${pend.length ? `<button type="button" class="btn-ia btn-ia-pend" data-action="ia-pendiente" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}${pend.length === 1 ? 'Transcribir grabación · ' + duracion(pend[0].seg) : 'Grabaciones guardadas · ' + pend.length}</button>` : ''}${dic ? `<button type="button" class="btn-ia" data-action="ia-dictar" data-campo="${campo}" data-modo="${modo}">${ICONO_MIC}Dictar con IA</button>` : ''}${mej ? `<button type="button" class="btn-ia" data-action="ia-mejorar" data-campo="${campo}" data-modo="${modo}">${ICONO_IA}Mejorar redacción</button>` : ''}${u ? `<button type="button" class="btn-ia-des" data-action="ia-deshacer" data-campo="${campo}">${esc(u.etiqueta || 'Volver a lo que dicté')}</button>` : ''}</div>`;
 }
 function refrescarBarraIA(campo){
@@ -5745,7 +5745,7 @@ async function accionDictar(b){
     fase = 'listo'; clearInterval(reloj);
     const seg = grab.segundos(), wav = grab.detener();
     if (seg < 1) { cerrarHoja(); return aviso('No alcanzó a grabar nada.'); }
-    const pend = {id:uid(), fecha:ahora(), seg, wav};
+    const pend = {id:uid(), fecha:ahora(), seg, wav, campo, ruta: rutaBase()};   /* 3.48 · se recuerda en qué campo se grabó */
     try { await guardarPendientes([...pendientesDictado(), pend]); } catch (e) { console.error(e); }
     transcribirPendiente(pend, campo, modo);
   };
@@ -5782,6 +5782,11 @@ async function probarDictado(){
 /* Grabaciones guardadas en el celular hasta que su texto queda en un campo (3.14).
    Así un error de la IA o una falla de internet nunca hace perder lo que se dictó. */
 const pendientesDictado = () => Array.isArray(S.cfg.dictadosPendientes) ? S.cfg.dictadosPendientes : [];
+/* 3.48 · Cada grabación aparece solo en el campo donde se grabó. Si ese campo no está en esta pantalla
+   (por ejemplo, se abrió la app en otra parte), queda a la mano en el texto de una nota, para no perderla.
+   Las grabaciones de antes de la 3.48 no saben su campo y siguen apareciendo en todos. */
+const rutaBase = () => (location.hash || '#/inicio').split('?')[0];
+const pendientesPara = campo => { const r = rutaBase(); return pendientesDictado().filter(p => !p.campo || (p.campo === campo && p.ruta === r) || (campo === 'fn-texto' && p.ruta !== r)); };
 const guardarPendientes = l => l.length ? setAjuste('dictadosPendientes', l) : lote({quitar:{ajustes:['dictadosPendientes']}});
 const duracion = s => { s = Math.max(0, Math.floor(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const horaCorta = f => { try { return new Date(f).toLocaleTimeString('es-CO', {hour:'numeric', minute:'2-digit'}); } catch { return ''; } };
@@ -5833,7 +5838,7 @@ function hojaFallaDictado(pend, campo, modo, err){
   });
 }
 function accionPendiente(b){
-  const campo = b.dataset.campo, modo = b.dataset.modo || 'nota', l = pendientesDictado();
+  const campo = b.dataset.campo, modo = b.dataset.modo || 'nota', l = pendientesPara(campo);
   if (!l.length) return refrescarBarraIA(campo);
   if (l.length === 1) return transcribirPendiente(l[0], campo, modo);
   const v = abrirHoja(`<h2 class="hoja-titulo">Grabaciones guardadas</h2>
