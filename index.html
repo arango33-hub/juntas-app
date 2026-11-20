@@ -184,7 +184,21 @@ a.fila:hover,button.fila:hover{color:var(--texto);background:color-mix(in srgb,v
 .prox-linea .pto.hoy span{color:#F2A56B;font-weight:700}
 .prox-linea .pto b{position:absolute;top:0;right:-2px;font-size:9.5px;font-weight:800;background:var(--texto);color:var(--fondo);border-radius:7px;padding:0 4px;line-height:13px}
 .prox-linea .tope{position:absolute;right:0;top:10px;width:2px;height:12px;border-radius:1px;background:color-mix(in srgb,var(--acento) 35%,transparent)}
-.prox-linea .fin{position:absolute;right:0;top:27px;font-size:10.5px;color:var(--texto-3,var(--texto-2));opacity:.7}
+.prox-zona{touch-action:pan-y;display:flex;flex-direction:column;gap:4px}
+.prox-ctrl{display:flex;align-items:center;gap:4px;margin:0 2px}
+.prox-flecha{background:none;border:0;color:var(--acento);font-size:22px;line-height:1;padding:2px 8px;min-width:32px;min-height:32px;cursor:pointer}
+.prox-flecha:disabled{opacity:.25;cursor:default}
+.prox-rango{font-size:13px;font-weight:600;color:var(--texto-2);white-space:nowrap}
+.prox-hoy{font-size:13px;padding:4px 6px}
+.prox-dias{background:color-mix(in srgb,var(--acento) 12%,transparent);color:var(--acento);border:1px solid color-mix(in srgb,var(--acento) 35%,transparent);border-radius:999px;font:inherit;font-size:13px;font-weight:600;padding:5px 12px;min-height:32px;cursor:pointer;white-space:nowrap}
+.prox-linea.largo{height:62px}
+.prox-linea.largo .eje{top:27px}.prox-linea.largo .pto{top:12px}.prox-linea.largo .tope{top:22px}
+.prox-linea .mes{position:absolute;top:0;transform:translateX(-50%);font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:var(--texto-2);opacity:.75;pointer-events:none}
+.prox-linea .mes::after{content:'';position:absolute;left:50%;top:14px;width:1.5px;height:12px;background:color-mix(in srgb,var(--texto-2) 45%,transparent)}
+@keyframes proxSig{from{opacity:0;transform:translateX(36px)}to{opacity:1;transform:none}}
+@keyframes proxAnt{from{opacity:0;transform:translateX(-36px)}to{opacity:1;transform:none}}
+.prox-entra-sig{animation:proxSig .22s ease-out}.prox-entra-ant{animation:proxAnt .22s ease-out}
+@media (prefers-reduced-motion:reduce){.prox-entra-sig,.prox-entra-ant{animation:none}}
 .prox-card{flex:0 0 272px;scroll-snap-align:start;border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:var(--texto);
   background:radial-gradient(120% 90% at 0% 0%,color-mix(in srgb,var(--c) 30%,transparent),transparent 62%),var(--tarjeta);
   border:1px solid color-mix(in srgb,var(--c) 45%,var(--borde));box-shadow:0 10px 26px -14px color-mix(in srgb,var(--c) 70%,transparent)}
@@ -650,6 +664,22 @@ button.btn-mini{width:40px}
 .btn-ia-des{min-height:44px;border:0;background:transparent;color:var(--texto-2);font-size:14px;font-family:inherit;text-decoration:underline;text-underline-offset:3px;padding:0 4px}
 .ia-texto{margin:0;padding:16px;border-radius:14px;background:var(--acento-suave);color:var(--texto);font-size:16px;line-height:1.55;white-space:pre-wrap;max-height:45dvh;overflow:auto}
 .ia-original{font-size:14px;color:var(--texto-2)}
+.velo.velo-comp{align-items:flex-start}
+.hoja.hoja-comp{max-width:100%;height:100dvh;max-height:none;border-radius:0;gap:10px;overflow:hidden;padding:calc(14px + env(safe-area-inset-top)) 16px calc(14px + env(safe-area-inset-bottom))}
+.cmp-cab{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cmp{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+.cmp-lado{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px}
+.cmp-nueva{flex:1.15}
+.cmp-tit{min-height:32px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:13px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--texto-2)}
+.cmp-nota{font-size:12.5px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--texto-2)}
+.cmp-nota.cmp-editada{color:var(--acento);font-weight:700}
+.cmp-ta{flex:1;min-height:0;width:100%;resize:none;padding:14px;border-radius:14px;border:2px solid color-mix(in srgb,var(--acento) 55%,transparent);background:var(--acento-suave);color:var(--texto);font:inherit;font-size:16px;line-height:1.55}
+.cmp-ta:focus{outline:none;border-color:var(--acento)}
+.cmp-txt{flex:1;min-height:0;overflow:auto;padding:12px 14px;border-radius:14px;border:1px dashed var(--borde);background:var(--fondo);color:var(--texto);font-size:15px;line-height:1.55;white-space:pre-wrap;user-select:text;-webkit-user-select:text}
+.cmp-marcar{background:none;border:1px solid var(--borde);border-radius:999px;color:var(--acento);font:inherit;font-size:12.5px;font-weight:600;letter-spacing:0;text-transform:none;padding:5px 11px;min-height:32px;cursor:pointer}
+.cmp-marcar.sel{background:var(--acento);color:#fff;border-color:var(--acento)}
+mark.cmp-fuera{background:rgba(232,133,122,.32);color:inherit;border-radius:3px;text-decoration:line-through;text-decoration-color:rgba(200,70,60,.7)}
+@media (min-width:720px){.velo.velo-comp{align-items:center}.hoja.hoja-comp{max-width:1100px;height:88dvh;border-radius:20px}.cmp{flex-direction:row}.cmp-nueva{flex:1}}
 .ia-original summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--acento);font-weight:600}
 .ia-original p{margin:0;padding:12px 14px;border:1px solid var(--borde);border-radius:12px;white-space:pre-wrap;line-height:1.5}
 .ia-cargando{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--texto-2);min-height:56px}
@@ -692,7 +722,7 @@ button.btn-mini{width:40px}
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.51 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.52 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -1726,31 +1756,75 @@ function tarjetaProxima(r){
     <div style="display:flex;align-items:center;gap:8px;margin-top:auto">${gente.length ? `<div class="caras" aria-hidden="true">${gente.slice(0, 3).map(p => `<div class="cara">${esc(iniciales(p.nombre))}</div>`).join('')}${gente.length > 3 ? `<div class="cara">+${gente.length - 3}</div>` : ''}</div>` : ''}<span style="flex:1"></span>${hoy && esURL(r.enlace || '') ? `<span class="prox-btn prox-unirse" role="button" data-action="unirse" data-url="${esc(r.enlace)}">${I_VIDEO}Unirse</span>` : ''}<span class="prox-btn">Preparar</span></div>
   </div></a>`;
 }
-/* Sección de la pantalla de inicio: tarjetas de los próximos 14 días; si no hay, una línea con la siguiente */
+/* Sección de la pantalla de inicio: tarjetas de los próximos días.
+   3.52 · El rango se escoge (15, 20, 30, 60 o 120 días) y la línea se desliza por tramos de ese largo. */
+const PROX_RANGOS = [15, 20, 30, 60, 120];
+const rangoProx = () => PROX_RANGOS.includes(+S.cfg.proxDias) ? +S.cfg.proxDias : 15;
+let PROX = {tramo:0, anim:''};
+const diaMes = f => { const d = fechaD(f); return d.getDate() + ' ' + d.toLocaleDateString('es-CO', {month:'short'}).replace('.', ''); };
+const sumarDias = (f, n) => iso(new Date(fechaD(f).getTime() + n * 864e5 + 3600e3));
 function seccionProximas(){
-  const hoyS = hoyISO(), limite = iso(new Date(Date.now() + 14 * 864e5));
+  const N = rangoProx(), hoyS = hoyISO();
   const futuras = reunionesVivas().filter(r => r.fecha >= hoyS).sort(ordenFechaHora);
-  if (!futuras.length) return '';
-  const cerca = futuras.filter(r => r.fecha <= limite);
+  if (!futuras.length) { PROX.tramo = 0; return ''; }
+  const desde = sumarDias(hoyS, PROX.tramo * N), hasta = sumarDias(desde, N - 1);
+  const cerca = futuras.filter(r => r.fecha >= desde && r.fecha <= hasta);
   const cab = `<div class="sec-fila"><h2 class="sec-titulo"><span class="prox-ico" aria-hidden="true">${I_CAL}</span>Próximas reuniones${cerca.length ? ' · ' + cerca.length : ''}</h2><a class="enlace-btn" style="font-size:14px" href="#/calendario">Calendario ›</a></div>`;
-  if (!cerca.length) { const r = futuras[0];
-    return `<div class="prox-panel" id="prox">${cab}<a class="tarjeta fila" href="#/junta/${r.id}" style="--c:${cv(empresa(r.empresaId).color)}"><span class="punto-emp" aria-hidden="true"></span><span class="col"><span class="nom">Nada en los próximos 14 días</span><span class="sub">La siguiente: ${esc(conDia(r.fecha))} · ${esc(nombreTipoJunta(r))} · ${esc(empresa(r.empresaId).nombre)}</span></span>${I.chev}</a></div>`; }
-  const lista = cerca.slice(0, 10);
-  return `<div class="prox-panel" id="prox">${cab}${lineaProximas(lista)}<div class="carrusel" id="prox-carrusel" role="list" aria-label="Próximas reuniones">${lista.map(tarjetaProxima).join('')}</div></div>`;
+  const rango = `${PROX.tramo ? diaMes(desde) : 'Hoy'} – ${diaMes(hasta)}`;
+  const ctrl = `<div class="prox-ctrl"><button type="button" class="prox-flecha" data-action="prox-tramo" data-d="-1" aria-label="Días anteriores"${PROX.tramo ? '' : ' disabled'}>‹</button><span class="prox-rango">${esc(rango)}</span><button type="button" class="prox-flecha" data-action="prox-tramo" data-d="1" aria-label="Días siguientes">›</button>
+    ${PROX.tramo ? '<button type="button" class="enlace-btn prox-hoy" data-action="prox-hoy">Volver a hoy</button>' : ''}<span style="flex:1"></span><button type="button" class="prox-dias" data-action="prox-rango" aria-label="Cambiar cuántos días muestra la línea">${N} días <span aria-hidden="true">▾</span></button></div>`;
+  const anim = PROX.anim ? ' prox-entra-' + PROX.anim : ''; PROX.anim = '';
+  const linea = `<div class="prox-zona${anim}" id="prox-zona">${ctrl}${lineaProximas(cerca.slice(0, 40), desde, N)}</div>`;
+  if (!cerca.length) { const r = futuras.find(x => x.fecha > hasta);
+    return `<div class="prox-panel" id="prox">${cab}${linea}<div class="tarjeta fila${anim}" style="${r ? '--c:' + cv(empresa(r.empresaId).color) : ''}">${r ? '<span class="punto-emp" aria-hidden="true"></span>' : ''}<span class="col"><span class="nom">Nada entre ${esc(PROX.tramo ? diaMes(desde) : 'hoy')} y el ${esc(diaMes(hasta))}</span><span class="sub">${r ? `La siguiente: ${esc(conDia(r.fecha))} · ${esc(nombreTipoJunta(r))} · ${esc(empresa(r.empresaId).nombre)}` : 'No hay más reuniones programadas después.'}</span></span>${r ? `<a class="enlace-btn" style="margin-left:auto;font-size:14px;white-space:nowrap" href="#/junta/${r.id}">Ver ›</a>` : ''}</div></div>`; }
+  const lista = cerca.slice(0, 40);
+  return `<div class="prox-panel" id="prox">${cab}${linea}<div class="carrusel${anim}" id="prox-carrusel" role="list" aria-label="Próximas reuniones">${lista.map(tarjetaProxima).join('')}</div></div>`;
 }
-/* 3.47 · Línea de los próximos 14 días: un punto por día con reuniones, del color de la entidad; al tocarlo, la tarjeta se trae a la vista */
-function lineaProximas(lista){
-  const hoyD = fechaD(hoyISO()), pos = f => Math.round((fechaD(f) - hoyD) / 864e5), pct = n => 3 + n / 14 * 91;
+/* 3.47 · Línea de los próximos días: un punto por día con reuniones, del color de la entidad; al tocarlo, la tarjeta se trae a la vista.
+   3.52 · Sirve para cualquier tramo (desde, N días); en tramos largos rotula con la fecha y marca el comienzo de cada mes. */
+function lineaProximas(lista, desde = hoyISO(), N = 15){
+  const ini = fechaD(desde), pos = f => Math.round((fechaD(f) - ini) / 864e5), pct = n => 3 + n / (N - 1) * 91;
+  const largo = N > 30, esHoy = desde === hoyISO();
   const dias = [];
   lista.forEach((r, i) => { const n = pos(r.fecha); let d = dias.find(x => x.n === n); if (!d) dias.push(d = {n, i, rs:[]}); d.rs.push(r); });
-  const hayHoy = dias.some(d => d.n === 0);
-  let ultimo = hayHoy ? -99 : pct(0);   /* si no hay reunión hoy, "Hoy" ocupa el primer lugar */
+  const hayHoy = esHoy && dias.some(d => d.n === 0);
+  let ultimo = esHoy && !hayHoy ? pct(0) : -99;   /* si no hay reunión hoy, "Hoy" ocupa el primer lugar */
   const ptos = dias.map(d => {
-    const x = pct(d.n), conTexto = x - ultimo >= 13; if (conTexto) ultimo = x;
-    const f = fechaD(d.rs[0].fecha), txt = d.n === 0 ? 'Hoy' : d.n === 1 ? 'Mañana' : capitalizar(DIAS_CORTOS[f.getDay()]) + ' ' + f.getDate();
-    return `<button type="button" class="pto${d.n === 0 ? ' hoy' : ''}" style="left:${x}%;--c:${cv(empresa(d.rs[0].empresaId).color)}" data-action="prox-ir" data-i="${d.i}" aria-label="${esc(txt + ': ' + d.rs.map(r => empresa(r.empresaId).nombre).join(', '))}"><i></i>${d.rs.length > 1 ? `<b>${d.rs.length}</b>` : ''}<span>${conTexto ? esc(txt) : '&nbsp;'}</span></button>`;
+    const x = pct(d.n), conTexto = x - ultimo >= (largo ? 15 : 13); if (conTexto) ultimo = x;
+    const f = fechaD(d.rs[0].fecha), hoy = esHoy && d.n === 0;
+    const txt = hoy ? 'Hoy' : esHoy && d.n === 1 ? 'Mañana' : largo ? diaMes(d.rs[0].fecha) : capitalizar(DIAS_CORTOS[f.getDay()]) + ' ' + f.getDate();
+    return `<button type="button" class="pto${hoy ? ' hoy' : ''}" style="left:${x}%;--c:${cv(empresa(d.rs[0].empresaId).color)}" data-action="prox-ir" data-i="${d.i}" aria-label="${esc(txt + ': ' + d.rs.map(r => empresa(r.empresaId).nombre).join(', '))}"><i></i>${d.rs.length > 1 ? `<b>${d.rs.length}</b>` : ''}<span>${conTexto ? esc(txt) : '&nbsp;'}</span></button>`;
   }).join('');
-  return `<div class="prox-linea"><div class="eje"></div>${hayHoy ? '' : `<span class="pto hoy" style="left:${pct(0)}%;pointer-events:none" aria-hidden="true"><i></i><span>Hoy</span></span>`}${ptos}<span class="tope" aria-hidden="true"></span>${ultimo < 76 ? '<span class="fin" aria-hidden="true">14 días</span>' : ''}</div>`;   /* 3.49 · "14 días" solo si no choca con la última fecha */
+  /* Comienzo de cada mes dentro del tramo (solo en tramos de más de 30 días) */
+  let meses = '';
+  if (largo) for (let n = 1; n < N; n++) { const f = sumarDias(desde, n); if (f.endsWith('-01')) meses += `<span class="mes" style="left:${pct(n)}%" aria-hidden="true">${esc(fechaD(f).toLocaleDateString('es-CO', {month:'short'}).replace('.', ''))}</span>`; }
+  const hoyFantasma = esHoy && !hayHoy ? `<span class="pto hoy" style="left:${pct(0)}%;pointer-events:none" aria-hidden="true"><i></i><span>Hoy</span></span>` : '';
+  return `<div class="prox-linea${largo ? ' largo' : ''}"><div class="eje"></div>${meses}${hoyFantasma}${ptos}<span class="tope" aria-hidden="true"></span></div>`;
+}
+/* Deslizar la línea (o la fila de arriba) cambia de tramo; se escucha una sola vez en el documento */
+function moverProx(d){
+  const t = Math.max(0, PROX.tramo + d); if (t === PROX.tramo) return;
+  PROX.anim = d > 0 ? 'sig' : 'ant'; PROX.tramo = t;
+  const el = $('#prox'); if (el) el.outerHTML = seccionProximas();
+}
+(() => { let x0 = null, y0 = 0;
+  document.addEventListener('touchstart', ev => { if (!ev.target.closest?.('#prox-zona')) { x0 = null; return; } x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; }, {passive:true});
+  document.addEventListener('touchend', ev => { if (x0 === null) return; const p = ev.changedTouches[0], dx = p.clientX - x0, dy = p.clientY - y0; x0 = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) moverProx(dx < 0 ? 1 : -1); }, {passive:true});
+})();
+function hojaRangoProx(){
+  const N = rangoProx();
+  const v = abrirHoja(`<h2 class="hoja-titulo">¿Cuántos días mostrar?</h2>
+    <p class="hoja-texto">La línea de Próximas reuniones muestra este número de días. Deslícela a los lados para ver los siguientes.</p>
+    <div class="opc2" style="grid-template-columns:repeat(5,minmax(0,1fr))" role="group" aria-label="Días">${PROX_RANGOS.map(n => `<button type="button" class="opc-btn${n === N ? ' sel' : ''}" data-n="${n}" aria-pressed="${n === N}">${n}</button>`).join('')}</div>
+    <button type="button" class="btn-sec" data-r="0">Cerrar</button>`);
+  $('[data-r]', v).addEventListener('click', () => cerrarHoja());
+  $$('[data-n]', v).forEach(b => b.addEventListener('click', async () => { cerrarHoja(); await cambiarRangoProx(+b.dataset.n); }));
+}
+async function cambiarRangoProx(n){
+  await setAjuste('proxDias', n); PROX.tramo = 0;
+  const el = $('#prox'); if (el) el.outerHTML = seccionProximas();
+  aviso(`La línea muestra ${n} días`);
 }
 /* Vista del mes */
 function cambiarMesCal(paso){
@@ -4414,6 +4488,9 @@ function vistaAjustes(id, q = {}){
   const general = tarjAj('indigo', 'tema', 'Apariencia', 'Claro, oscuro o igual que su celular', `<div class="ajuste">
       <div class="opc2" style="grid-template-columns:repeat(3,minmax(0,1fr))" role="group" aria-label="Apariencia">${[['sistema','Según el sistema'],['claro','Claro'],['oscuro','Oscuro']].map(([k,t]) => `<button type="button" class="opc-btn${tema === k ? ' sel' : ''}" data-action="tema" data-v="${k}" aria-pressed="${tema === k}">${t}</button>`).join('')}</div>
       <p>“Según el sistema” cambia solo, igual que su celular.</p></div>`)
+    + tarjAj('durazno', 'reloj', 'Próximas reuniones', 'Cuántos días muestra la línea del inicio', `<div class="ajuste">
+      <div class="opc2" style="grid-template-columns:repeat(5,minmax(0,1fr))" role="group" aria-label="Días de la línea">${PROX_RANGOS.map(n => `<button type="button" class="opc-btn${n === rangoProx() ? ' sel' : ''}" data-action="aj-prox" data-n="${n}" aria-pressed="${n === rangoProx()}">${n}</button>`).join('')}</div>
+      <p>Días que muestra la línea de Próximas reuniones. En el inicio se desliza a los lados para ver los siguientes.</p></div>`)
     + tarjAj('coral', 'candado', 'Seguridad', 'Su PIN protege la entrada a Mentor', `<div class="ajuste">
       <p>La app pide el PIN al abrirse y se bloquea sola después de ${BLOQUEO_MIN} minutos en segundo plano.</p>
       <button type="button" class="btn-sec" data-action="cambiar-pin">Cambiar PIN</button></div>`)
@@ -4455,7 +4532,7 @@ function vistaAjustes(id, q = {}){
   $('#aj-dias')?.addEventListener('change', async e => { await setAjuste('recordatorioDias', +e.target.value); aviso('Recordatorio actualizado'); });
   $('#dic-modelo')?.addEventListener('change', async e => { await guardarModeloDictado('openai', e.target.value); aviso('Modelo de transcripción actualizado'); });
   document.querySelectorAll('.instr-area').forEach(t => { t.addEventListener('input', () => estadoInstr(t.dataset.instr)); estadoInstr(t.dataset.instr); });
-  ['mejorar', 'transcribir'].forEach(k => $('#ia-esp-' + k)?.addEventListener('change', async e => { await setAjuste('iaEspera', {...(S.cfg.iaEspera || {}), [k]: +e.target.value}); aviso('Tiempo de espera actualizado'); }));
+  ['mejorar', 'transcribir', 'mapa'].forEach(k => $('#ia-esp-' + k)?.addEventListener('change', async e => { await setAjuste('iaEspera', {...(S.cfg.iaEspera || {}), [k]: +e.target.value}); aviso('Tiempo de espera actualizado'); }));
   $('#ia-modelo')?.addEventListener('change', async e => { await setAjuste('iaModelos', {...(S.cfg.iaModelos || {}), [iaProveedor()]: e.target.value}); aviso('Modelo actualizado'); });
 }
 
@@ -5257,8 +5334,10 @@ function genGemini(modelo, maxTokens, pensar){
   return g;
 }
 /* Tiempo máximo de espera por intento, en segundos (Ajustes; 10 y 10 por defecto, 3.17) */
-const ESPERAS_IA = {mejorar:[10, 15, 20, 30, 45, 60], transcribir:[10, 15, 20, 30, 60, 120]};
-const esperaIA = k => { const v = +((S.cfg.iaEspera || {})[k]); return ESPERAS_IA[k].includes(v) ? v : 10; };
+const ESPERAS_IA = {mejorar:[10, 15, 20, 30, 45, 60], transcribir:[10, 15, 20, 30, 60, 120], mapa:[30, 60, 120, 180, 300]};
+const ESPERA_BASE = {mejorar:10, transcribir:10, mapa:120};   /* 3.52 · el mapa mental tiene su propio tiempo (2 min) */
+const esperaIA = k => { const v = +((S.cfg.iaEspera || {})[k]); return ESPERAS_IA[k].includes(v) ? v : ESPERA_BASE[k]; };
+const textoEspera = n => n < 60 ? n + ' s' : n % 60 ? (n / 60).toString().replace('.', ',') + ' min' : n / 60 + ' min';
 /* Versión de un modelo de Gemini por su nombre (gemini-3.8-flash → 3.8); los alias como gemini-flash-latest dan 0 */
 const versionGemini = id => { const m = /^gemini-(\d+(?:\.\d+)?)-/.exec(id); return m ? parseFloat(m[1]) : 0; };
 /* Flash estables (sin lite, preview ni fecha), del más nuevo al más viejo */
@@ -5418,7 +5497,7 @@ function parsearMapa(txt){
 async function pedirMapa(texto, estilo, signal, modeloIntento){
   const p = iaProveedor(), modelo = modeloIntento || iaModelo(p);
   if (!modelo) throw new ErrorIA(0, 'sin-modelo');
-  const pedir = async () => { const d = await iaFetch(p, iaClave(p), 'mejorar', {system:instrMapa(estilo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal, Math.max(30, esperaIA('mejorar')) * 1000);
+  const pedir = async () => { const d = await iaFetch(p, iaClave(p), 'mejorar', {system:instrMapa(estilo), texto:`<texto>\n${texto}\n</texto>`, modelo}, signal, esperaIA('mapa') * 1000);
     const r = textoRespuesta(p, d); if (r.bloqueado && !r.t) throw new ErrorIA(0, 'bloqueado'); if (!r.t) throw new ErrorIA(0, 'vacio', r.motivo || ''); return parsearMapa(r.t); };
   try { return {ramas: await pedir(), modelo}; }
   catch (e) { if (e instanceof ErrorIA && e.tipo === 'formato') return {ramas: await pedir(), modelo}; throw e; }
@@ -5448,7 +5527,7 @@ async function hacerMapa(rid, estilo){
   let listo = false;
   const v = abrirHoja(`<h2 class="hoja-titulo">Mapa mental</h2>
     <div class="ia-cargando" role="status"><span class="ia-giro" aria-hidden="true"></span><span id="mm-estado">${esc(P.n)} está organizando los temas…</span></div>
-    <p class="ayuda ia-espera" style="margin:0" id="mm-info">Modelo: ${esc(iaModelo() || '—')} · <span id="mm-seg">0 s</span></p>
+    <p class="ayuda ia-espera" style="margin:0" id="mm-info">Modelo: ${esc(iaModelo() || '—')} · <span id="mm-seg">0 s</span> de ${textoEspera(esperaIA('mapa'))} por intento</p>
     <button type="button" class="btn-sec" data-r="0">Cancelar</button>`, () => { clearInterval(cron); if (!listo) ctrl.abort(); });
   const t0 = Date.now(), cron = setInterval(() => { const e = $('#mm-seg', v); if (e) e.textContent = Math.round((Date.now() - t0) / 1000) + ' s'; }, 1000);
   $('[data-r]', v).addEventListener('click', () => cerrarHoja());
@@ -5565,22 +5644,57 @@ async function accionMejorar(b){
   listo = true;
   if (!ta.isConnected) { cerrarHoja(); return; }
   const igual = norm(r.texto).replace(/\s+/g, ' ') === norm(texto).replace(/\s+/g, ' ');
-  const h = abrirHoja(`<h2 class="hoja-titulo">Versión mejorada</h2>
-    <p class="ia-origen">${ICONO_IA}Con ${esc(IA_PROV[r.p].n)}</p>
-    ${igual ? `<p class="hoja-texto">${esc(IA_PROV[r.p].n)} no encontró nada importante que cambiar.</p>` : ''}
-    <p class="ia-texto">${esc(r.texto)}</p>
-    ${r.cortado ? '<p class="hoja-error">El texto era muy largo y la versión quedó incompleta. Revísela antes de usarla.</p>' : ''}
-    <details class="ia-original"><summary>Ver lo que dicté</summary><p>${esc(texto)}</p></details>
-    <p class="ayuda" style="margin:0">Revise que no haya cambiado ningún dato. Si la usa, puede volver a lo que dictó.</p>
-    <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Dejar la mía</button><button type="button" class="btn-pri" data-r="1">Usar esta versión</button></div>`);
+  hojaComparar({original, texto, r, ta, campo, igual});
+}
+/* 3.52 · Comparar: arriba la versión nueva, que se puede corregir; abajo lo que dictó, fijo, para leer y copiar.
+   En pantallas anchas quedan lado a lado. "Marcar diferencias" resalta en lo dictado lo que la IA quitó o cambió. */
+function palabrasQuitadas(viejo, nuevo){
+  const tok = t => t.match(/\S+|\s+/g) || [], clave = w => norm(w).replace(/[^\p{L}\p{N}]/gu, '');
+  const A = tok(viejo), B = tok(nuevo).filter(w => /\S/.test(w)).map(clave).filter(Boolean);
+  const idx = A.map((w, i) => /\S/.test(w) && clave(w) ? i : -1).filter(i => i >= 0), a = idx.map(i => clave(A[i]));
+  const fuera = new Set();
+  if (a.length * B.length <= 4e6) {
+    /* Subsecuencia común más larga, palabra por palabra */
+    const n = a.length, m = B.length, L = Array.from({length:n + 1}, () => new Uint16Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = a[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    let i = 0, j = 0; while (i < n && j < m) { if (a[i] === B[j]) { i++; j++; } else if (L[i + 1][j] >= L[i][j + 1]) fuera.add(idx[i++]); else j++; }
+    while (i < n) fuera.add(idx[i++]);
+  } else { const enNuevo = new Set(B); idx.forEach((k, t) => { if (!enNuevo.has(a[t])) fuera.add(k); }); }   /* texto muy largo: comparación simple */
+  return {html: A.map((w, i) => fuera.has(i) ? `<mark class="cmp-fuera">${esc(w)}</mark>` : esc(w)).join(''), n: fuera.size};
+}
+const AYUDA_COPIAR = () => matchMedia('(pointer: coarse)').matches ? 'Mantenga presionado para seleccionar y copiar; péguelo arriba.' : 'Seleccione y copie lo que quiera; péguelo en la versión nueva.';
+function hojaComparar({original, texto, r, ta, campo, igual}){
+  let marcar = false;
+  const h = abrirHoja(`<div class="cmp-cab"><h2 class="hoja-titulo" style="margin:0">Comparar versiones</h2><span class="ia-origen" style="margin:0">${ICONO_IA}Con ${esc(IA_PROV[r.p].n)}</span></div>
+    ${igual ? `<p class="hoja-texto" style="margin:0">${esc(IA_PROV[r.p].n)} no encontró nada importante que cambiar.</p>` : ''}
+    ${r.cortado ? '<p class="hoja-error" style="margin:0">El texto era muy largo y la versión quedó incompleta. Revísela antes de usarla.</p>' : ''}
+    <div class="cmp">
+      <section class="cmp-lado cmp-nueva"><div class="cmp-tit"><span>Versión nueva</span><span class="cmp-nota" id="cmp-estado">Puede corregirla aquí</span></div>
+        <textarea class="cmp-ta" id="cmp-nueva" aria-label="Versión nueva, se puede corregir" spellcheck="true">${esc(r.texto)}</textarea></section>
+      <section class="cmp-lado cmp-orig"><div class="cmp-tit"><span>Lo que dicté</span><button type="button" class="cmp-marcar" id="cmp-marcar" aria-pressed="false">Marcar diferencias</button></div>
+        <div class="cmp-txt" id="cmp-orig" tabindex="0">${esc(texto)}</div>
+        <p class="cmp-nota" id="cmp-leyenda" style="margin:0">${AYUDA_COPIAR()}</p></section>
+    </div>
+    <div class="hoja-botones"><button type="button" class="btn-sec" data-r="0">Dejar la mía</button><button type="button" class="btn-pri" data-r="1">Usar esta versión</button></div>`, () => { if (vv) vv.removeEventListener('resize', ajustar); });
+  h.classList.add('velo-comp'); const hoja = $('.hoja', h); hoja.classList.add('hoja-comp');
+  /* Con el teclado abierto, la hoja se encoge al espacio visible para que lo de abajo no quede tapado */
+  const vv = window.visualViewport, ajustar = () => { hoja.style.height = vv && innerWidth < 720 ? Math.round(vv.height) + 'px' : ''; };
+  if (vv) { vv.addEventListener('resize', ajustar); ajustar(); }
+  const nueva = $('#cmp-nueva', h), orig = $('#cmp-orig', h), est = $('#cmp-estado', h);
+  nueva.addEventListener('input', () => { est.textContent = nueva.value === r.texto ? 'Puede corregirla aquí' : 'Corregida por usted'; est.classList.toggle('cmp-editada', nueva.value !== r.texto); if (marcar) pintarMarcas(); });
+  const pintarMarcas = () => { if (!marcar) { orig.textContent = texto; $('#cmp-leyenda', h).textContent = AYUDA_COPIAR(); return; }
+    const d = palabrasQuitadas(texto, nueva.value); orig.innerHTML = d.html;
+    $('#cmp-leyenda', h).innerHTML = d.n ? `<mark class="cmp-fuera">Marcado</mark>: ${plural(d.n, 'palabra que no quedó', 'palabras que no quedaron')} igual en la versión nueva.` : 'Todas sus palabras quedaron en la versión nueva.'; };
+  $('#cmp-marcar', h).addEventListener('click', ev => { marcar = !marcar; ev.currentTarget.setAttribute('aria-pressed', marcar); ev.currentTarget.classList.toggle('sel', marcar); ev.currentTarget.textContent = marcar ? 'Quitar marcas' : 'Marcar diferencias'; pintarMarcas(); });
   $('[data-r="0"]', h).addEventListener('click', () => cerrarHoja());
   $('[data-r="1"]', h).addEventListener('click', () => {
+    const final = nueva.value.trim() ? nueva.value : r.texto;
     cerrarHoja();
     if (!ta.isConnected) return;
-    IA_DESHACER[campo] = {antes: original, despues: r.texto};
-    ponerTextoCampo(ta, r.texto);
+    IA_DESHACER[campo] = {antes: original, despues: final};
+    ponerTextoCampo(ta, final);
     refrescarBarraIA(campo);
-    aviso('Texto mejorado');
+    aviso(final === r.texto ? 'Texto mejorado' : 'Texto mejorado con sus correcciones');
   });
 }
 /* Primera vez, sin ninguna clave: escoger proveedor y pegar la clave */
@@ -5663,11 +5777,12 @@ function ajustesIA(){
       <div style="display:flex;gap:16px;flex-wrap:wrap">${instrPropia('mapa') ? '<button type="button" class="enlace-btn" data-action="instr-restaurar" data-k="mapa">Restaurar la original</button>' : ''}${clave ? '<button type="button" class="enlace-btn" data-action="mapa-probar">Probar con la última reunión</button>' : ''}</div></div></details>
     </div>`);
   const esperas = tarjAj('gris', 'reloj', 'Tiempos de espera', 'Cuánto espera Mentor la respuesta en cada intento', `<div class="ajuste">
-      <p>La app intenta hasta tres veces. Si ve seguido el error “sin respuesta”, súbalo. Una grabación que no alcanza a transcribirse queda guardada.</p>
+      <p>La app intenta hasta tres veces. Si ve seguido el error “sin respuesta”, súbalo; con textos largos el mapa mental necesita más tiempo. Una grabación que no alcanza a transcribirse queda guardada.</p>
       <div class="dos">
         <div class="campo"><label for="ia-esp-mejorar">Mejorar redacción</label><select class="input" id="ia-esp-mejorar">${ESPERAS_IA.mejorar.map(n => `<option value="${n}"${n === esperaIA('mejorar') ? ' selected' : ''}>${n} s</option>`).join('')}</select></div>
-        <div class="campo"><label for="ia-esp-transcribir">Dictar con IA</label><select class="input" id="ia-esp-transcribir">${ESPERAS_IA.transcribir.map(n => `<option value="${n}"${n === esperaIA('transcribir') ? ' selected' : ''}>${n < 60 ? n + ' s' : n / 60 + ' min'}</option>`).join('')}</select></div>
+        <div class="campo"><label for="ia-esp-transcribir">Dictar con IA</label><select class="input" id="ia-esp-transcribir">${ESPERAS_IA.transcribir.map(n => `<option value="${n}"${n === esperaIA('transcribir') ? ' selected' : ''}>${textoEspera(n)}</option>`).join('')}</select></div>
       </div>
+      <div class="campo" style="max-width:calc(50% - 6px)"><label for="ia-esp-mapa">Mapa mental</label><select class="input" id="ia-esp-mapa">${ESPERAS_IA.mapa.map(n => `<option value="${n}"${n === esperaIA('mapa') ? ' selected' : ''}>${textoEspera(n)}</option>`).join('')}</select></div>
     </div>`);
   return `<div id="ia" class="col" style="gap:18px">${proveedor}${red}${dic}${mapa}${esperas}</div>`;
 }
@@ -6174,6 +6289,10 @@ const ACCIONES = {
   'instr-guardar': b => guardarInstr(b.dataset.k),
   'instr-restaurar': async b => { const k = b.dataset.k; AJ.mapaAbierto = !!$('#mapa-pers')?.open; await lote({poner:{ajustes:[{clave:INSTR[k].cfg, valor:''}, {clave:INSTR[k].fecha, valor:new Date().toISOString()}]}}); const t = $('#instr-' + k); if (t) t.value = INSTR[k].orig(); aviso(k === 'mapa' ? 'Instrucción original restaurada' : 'Volvió a la fija de Mentor'); rePintarAj(); },
   'red-probar': () => probarRedaccion(),
+  'prox-tramo': b => moverProx(+b.dataset.d),
+  'prox-hoy': () => { PROX.anim = 'ant'; PROX.tramo = 0; const el = $('#prox'); if (el) el.outerHTML = seccionProximas(); },
+  'prox-rango': () => hojaRangoProx(),
+  'aj-prox': async b => { await cambiarRangoProx(+b.dataset.n); vistaAjustes(); },
   'prox-ir': b => { const c = $('#prox-carrusel'), t = c?.children[+b.dataset.i]; if (t) c.scrollTo({left: t.getBoundingClientRect().left - c.getBoundingClientRect().left + c.scrollLeft - 20, behavior:'smooth'}); },
   'fj-modo': b => { FJ.modo = FJ.modo === b.dataset.v ? '' : b.dataset.v; reJunta(); },
   'unirse': b => { window.open(b.dataset.url, '_blank', 'noopener'); },
