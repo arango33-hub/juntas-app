@@ -722,7 +722,7 @@ mark.cmp-fuera{background:rgba(232,133,122,.32);color:inherit;border-radius:3px;
    NOMBRE VISIBLE DE LA APP — cambiarlo aquí cambia toda la interfaz.
    (La base de datos y la caché usan nombres internos que no cambian.)
    ===================================================================== */
-const APP = { nombre: 'Mentor', version: '3.52 · fase 3' };
+const APP = { nombre: 'Mentor', version: '3.53 · fase 3' };
 
 /* Internos: NO cambiar, los datos del celular dependen de ellos */
 const DB_NOMBRE = 'junta-app';
@@ -2116,12 +2116,15 @@ function vistaEmpresa(id){
     ${(() => {
       const pasadas = juntasEntidad(id).filter(r => r.fecha < hoyISO());
       const juntasP = pasadas.filter(r => !r.comiteId && !esSuelta(r) && !esAsamblea(r)), grupos = comitesEntidad(id), otras = pasadas.filter(esSuelta), asambleas = pasadas.filter(esAsamblea);
-      const pills = [['juntas', 'Juntas', juntasP.length], ['grupos', 'Comités y reuniones', grupos.length], ['otras', 'Otras reuniones', otras.length], ['asambleas', 'Asambleas', asambleas.length]].filter(x => x[2]);
+      /* 3.53 · "Todas": todas las reuniones pasadas de la entidad, la más reciente arriba; solo si hay más de un tipo */
+      const tipos = [juntasP, otras, asambleas, pasadas.filter(r => r.comiteId)].filter(x => x.length).length;
+      const pills = [['todas', 'Todas', tipos > 1 ? pasadas.length : 0], ['juntas', 'Juntas', juntasP.length], ['grupos', 'Comités y reuniones', grupos.length], ['otras', 'Otras reuniones', otras.length], ['asambleas', 'Asambleas', asambleas.length]].filter(x => x[2]);
       if (e.archivada && !pills.length) return '';
       if (!pills.some(x => x[0] === PLEG.tab)) PLEG.tab = pills[0]?.[0] || '';
       const claseAg = PLEG.tab === 'grupos' ? 'comite' : PLEG.tab === 'otras' ? 'reunion' : PLEG.tab === 'asambleas' ? 'asamblea' : PLEG.tab === 'juntas' ? 'junta' : (junta ? 'junta' : 'reunion');
       const tab = ([k, txt, n]) => `<button type="button" class="filtro${PLEG.tab === k ? ' act' : ''}" role="tab" aria-selected="${PLEG.tab === k}" data-action="cm-tab" data-k="${k}">${txt} · ${n}</button>`;
-      const cuerpo = PLEG.tab === 'juntas' ? `<div class="tarjeta col" style="gap:0">${juntasP.map(filaJuntaHist).join('')}</div>`
+      const cuerpo = PLEG.tab === 'todas' ? `<div class="tarjeta col" style="gap:0">${[...pasadas].sort((a, b) => b.fecha.localeCompare(a.fecha) || (b.hora || '').localeCompare(a.hora || '')).map(r => esSuelta(r) ? filaOtraReunion(r) : filaJuntaHist(r, true)).join('')}</div>`
+        : PLEG.tab === 'juntas' ? `<div class="tarjeta col" style="gap:0">${juntasP.map(filaJuntaHist).join('')}</div>`
         : PLEG.tab === 'grupos' ? `<div class="tarjeta col" style="gap:0">${grupos.map(filaComite).join('')}</div>`
         : PLEG.tab === 'otras' ? `<div class="tarjeta col" style="gap:0">${otras.map(filaOtraReunion).join('')}</div>`
         : PLEG.tab === 'asambleas' ? `<div class="tarjeta col" style="gap:0">${asambleas.map(filaJuntaHist).join('')}</div>`
@@ -3706,9 +3709,11 @@ function estadoJunta(r){
   const partes = [r.asisti === false ? 'No asistí' + (motivoAusencia(r) ? ' · ' + motivoAusencia(r) : '') : '', ab ? plural(ab, 'compromiso abierto', 'compromisos abiertos') : '', r.acta === 'pendiente' ? 'Acta pendiente' : ''].filter(Boolean);
   return {txt: partes.join(' · ') || 'Todo cerrado', clase: ab ? 'pend' : ''};
 }
-function filaJuntaHist(r){
-  const est = estadoJunta(r);
-  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${esc(fechaMedia(r.fecha))} · ${esc(nombreTipoJunta(r))}</span><span class="sub${est.clase ? ' ' + est.clase : ''}">${esc(est.txt)}</span></span>${I.chev}</a>`;
+function filaJuntaHist(r, mezclada = false){
+  const est = estadoJunta(r), nom = nombreTipoJunta(r);
+  /* En "Todas", la junta dice "Junta ordinaria" para no confundirse con los comités y las asambleas */
+  const txt = mezclada && !r.comiteId && !esAsamblea(r) && !/^junta/i.test(nom) ? 'Junta ' + nom.toLowerCase() : nom;
+  return `<a class="fila" href="#/junta/${r.id}"><span class="col"><span class="nom">${esc(fechaMedia(r.fecha))} · ${esc(txt)}</span><span class="sub${est.clase ? ' ' + est.clase : ''}">${esc(est.txt)}</span></span>${I.chev}</a>`;
 }
 /* Botón "Preparar próxima junta" de la pantalla de la entidad */
 function botonPreparar(e){
